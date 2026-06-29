@@ -6,8 +6,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class NegotiatorLinkApplication {
 
-    public static void main(String[] args) {
-        SpringApplication.run(NegotiatorLinkApplication.class, args);
-    }
-
+  public static void main(String[] args) {
+    SpringApplication.run(NegotiatorLinkApplication.class, args);
+  }
 }
