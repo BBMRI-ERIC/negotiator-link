@@ -97,7 +97,7 @@ jobs:
         with:
           context: .
           push: false
-          tags: ghcr.io/${{ github.repository_owner }}/negotiator-link:latest
+          tags: ghcr.io/${{ github.repository_owner | lower }}/negotiator-link:latest
 
 # TODO: unctomment the image publishing section when the Workflow permissions are set to "Read and write permissions"
 #  build-push-image:
