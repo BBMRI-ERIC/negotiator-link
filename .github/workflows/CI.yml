@@ -23,10 +23,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout codebase
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v4
 
       - name: Set up JDK
-        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v4
+        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v4
         with:
           java-version: '${{ env.JAVA_VERSION }}'
           distribution: 'temurin'
@@ -40,10 +40,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout codebase
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v4
 
       - name: Set up JDK
-        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v4
+        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v4
         with:
           java-version: '${{ env.JAVA_VERSION }}'
           distribution: 'temurin'
@@ -58,10 +58,10 @@ jobs:
     needs: compile
     steps:
       - name: Checkout codebase
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v4
 
       - name: Set up JDK
-        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v4
+        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v4
         with:
           java-version: '${{ env.JAVA_VERSION }}'
           distribution: 'temurin'
@@ -88,10 +88,10 @@ jobs:
 #      security-events: write
 #    steps:
 #      - name: Checkout repository
-#        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
+#        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v4
 #
 #      - name: Set up JDK
-#        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v4
+#        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v4
 #        with:
 #          java-version: '${{ env.JAVA_VERSION }}'
 #          distribution: 'temurin'
@@ -119,7 +119,7 @@ jobs:
 #    needs: compile
 #    steps:
 #      - name: Checkout codebase
-#        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
+#        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v4
 #
 #      - name: Set up QEMU
 #        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4
@@ -183,7 +183,7 @@ jobs:
 #      contents: read
 #    steps:
 #      - name: Checkout codebase
-#        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
+#        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v4
 #
 #      - name: Set up QEMU
 #        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4
