@@ -97,7 +97,7 @@ jobs:
         with:
           context: .
           push: false
-          tags: ghcr.io/${{ github.repository_owner | lower }}/negotiator-link:latest
+          tags: bbmrieric/negotiator-link:latest
 
 # TODO: unctomment the image publishing section when the Workflow permissions are set to "Read and write permissions"
 #  build-push-image:
@@ -132,7 +132,7 @@ jobs:
 #        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
 #        with:
 #          images: |
-#            ghcr.io/${{ github.repository_owner }}/negotiator-link
+#            bbmrieric/negotiator-link
 #          tags: |
 #            type=ref,event=branch
 #            type=raw,value=${{ github.head_ref }},event=pr
