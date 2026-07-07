@@ -99,7 +99,7 @@ jobs:
           push: false
           tags: bbmrieric/negotiator-link:latest
 
-# TODO: unctomment the image publishing section when the Workflow permissions are set to "Read and write permissions"
+# TODO: uncomment the image publishing section when the Workflow permissions are set to "Read and write permissions"
 #  build-push-image:
 #    name: Publish Docker image
 #    runs-on: ubuntu-latest
