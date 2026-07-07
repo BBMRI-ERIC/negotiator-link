@@ -1,0 +1,12 @@
+# Example organization config for local development.
+# Credentials are injected from environment variables — never hardcode real secrets.
+# Copy this file to docker/organizations.yml and adjust as needed.
+
+organizations:
+  - organizationExternalId: "bbmri:DE:MHH"
+    type: zammad
+    baseUrl: http://zammad-nginx:8080
+    credentials:
+      apiToken: "${ZAMMAD_MHH_API_TOKEN}"
+    callbackSecret: "${ZAMMAD_MHH_CALLBACK_SECRET}"
+    groupId: 1

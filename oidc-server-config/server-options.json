@@ -1,0 +1,11 @@
+{
+  "AccessTokenJwtType": "JWT",
+  "IssuerUri": "http://oidc-server-mock:8080",
+  "Discovery": {
+    "ShowKeySet": true
+  },
+  "Authentication": {
+    "CookieSameSiteMode": "Lax",
+    "CheckSessionCookieSameSiteMode": "Lax"
+  }
+}

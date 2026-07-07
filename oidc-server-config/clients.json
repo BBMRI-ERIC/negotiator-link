@@ -1,0 +1,65 @@
+[
+  {
+    "ClientId": "auth-code-client",
+    "Description": "Client for authorization code flow (Negotiator frontend)",
+    "AllowedGrantTypes": [
+      "authorization_code"
+    ],
+    "AllowAccessTokensViaBrowser": true,
+    "RedirectUris": [
+      "http://localhost:8080/logged-in",
+      "http://localhost:8081/api/swagger-ui/oauth2-redirect.html",
+      "http://localhost:8080"
+    ],
+    "AllowedScopes": [
+      "openid",
+      "profile",
+      "email",
+      "permissions",
+      "some-app-scope-1"
+    ],
+    "PostLogoutRedirectUris": [
+      "http://localhost:8080"
+    ],
+    "IdentityTokenLifetime": 36000,
+    "AccessTokenLifetime": 3600,
+    "ClientClaimsPrefix": "",
+    "RequireClientSecret": false
+  },
+  {
+    "ClientId": "123",
+    "ClientSecrets": [
+      "123"
+    ],
+    "Description": "Client for client credentials flow (generic)",
+    "AllowedGrantTypes": [
+      "client_credentials"
+    ],
+    "AllowedScopes": [
+      "negotiator_api",
+      "negotiator_authz_management",
+      "negotiator_resource_management",
+      "negotiator_monitoring"
+    ],
+    "ClientClaimsPrefix": "",
+    "Claims": [],
+    "IdentityTokenLifetime": 1,
+    "AccessTokenLifetime": 1
+  },
+  {
+    "ClientId": "negotiator-link",
+    "ClientSecrets": [
+      "negotiator-link-secret"
+    ],
+    "Description": "Client for negotiator-link middleware (client credentials flow)",
+    "AllowedGrantTypes": [
+      "client_credentials"
+    ],
+    "AllowedScopes": [
+      "negotiator_helpdesk"
+    ],
+    "ClientClaimsPrefix": "",
+    "Claims": [],
+    "AccessTokenLifetime": 3600
+  }
+]
