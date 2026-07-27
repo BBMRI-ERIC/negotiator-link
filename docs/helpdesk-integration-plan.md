@@ -18,7 +18,9 @@ Within a negotiation, a user with the **Representative** role can:
 - Add **public** comments (visible to all parties in the negotiation).
 - Add **private** comments (visible only to their organization and the requester/admin).
 
-The integration enables representatives to perform exactly these three actions within their help desk system.
+The integration enables representatives to perform the first and third of these actions within their help desk system.
+Messages sent from the help desk are always forwarded to Negotiator as **private** posts (see Decision 5).
+Representatives who need to send a public message must do so from the Negotiator UI directly.
 
 ## 2. Integration Decisions
 
@@ -74,9 +76,9 @@ internally.
 
 ### Solution Decisions
 
-#### Decision 4: One Ticket per Organization vs. One Ticket per Resource
+#### Decision 4: Ticket Creation Strategy
 
-Two options were considered for how to map a Negotiator negotiation to help desk tickets when an organization owns
+Four options were considered for how to map a Negotiator negotiation to help desk tickets when an organization owns
 multiple resources in that negotiation.
 
 **Option A — One ticket per organization per negotiation**
@@ -101,12 +103,16 @@ Limitations:
 
 **Option B — One ticket per resource**
 
-A separate ticket is created for each resource, even when multiple resources belong to the same organization.
+A separate ticket is created for each resource, even when multiple resources belong to the same organization. All
+tickets created for the same negotiation and organization are linked together as related tickets in the help desk, so
+representatives can easily navigate between them.
 
 Advantages:
 
 - A representative can independently accept or refuse individual resources from the help desk. Each ticket maps to a
   single resource state machine.
+- Related ticket linking groups all of an organization's resource tickets visually within the help desk without
+  requiring any content to be split or duplicated.
 
 Limitations:
 
@@ -116,41 +122,115 @@ Limitations:
   tickets belonging to that negotiation. This is a straightforward fan-out in the middleware, but it means more ticket
   update calls per negotiation-level event.
 
-**Decision:** One ticket per resource (Option B).
+**Option C — Parent-child ticket structure**
+
+One parent ticket is created per organization per negotiation, holding general negotiation information. One child ticket
+is created per resource, handling the individual resource state machine. Child tickets are linked to the parent.
+
+Advantages:
+
+- General negotiation information is written once in the parent ticket rather than duplicated across every resource
+  ticket.
+- The parent-child hierarchy visually groups all resource tickets under a single parent within the help desk.
+
+Limitations:
+
+- The Negotiator data model does not support a reliable content split between "general" and "resource-specific"
+  information. The `payload` column on the `negotiation` table stores a flat JSON object whose sections are determined
+  entirely by configurable access forms. There is no deployment-independent rule for deciding what belongs in the parent
+  ticket vs. the child tickets — any heuristic produces incorrect results in at least some deployments. See
+  `parent-child-tickets-vs-related-tickets.md` for the full analysis.
+- Even if a section is common to all resources and placed in the parent ticket, it cannot safely be removed from the
+  child tickets, as it may carry resource-specific answers. This leads to either unavoidable duplication or omission of
+  relevant context.
+
+**Option D — Configurable per organization (Option A or Option B)**
+
+The ticket creation strategy is configurable per organization. Each organization can independently choose whether it
+receives a single ticket per negotiation covering all of its resources (Option A) or a separate ticket per resource with
+related ticket linking (Option B). The configuration is expressed as a field in the YAML organization config entry (e.g.
+`ticketStrategy: PER_NEGOTIATION` or `ticketStrategy: PER_RESOURCE`).
+
+Advantages:
+
+- Organizations with a simple workflow or few resources per negotiation can opt for a single consolidated ticket,
+  reducing noise in their help desk queue.
+- Organizations that need to act on resources independently can opt for per-resource tickets.
+
+Limitations:
+
+- It increase in middleware complexity.
+- Representatives at `PER_NEGOTIATION` organizations cannot independently accept or refuse individual resources from the
+  help desk (same limitation as Option A).
+
+**Decision:** Configurable per organization (Option D).
 
 **Justification:**
 
-- The core value of the integration is allowing representatives to independently manage access decisions for individual
-  resources from within their existing help desk workflow. Forcing representatives into bulk accept-or-refuse decisions
-  across all resources in a negotiation (Option A) would significantly limit this value since an organization may own
-  resources from different collections with different availability, and representatives need to act on them
-  independently.
-- It is more reasonable to accept the limitation that bulk state changes from the help desk are not supported than to
-  impose a model that prevents granular decisions entirely. Representatives who need to update multiple resources at
-  once can still use the Negotiator UI's org-level bulk dropdown.
-- Applying negotiation-level changes to all related tickets is not a significant burden for the middleware. It is a
-  straightforward fan-out over a known set of ticket IDs stored at creation time.
+- Different organizations have different workflows. Some organizations may have only one or two resources per
+  negotiation and prefer a single consolidated ticket; others may have many resources that must be acted on
+  independently. A single fixed strategy cannot serve all cases optimally.
+- Option D subsumes Options A and B: it delivers the full granularity of Option B for organizations that need it and the
+  simplicity of Option A for those that do not.
+- Option C (parent-child) was rejected because the Negotiator data model provides no reliable basis for splitting
+  content between a parent and child ticket. Related ticket linking (used in the `PER_RESOURCE` strategy of Option D)
+  achieves the same grouping benefit without requiring any content split. See
+  `parent-child-tickets-vs-related-tickets.md` for the detailed analysis.
 
-#### Decision 5: Distinguishing Private vs. Public Posts from the Help Desk
+#### Decision 5: Private-Only vs. Both Private and Public Posts from the Help Desk
 
-**Decision:** Add a custom field to the help desk ticket (
-e.g. [Zammad Objects](https://admin-docs.zammad.org/en/latest/system/objects.html), [ServiceNow Custom Fields doc](https://docs.getint.io/guides/integration-synchronization/jira-servicenow-integration/creating-a-custom-field-in-servicenow))
-with a default value of `PRIVATE` (visible only to the sending organization and the requester and admin) and an
-alternative value of `PUBLIC` (visible to all parties). The type of the post forwarded to Negotiator will be determined
-by the selected value.
+Two options were considered for which post visibility types the middleware should support when forwarding messages from
+the help desk to Negotiator.
+
+**Option A — Support both PRIVATE and PUBLIC posts**
+
+The middleware exposes a custom field `negotiator_post_type` on each ticket that the representative can set to either
+`PRIVATE` or `PUBLIC` before sending a message. The middleware reads this field and forwards the message to Negotiator
+with the corresponding visibility type.
+
+Advantages:
+
+- Representatives can send public messages visible to all negotiation participants directly from the help desk.
+
+Limitations:
+
+- Public messages from the help desk are visible to all organizations participating in the negotiation. A representative
+  could inadvertently leak internal deliberation or organization-specific context to other participants by using the
+  wrong visibility setting.
+- The `negotiator_post_type` custom field adds configuration overhead for the help desk administrator and a cognitive
+  burden for the representative on every message.
+
+**Option B — Support only PRIVATE posts**
+
+All messages sent from the help desk are forwarded to Negotiator as `PRIVATE` posts, visible only to the sending
+organization, the researcher, and the administrator. No `negotiator_post_type` field is needed. If a help desk platform
+distinguishes between internal and external articles, the middleware processes only external articles; internal articles
+are ignored since they are used for internal communication within company.
+
+Advantages:
+
+- Eliminates the risk of accidental public disclosure. A representative communicating from the help desk is working
+  within their organization's internal tooling, making private visibility the correct default.
+- Simplifies the help desk configuration — one fewer custom field to create and maintain. More user-friendly for
+  representatives — no need to remember to set the visibility field correctly on every message.
+- Simplifies the middleware logic — no visibility field to read or validate.
+
+Limitations:
+
+- Representatives cannot send public messages from the help desk. If they need to communicate publicly with all
+  participants, they must use the Negotiator UI directly.
+
+**Decision:** Support only PRIVATE posts from the help desk (Option B).
 
 **Justification:**
 
-- One alternative would be to use the help desk's native internal/external article distinction (supported by platforms
-  such as [Zammad](https://docs.zammad.org/en/latest/api/ticket/articles.html) and ServiceNow). However, this is
-  potentially confusing because internal messages in tickets are conventionally used only for intra-organization
-  communication, which could lead to unintentional information leakage.
-- Another alternative would be to support only public posts from the help desk. This would eliminate the ability for a
-  representative to communicate with the researcher about matters that should not be visible to other participating
-  organizations.
-- A custom dropdown field with values `PRIVATE` and `PUBLIC` is therefore the most explicit and least ambiguous
-  approach. When the representative sends a message from the help desk, the middleware reads this field and posts to
-  Negotiator with the corresponding visibility type.
+- The help desk is an internal organizational tool. Messages originating there are private in nature — representatives
+  discussing a request internally or communicating directly with the researcher and admin. Allowing public messages from
+  the help desk introduces a disclosure risk that is not justified by the use case.
+- Supporting only private posts removes the `negotiator_post_type` custom field entirely, simplifying both the help desk
+  setup and the middleware implementation.
+- Representatives who need to post a public message can do so from the Negotiator UI, where the visibility of the
+  message relative to all participants is explicit and visible in context.
 
 #### Decision 6: Actor Identity for Posts Created via the Help Desk
 
@@ -248,8 +328,8 @@ absence of webhook events for attachment uploads and for transferring a negotiat
 
 ### 3.3 Help Desk → Middleware → Negotiator
 
-The reverse direction allows representatives to change a resource's state and post public or private messages directly
-from within the help desk.
+The reverse direction allows representatives to change a resource's state and post private messages directly from within
+the help desk.
 
 #### 3.3.1 Help Desk Configuration
 
@@ -261,12 +341,23 @@ see [Zammad Core Workflows](https://admin-docs.zammad.org/en/6.4/system/core-wor
 
 The following custom fields must be created in the help desk:
 
-| Field                                  | Type                      | Editable by user | Purpose                                                  |
-|----------------------------------------|---------------------------|------------------|----------------------------------------------------------|
-| `negotiation_state`                    | select                    | No               | Displays the current negotiation state                   |
-| `negotiator_resource_state`            | select                    | No               | Displays the current resource state                      |
-| `negotiator_resource_transition_event` | select, nullable          | Yes              | Representative requests a resource state transition      |
-| `negotiator_post_type`                 | select, default `PRIVATE` | Yes              | Representative sets the visibility of their next comment |
+| Field                                  | Type             | Editable by user | Purpose                                                |
+|----------------------------------------|------------------|------------------|--------------------------------------------------------|
+| `negotiation_state`                    | select           | No               | Displays the current negotiation state                 |
+| `negotiator_resource_state`            | select           | No               | Displays the current resource state(s) for this ticket |
+| `negotiator_resource_transition_event` | select, nullable | Yes              | Representative requests a resource(s) state transition |
+
+The field names are fixed and must match exactly what the middleware reads and writes. The **label** shown to
+representatives in the help desk UI is set by the help desk administrator and should reflect the organization's
+`ticketStrategy`:
+
+- `negotiator_resource_state` label:
+  - `PER_RESOURCE` — e.g. **"Resource State"**
+  - `PER_NEGOTIATION` — e.g. **"Resource States"**
+
+- `negotiator_resource_transition_event` label:
+  - `PER_RESOURCE` — e.g. **"Request State Transition"**
+  - `PER_NEGOTIATION` — e.g. **"Request State Transition (all resources)"**
 
 In addition, the administrator must configure two webhook triggers in the help desk that call the middleware's inbound
 endpoint:
@@ -286,44 +377,114 @@ When a representative wants to advance a resource's state, they select the desir
 `negotiator_resource_transition_event` dropdown and save the ticket. This causes the help desk to send a webhook
 callback to the middleware.
 
-The middleware first validates the requested transition by calling
-`GET /v3/negotiations/{negotiationId}/resources/{resourceId}/lifecycle` on Negotiator to retrieve the set of currently
-allowed events.
+The middleware looks up all `ticket_mapping` rows for the callback's `ticketId` and `organizationExternalId` to
+determine the `negotiationId` and the list of `resourceId` values covered by the ticket. The subsequent validation and
+transition logic differs by `ticketStrategy`:
 
-**If the transition is valid:**
+**PER_RESOURCE** (single resource per ticket)
 
-- The middleware calls Negotiator to apply the transition.
-- Negotiator persists the change and asynchronously dispatches a `negotiation.resource.state.updated` webhook back to
-  the middleware.
-- The middleware processes this webhook normally: it updates the `negotiator_resource_state` field on the ticket and
-  clears `negotiator_resource_transition_event` back to `null`.
+The middleware validates the requested transition by calling
+`GET /v3/negotiations/{negotiationId}/resources/{resourceId}/lifecycle` to retrieve the set of currently allowed events.
 
-**If the transition is invalid:**
+- **If the transition is valid:** the middleware calls
+  `POST /v3/negotiations/{negotiationId}/resources/{resourceId}/lifecycle` to apply the transition. Negotiator persists
+  the change and asynchronously dispatches a `negotiation.resource.state.updated` webhook back to the middleware. The
+  middleware processes this webhook normally: it updates the `negotiator_resource_state` field on the ticket and clears
+  `negotiator_resource_transition_event` back to `null`.
+- **If the transition is invalid:** the middleware clears `negotiator_resource_transition_event` back to `null` on the
+  ticket and posts a system comment explaining why the transition was rejected and listing the currently allowed
+  transitions. A transition is invalid either because the negotiation is not in `IN_PROGRESS` state or because the
+  selected event is not permitted from the resource's current state.
 
-- The middleware clears `negotiator_resource_transition_event` back to `null` on the ticket.
-- The middleware posts a system comment to the ticket explaining why the transition was rejected and listing the
-  transitions that are currently allowed. A transition is invalid either because the negotiation is not in `IN_PROGRESS`
-  state or because the selected event is not permitted from the resource's current state.
+**PER_NEGOTIATION** (all resources in the negotiation share one ticket)
 
-The middleware includes the representative's identity from the help desk as the `X-Helpdesk-Actor` request header on the
-Negotiator call, so the transition is recorded in the negotiation timeline under the representative's name rather than
+The middleware validates the requested transition against every resource covered by the ticket by calling
+`GET /v3/negotiations/{negotiationId}/resources/{resourceId}/lifecycle` for each. A transition is considered valid only
+if it is permitted for **all** resources.
+
+- **If the transition is valid for all resources:** the middleware records the `(negotiationId, ticketId)` combination
+  in the `originated_transitions` table (see Section 3.4.1) before calling the `PATCH /v3/negotiations/{id}/resources`
+  bulk endpoint. Negotiator dispatches a `negotiation.resource.state.updated` webhook for each affected resource. The
+  middleware uses the `originated_transitions` record to update `negotiator_resource_state` on the ticket exactly once
+  and clear `negotiator_resource_transition_event` back to `null`, discarding the remaining redundant webhooks for the
+  same ticket (see Section 3.4.1).
+- **If the transition is invalid for one or more resources:** the middleware clears
+  `negotiator_resource_transition_event` back to `null` on the ticket and posts a system comment listing which resources
+  cannot accept the transition and what transitions are currently allowed for each. The representative will be blocked
+  in the help desk from applying a resource state transition and will be informed in the system comment that they need
+  to continue in the negotiation in the Negotiator UI to resolve the discrepancy.
+
+The middleware includes the representative's identity from the help desk as the `X-Helpdesk-Actor` request header on all
+Negotiator calls, so transitions are recorded in the negotiation timeline under the representative's name rather than
 the middleware service account (see Decision 7).
+
+#### 3.4.1 Deduplication of Resource State Update Webhooks for PER_NEGOTIATION Tickets
+
+When the middleware applies a bulk transition for a `PER_NEGOTIATION` organization, Negotiator dispatches one
+`negotiation.resource.state.updated` webhook per affected resource. All of these webhooks would update the same help
+desk ticket to the same new state, producing N−1 redundant API calls. To handle this, the middleware maintains an
+`originated_transitions` table:
+
+| Column           | Type      | Constraints         |
+|------------------|-----------|---------------------|
+| `row_id`         | NUMBER    | PK, SEQUENCE        |
+| `negotiation_id` | VARCHAR   | NOT NULL            |
+| `ticket_id`      | VARCHAR   | NOT NULL            |
+| `expected_count` | INTEGER   | NOT NULL            |
+| `received_count` | INTEGER   | NOT NULL, DEFAULT 0 |
+| `new_state`      | VARCHAR   | NOT NULL            |
+| `created_at`     | TIMESTAMP | NOT NULL            |
+
+Before calling the bulk transition endpoint, the middleware inserts a row into `originated_transitions` with the
+`negotiationId`, `ticketId`, the number of resources being transitioned as `expected_count`, and the target state as
+`new_state`.
+
+When a `negotiation.resource.state.updated` webhook arrives, `ResourceStateUpdatedHandler` checks whether the
+`(negotiationId, ticketId)` combination has an entry in `originated_transitions`. If a matching row is found:
+
+- The handler increments `received_count` atomically.
+- If this is the **first** webhook for this record (`received_count` becomes 1 after increment): the handler updates
+  `negotiator_resource_state` on the ticket and clears `negotiator_resource_transition_event` to `null`.
+- If `received_count` equals `expected_count`: the row is deleted from `originated_transitions`.
+- All subsequent webhooks for the same record (where `received_count` > 1) are acknowledged and discarded without
+  calling the help desk.
+
+If no matching row is found, the webhook is for a state change triggered outside the help desk (e.g. directly from
+Negotiator UI) and is processed normally.
+
+Rows in `originated_transitions` are removed either when fully consumed or by a scheduled cleanup job that deletes rows
+older than 24 hours.
 
 ### 3.5 Post Message Flow
 
-When a representative sends an external message from the help desk, the middleware receives it via webhook callback.
-Before forwarding the message to Negotiator, the middleware checks whether the negotiation is in a state that allows
-posts (IN_PROGRESS, PAUSED). If the negotiation state does not permit posting, the middleware does not forward the
-message and instead adds a system comment to the ticket explaining the reason.
+When a representative sends an external message from the help desk, the middleware receives it via webhook callback. If
+the help desk platform distinguishes between internal and external articles (e.g. Zammad), only external articles are
+processed; internal articles are silently ignored as they are intended for intra-organization communication only.
 
-If the state permits posting, the middleware reads the `negotiator_post_type` field from the callback payload and calls
-`POST /v3/negotiations/{negotiationId}/posts` on Negotiator with the appropriate visibility type (`PUBLIC` or
-`PRIVATE`). The representative's identity from the help desk is passed as the `X-Helpdesk-Actor` request header so the
-post is attributed to the representative rather than the middleware service account (see Decision 6).
+Before forwarding the message to Negotiator, the middleware checks whether the negotiation is in a state that allows
+posts (IN_PROGRESS, PAUSED, CONCLUDED). If the negotiation state does not permit posting, the middleware does not
+forward the message and instead adds a system comment to the ticket explaining the reason.
+
+If the state permits posting, the middleware calls `POST /v3/negotiations/{negotiationId}/posts` on Negotiator with
+visibility type `PRIVATE`. The representative's identity from the help desk is passed as the `X-Helpdesk-Actor` request
+header so the post is attributed to the representative rather than the middleware service account (see Decision 6).
 
 **OPEN QUESTION:** Does we want to allow post messages also for CONCLUDED negotiation state? Currently negotiator
 disable posts when state changed IN_PROGRESS → ABANDONED, however not for PAUSED → ABANDONED which is probably the
 implementation bug
+
+Overview of allowed post visibility types by negotiation state:
+
+| Negotiation state            | Public posts | Private posts |
+|------------------------------|:------------:|:-------------:|
+| DRAFT                        |      No      |      No       |
+| SUBMITTED                    |     Yes      |      No       |
+| IN_PROGRESS                  |     Yes      |      Yes      |
+| PAUSED                       |     Yes      |      Yes      |
+| CONCLUDED                    |     Yes      |      Yes      |
+| DECLINED                     |      No      |      No       |
+| ABANDONED (from IN_PROGRESS) |      No      |      No       |
+| ABANDONED (from PAUSED)      |     Yes      |      Yes      |
 
 #### 3.5.1 Deduplication of Outbound Posts
 
@@ -375,10 +536,14 @@ The middleware persists a `ticket_mapping` table that is the single source of tr
 | Column                | Type    | Constraints  |
 |-----------------------|---------|--------------|
 | `negotiation_id`      | VARCHAR | composite PK |
+| `helpdesk_ticket_id`  | VARCHAR | composite PK |
 | `resource_id`         | VARCHAR | composite PK |
 | `organization_id`     | VARCHAR | NOT NULL     |
 | `organization_ext_id` | VARCHAR | NOT NULL     |
-| `helpdesk_ticket_id`  | VARCHAR | NOT NULL     |
+
+For `PER_RESOURCE` organizations each resource has its own row with a distinct `helpdesk_ticket_id`. For
+`PER_NEGOTIATION` organizations all resources in the negotiation share the same `helpdesk_ticket_id`, resulting in
+multiple rows with the same ticket ID but different `resource_id` values.
 
 #### Organization Configuration
 
@@ -391,6 +556,7 @@ implementation, when some of the requeired fields will be identified):
 organizations:
   - organizationExternalId: "bbmri:DE:MHH"
     type: "zammad"
+    ticketStrategy: "PER_RESOURCE"
     baseUrl: "https://zammad.mhh.de"
     credentials:
       apiToken: "${ZAMMAD_MHH_API_TOKEN}"
@@ -399,6 +565,7 @@ organizations:
 
   - organizationExternalId: "bbmri:NL:AMC"
     type: "zammad"
+    ticketStrategy: "PER_NEGOTIATION"
     baseUrl: "https://zammad.amc.nl"
     credentials:
       apiToken: "${ZAMMAD_AMC_API_TOKEN}"
@@ -407,6 +574,7 @@ organizations:
 
   - organizationExternalId: "bbmri:UK:OXFORD"
     type: "serviceNow"
+    ticketStrategy: "PER_RESOURCE"
     baseUrl: "https://oxford.service-now.com"
     credentials:
       username: "${SERVICENOW_USERNAME}"
@@ -421,26 +589,48 @@ Representatives can only act on resources once the negotiation has been approved
 state. Ticket creation is therefore triggered by a `negotiation.state.updated` webhook event where `event` is `APPROVE`.
 
 When the middleware receives this event, it fetches the full negotiation details from Negotiator including all resources
-and their associated `organizationExternalId`. For each resource the following routing logic is applied:
+and their associated `organizationExternalId`. The resources are first grouped by `organizationExternalId`. For each
+organization group the following routing logic is applied:
 
 ```
-for each resource in resources:
+for each (organizationExternalId, resources[]) group:
     look up organizations[] config by organizationExternalId
          │
          ├── not found → org not opted in → log and skip silently
          │
-         └── found → use help desk type, baseUrl, credentials, etc.
+         └── found → use help desk type, baseUrl, credentials, ticketStrategy, etc.
                   │
-                  ▼
-             create ticket in that org's help desk
+                  ├── ticketStrategy = PER_NEGOTIATION
+                  │        │
+                  │        ▼
+                  │    create one ticket covering all resources of this org
+                  │        │
+                  │        ▼
+                  │    for each resource in resources[]:
+                  │        INSERT INTO ticket_mapping:
+                  │            negotiation_id      = negotiation.negotiationId
+                  │            helpdesk_ticket_id  = ticketId returned by help desk
+                  │            resource_id         = resource.resourceId
+                  │            organization_id     = resource.organizationId
+                  │            organization_ext_id = organizationExternalId
                   │
-                  ▼
-             INSERT INTO ticket_mapping:
-                 negotiation_id      = negotiation.negotiationId
-                 organization_id     = resource.organizationId
-                 organization_ext_id = organizationExternalId
-                 helpdesk_ticket_id  = ticketId returned by help desk
-                 resource_id         = resource.resourceId
+                  └── ticketStrategy = PER_RESOURCE
+                           │
+                           ▼
+                       for each resource in resources[]:
+                           create one ticket for this resource
+                               │
+                               ▼
+                           INSERT INTO ticket_mapping:
+                               negotiation_id      = negotiation.negotiationId
+                               helpdesk_ticket_id  = ticketId returned by help desk
+                               resource_id         = resource.resourceId
+                               organization_id     = resource.organizationId
+                               organization_ext_id = organizationExternalId
+                           │
+                           ▼
+                       link all created tickets as related
+                       (call adapter.linkRelatedTickets() for each pair)
 ```
 
 For all subsequent events (e.g. negotiation state change, new post, resource state change), the middleware looks up all
@@ -452,15 +642,23 @@ desk.
 
 The middleware exposes an inbound endpoint `POST /webhooks/helpdesk/{organizationExternalId}` that receives all
 callbacks from help desks. The callback payload always contains the `ticketId` of the ticket that triggered the
-callback. The middleware looks up this `ticketId` in combination with `organizationExternalId` (the `ticketId` is not
-sufficient for that since it does not need to be unique across help desks) in `ticket_mapping` to resolve the
-`negotiationId` and `resourceId` it corresponds to. It then calls the appropriate Negotiator endpoint to apply the
-change.
+callback. The middleware looks up all rows in `ticket_mapping` by `ticketId` and `organizationExternalId` (the
+`ticketId` is not sufficient on its own since it does not need to be unique across help desks).
 
-This Negotiator call causes a new webhook event to be dispatched back to the middleware (e.g. a resource state change
-triggers a `negotiation.resource.state.updated` event). The middleware processes this webhook normally, updates the
-relevant fields in the help desk ticket following the same Negotiator → Middleware → Help Desk flow described in Section
-4.2.
+For a `PER_RESOURCE` organization this lookup returns a single row, and the middleware resolves a single `negotiationId`
+and `resourceId` to act on.
+
+For a `PER_NEGOTIATION` organization this lookup returns multiple rows — one per resource sharing that ticket. The
+middleware resolves the `negotiationId` from any row (it is the same across all rows for the same ticket) and passes the
+full list of `resourceId` values to the handler so it can apply the requested change. State transition to all resources
+it applies at once via the `PATCH /v3/negotiations/{id}/resources` bulk endpoint. For the post message it will do only
+one post to the negotiation in a same way as it is done in PER_RESOURCE ticket strategy.
+
+This Negotiator call causes new webhook events to be dispatched back to the middleware (e.g. a resource state change
+triggers `negotiation.resource.state.updated` for each affected resource). The middleware processes these webhooks
+normally, updating the relevant fields in the help desk ticket following the same Negotiator → Middleware → Help Desk
+flow described in Section 4.2. Middleware also needs to ensure deduplication as described in subsections 3.4.1 and
+3.5.1.
 
 ## 5. Security
 
@@ -524,8 +722,8 @@ never hardcoded in configuration files.
 
 A client holding this role may:
 
-- Post **PUBLIC** messages to any negotiation.
-- Post **PRIVATE** messages to negotiations in the `IN_PROGRESS` state.
+- Post **PUBLIC** messages if the negotiation state enables it.
+- Post **PRIVATE** messages to negotiations if the negotiation state enables it.
 
 ##### Resource Lifecycle Transitions
 
@@ -658,9 +856,9 @@ Loads the YAML configuration at startup and exposes two lookups:
 - `findByExternalId(String organizationExternalId) → OrganizationConfig`
 - `findAll() → List<OrganizationConfig>`
 
-`OrganizationConfig` is an immutable value object carrying: `organizationExternalId`, `type`, `baseUrl`, `credentials`,
-`callbackSecret`, and any platform-specific fields (e.g. `groupId`). Credentials are resolved from environment variables
-at load time and never written to logs.
+`OrganizationConfig` is an immutable value object carrying: `organizationExternalId`, `type`, `ticketStrategy` (
+`PER_RESOURCE` or `PER_NEGOTIATION`), `baseUrl`, `credentials`, `callbackSecret`, and any platform-specific fields (e.g.
+`groupId`). Credentials are resolved from environment variables at load time and never written to logs.
 
 #### NegotiatorClient
 
@@ -674,15 +872,16 @@ Exposes typed methods for example:
 
 ```java
 NegotiationDTO getNegotiation(String negotiationId)
-
 List<ResourceWithStatusDTO> getResources(String negotiationId)
-
 Set<String> getPossibleResourceEvents(String negotiationId, String resourceId)
-
 void sendResourceEvent(String negotiationId, String resourceId, String event)
 
+void sendBulkResourceEvent(String negotiationId, List<String> resourceIds, String event)
 void createPost(String negotiationId, PostCreateDTO post)
 ```
+
+`sendBulkResourceEvent` maps to the `PATCH /v3/negotiations/{id}/resources` bulk endpoint and is used exclusively by
+`HelpdeskResourceTransitionHandler` for `PER_NEGOTIATION` organizations.
 
 No caller outside `NegotiatorClient` constructs HTTP requests to Negotiator directly. During the implementation it will
 be considered if the Negotiator client will be generated from OpenAPI specification and the `NegotiatorClient` would be
@@ -694,11 +893,15 @@ Persists and queries the `ticket_mapping` table. Exposes for example:
 
 ```java
 void save(TicketMapping mapping)
-
 List<TicketMapping> findByNegotiationId(String negotiationId)
 
-Optional<TicketMapping> findByTicketIdAndOrganization(String ticketId, String organizationExternalId)
+List<TicketMapping> findByTicketIdAndOrganization(String ticketId, String organizationExternalId)
+
+Optional<TicketMapping> findByNegotiationIdAndResourceId(String negotiationId, String resourceId)
 ```
+
+Note that `findByTicketIdAndOrganization` returns a `List` rather than an `Optional` because a single
+`helpdesk_ticket_id` maps to multiple resources for `PER_NEGOTIATION` organizations.
 
 #### EventRouter
 
@@ -714,15 +917,34 @@ new event type means adding a new handler class - the router itself does not cha
 One class per event type. Each handler receives the parsed event, the resolved `OrganizationConfig`, and the
 `HelpDeskAdapter` instance and performs exactly the operations for that event:
 
-- `NegotiationApprovedHandler` — creates one ticket per resource in the negotiation
-- `NegotiationStateUpdatedHandler` — updates `negotiation_state` field on all mapped tickets
-- `NegotiationPostAddedHandler` — fetches post text from Negotiator, fans out comment to mapped tickets (all tickets for
-  PUBLIC, org-scoped tickets for PRIVATE). Potentially exclude some ticket from processing if the ticketId was returned
-  from table `originated_posts`
-- `ResourceStateUpdatedHandler` — updates `negotiator_resource_state` on the single matching ticket
-- `HelpdeskResourceTransitionHandler` — validates the event via `NegotiatorClient.getPossibleResourceEvents()`, fires
-  transition or posts rejection comment
-- `HelpdeskPostHandler` — reads `negotiator_post_type` from callback, posts to Negotiator with correct type
+- `NegotiationApprovedHandler` — triggered by `negotiation.state.updated` with `event: APPROVE`; fetches all resources
+  from Negotiator; groups resources by `organizationExternalId`; for each group whose `organizationExternalId` matches
+  an entry in the YAML config, branches on `ticketStrategy`: for `PER_NEGOTIATION` creates one ticket covering all
+  resources and inserts one `ticket_mapping` row per resource all pointing to the same `helpdesk_ticket_id`; for
+  `PER_RESOURCE` creates one ticket per resource, inserts one `ticket_mapping` row per resource, then calls
+  `adapter.linkRelatedTickets()` for all tickets created for that org in that negotiation
+- `NegotiationStateUpdatedHandler` — updates `negotiation_state` field on all mapped tickets; for `PER_NEGOTIATION` orgs
+  the distinct set of `helpdesk_ticket_id` values for the negotiation is used (multiple rows share the same ticket ID,
+  so deduplication is needed before calling the adapter)
+- `NegotiationPostAddedHandler` — fetches post text from Negotiator; for PUBLIC posts fans out to all distinct tickets
+  for the negotiation; for PRIVATE posts fans out only to distinct tickets matching the post's `organizationId` and
+  `negotiationId`; for both cases it excludes the originating ticket identified via `originated_posts` if present
+- `ResourceStateUpdatedHandler` — looks up the `ticket_mapping` row by `negotiationId` and `resourceId`; if the org uses
+  `PER_NEGOTIATION`, checks `originated_transitions` by `(negotiationId, ticketId)`: if a matching record is found,
+  updates `negotiator_resource_state` and clears `negotiator_resource_transition_event` only on the first webhook (
+  increments `received_count`; deletes the record when `received_count` reaches `expected_count`); subsequent webhooks
+  for the same record are discarded; if no `originated_transitions` record is found (state change was triggered from
+  Negotiator directly), calls `adapter.updateResourceState()` normally
+- `HelpdeskResourceTransitionHandler` — resolves `negotiationId` and `resourceId` list from `ticket_mapping` by
+  `ticketId`; for `PER_RESOURCE` (single resource): validates via `NegotiatorClient.getPossibleResourceEvents()`, on
+  legal transition calls `sendResourceEvent()`, on illegal transition calls `adapter.updateResourceState()` to clear the
+  field and `adapter.addSystemComment()` with explanation and allowed transitions; for `PER_NEGOTIATION` (multiple
+  resources): validates the event against all resources, on fully valid transition inserts an `originated_transitions`
+  record then calls the bulk `PATCH /v3/negotiations/{id}/resources` endpoint, on partial or full invalidity calls
+  `adapter.updateResourceState()` to clear the field and `adapter.addSystemComment()` listing which resources cannot
+  accept the transition
+- `HelpdeskPostHandler` — writes hash of post text and `ticketId` to `originated_posts` before calling Negotiator; calls
+  `NegotiatorClient.createPost()` with visibility type always set to `PRIVATE`
 
 Each handler has a single, testable responsibility. No handler contains routing logic. Routing is always resolved before
 the handler is called. Some other handlers like NegotiationInfoUpdatedHandler, etc. will added during phase 2 and 3 (see
@@ -780,6 +1002,12 @@ public interface HelpDeskAdapter {
      * internal HelpdeskCallbackEvent model.
      */
     HelpdeskCallbackEvent parseCallback(Map<String, Object> payload);
+
+  /**
+   * Link a set of tickets as related so representatives can navigate between them.
+   * Called once after all PER_RESOURCE tickets for a negotiation+org are created.
+   */
+  void linkRelatedTickets(List<String> ticketIds, OrganizationConfig config);
 }
 ```
 
@@ -798,8 +1026,10 @@ Zammad ([Ticket endpoints](https://docs.zammad.org/en/latest/api/ticket/index.ht
 - `addComment()` — calls `POST /api/v1/ticket_articles` with `internal: false`. Comments added by the middleware's bot
   account do not trigger callbacks because the Zammad trigger is configured to exclude the middleware's API user (see
   help desk setup in Section 3.3.1).
+- `linkRelatedTickets()` — calls `POST /api/v1/links` for each pair of ticket IDs, using link type `normal` to mark them
+  as related in Zammad.
 - `parseCallback()` — deserializes the Zammad webhook payload into `HelpdeskCallbackEvent`, extracting `ticket.id`,
-  `ticket.negotiator_resource_transition_event`, `ticket.negotiator_post_type`, and `article.body`
+  `ticket.negotiator_resource_transition_event`, and `article.body`
 
 ---
 
@@ -812,7 +1042,8 @@ depends on them, not the other way around.
 record CreateTicketRequest(
         String negotiationId,        // internal UUID
         String negotiationDisplayId, // used in ticket title and potentially as a subject in first comment
-        String resourceName,         // human-readable resource name — used in ticket title
+        String resourceName,
+        // human-readable resource name — used in ticket title in ticket strategy PER_RESOURCE
         String negotiationState,     // "IN_PROGRESS" — initial value for negotiation_state field
         String resourceState,        // "SUBMITTED" — initial value for negotiator_resource_state field
         String humanReadable         // ticket body
@@ -823,8 +1054,7 @@ record HelpdeskCallbackEvent(
         String ticketId,
         HelpdeskCallbackType type,  // RESOURCE_TRANSITION or POST_MESSAGE
         String resourceTransitionEvent,   // null if type = POST_MESSAGE
-        String postText,
-        String postType             // PUBLIC or PRIVATE, null if type = RESOURCE_TRANSITION
+        String postText
 )
 
 enum HelpdeskCallbackType {
@@ -839,7 +1069,7 @@ enum HelpdeskCallbackType {
 ### Package Structure
 
 ```
-eu.bbmri_eric.negotiator.helpdesk.middleware
+eu.bbmri_eric.negotiator.negotiator-link
 ├── inbound
 │   ├── NegotiatorWebhookController
 │   └── HelpdeskCallbackController
@@ -903,8 +1133,8 @@ change Phase 1 is architecturally blocked. Four targeted changes are required:
 
 - `CustomJWTAuthConverter` — map the `negotiator_helpdesk` OAuth 2.0 scope to the Spring Security authority
   `ROLE_HELPDESK_INTEGRATION`
-- `PostServiceImpl.checkAuthorization()` — add a branch allowing `ROLE_HELPDESK_INTEGRATION` to post PUBLIC messages to
-  any negotiation and PRIVATE messages to negotiations in `IN_PROGRESS` state
+- `PostServiceImpl.checkAuthorization()` — add a branch allowing `ROLE_HELPDESK_INTEGRATION` to post messages to any
+  negotiation when the negotiation state allows it
 - `NegotiationController.sendEventForNegotiationResource()` — add `ROLE_HELPDESK_INTEGRATION` as an additional
   authorized caller alongside the existing `isCreator` check
 - `ResourceLifecycleServiceImpl.isSecurityRuleMet()` — add an `isHelpdeskIntegration` branch; update the relevant
@@ -968,57 +1198,76 @@ changes are required:
    Security's `OAuth2AuthorizedClientManager`. Methods required in Phase 1: `getNegotiation`, `getResources`,
    `getPossibleResourceEvents`, `sendResourceEvent`, `createPost`, `getPostText`.
 
-5. **Persistence** — `ticket_mapping` table (`negotiation_id`, `organization_id`, `organization_ext_id`,
-   `helpdesk_ticket_id`, `resource_id`) and `originated_posts` table (`row_id`, `text_hash`, `organization_id`,
-   `ticket_id`, `created_at`), both managed via Spring Data JPA. Scheduled cleanup job deleting `originated_posts` rows
-   older than 24 hours.
+5. **Persistence** — `ticket_mapping` table (`negotiation_id`, `helpdesk_ticket_id`, `resource_id`, `organization_id`,
+   `organization_ext_id`), `originated_posts` table (`row_id`, `text_hash`, `organization_id`, `ticket_id`,
+   `created_at`), and `originated_transitions` table (`row_id`, `negotiation_id`, `ticket_id`, `expected_count`,
+   `received_count`, `new_state`, `created_at`), all managed via Spring Data JPA. Scheduled cleanup job deleting rows
+   older than 24 hours from both `originated_posts` and `originated_transitions`.
 
 6. **Event routing and handlers** — `EventRouter` with Strategy pattern dispatch. Handlers implemented in Phase 1:
-    - `NegotiationApprovedHandler` — triggered by `negotiation.state.updated` with `event: APPROVE`; fetches all
-      resources from Negotiator; fetches `organizationExternalId` for resource; for each resource whose
-      `organizationExternalId` matches an entry in the YAML config, creates one help desk ticket and inserts a row into
-      `ticket_mapping`
-    - `NegotiationPostAddedHandler` — fetches post text from Negotiator; for PUBLIC posts fans out to all tickets for
-      the negotiation; for PRIVATE posts fans out only to tickets matching the post's `organizationId` and
-      `negotiationId`; for both cases it excludes the originating ticket identified via `originated_posts` if present
-    - `ResourceStateUpdatedHandler` — looks up the matching `ticket_mapping` row by `negotiationId` and `resourceId`;
-      calls `adapter.updateResourceState()` on the matching ticket
-    - `HelpdeskResourceTransitionHandler` — calls `NegotiatorClient.getPossibleResourceEvents()` to validate; on legal
-      transition calls `sendResourceEvent()`; on illegal transition calls `adapter.updateResourceState()` to clear the
-      field and `adapter.addSystemComment()` with explanation and allowed transitions
-    - `HelpdeskPostHandler` — writes hash of post text and `ticketId` to `originated_posts` before calling Negotiator;
-      calls `NegotiatorClient.createPost()` with type from `negotiator_post_type` field
+
+- `NegotiationApprovedHandler` — triggered by `negotiation.state.updated` with `event: APPROVE`; fetches all resources
+  from Negotiator; groups resources by `organizationExternalId`; for each group matching an entry in the YAML config,
+  branches on `ticketStrategy`: for `PER_NEGOTIATION` creates one ticket and inserts one `ticket_mapping` row per
+  resource all pointing to the same `helpdesk_ticket_id`; for `PER_RESOURCE` creates one ticket per resource, inserts
+  one `ticket_mapping` row per resource, then calls `adapter.linkRelatedTickets()` with all ticket IDs created for that
+  org in that negotiation
+- `NegotiationPostAddedHandler` — fetches post text from Negotiator; for PUBLIC posts fans out to all distinct
+  `helpdesk_ticket_id` values for the negotiation; for PRIVATE posts fans out only to distinct ticket IDs matching the
+  post's `organizationId` and `negotiationId`; for both cases it excludes the originating ticket identified via
+  `originated_posts` if present
+- `ResourceStateUpdatedHandler` — looks up the `ticket_mapping` row by `negotiationId` and `resourceId`; checks
+  `originated_transitions` by `(negotiationId, ticketId)`: if a matching record exists, processes the first webhook (
+  updates `negotiator_resource_state`, clears `negotiator_resource_transition_event`) and discards the rest; if no
+  record exists, calls `adapter.updateResourceState()` normally
+- `HelpdeskResourceTransitionHandler` — resolves `negotiationId` and `resourceId` list from `ticket_mapping` by
+  `ticketId`; for `PER_RESOURCE`: validates via `NegotiatorClient.getPossibleResourceEvents()`, on legal transition
+  calls `sendResourceEvent()`, on illegal transition clears the field and posts rejection comment; for
+  `PER_NEGOTIATION`: validates against all resources, on fully valid transition inserts an `originated_transitions`
+  record then calls bulk `PATCH /v3/negotiations/{id}/resources`, on partial or full invalidity clears the field and
+  posts a system comment listing which resources cannot accept the transition
+- `HelpdeskPostHandler` — writes hash of post text and `ticketId` to `originated_posts` before calling Negotiator; calls
+  `NegotiatorClient.createPost()` with visibility type always set to `PRIVATE`
 
 7. **Zammad adapter** — `ZammadAdapter` implementing the full `HelpDeskAdapter` interface: `verifyCallback` (checks
-   `X-Helpdesk-Secret` header), `createTicket` (title format: `[{negotiationDisplayId}] {resourceName}`),
-   `updateResourceState`, `addComment`, `addSystemComment`, `parseCallback`.
+   `X-Helpdesk-Secret` header), `createTicket` (title format: `[{negotiationDisplayId}] {resourceName} — Access Request`
+   for `PER_RESOURCE`; `[{negotiationDisplayId}] Resources Access Request` for `PER_NEGOTIATION`),
+   `updateResourceState`, `addComment`, `addSystemComment`, `linkRelatedTickets` (calls `POST /api/v1/links` for each
+   pair of ticket IDs with link type `normal`), `parseCallback`.
 
 8. **Help desk setup documentation** — step-by-step instructions for the Zammad admin covering: dedicated bot user
-   account for the middleware, group creation for tickets, four custom fields (`negotiation_state`,
-   `negotiator_resource_state`, `negotiator_resource_transition_event`, `negotiator_post_type`), Core Workflow for
-   conditional field display and read-only enforcement on `negotiation_state` and `negotiator_resource_state`, two
-   triggers (new article excluding middleware bot account, `negotiator_resource_transition_event` changed to non-null
-   value). Consider creating script which would do all of these configuration by calling Zammad API. It would make the
-   testing easier.
+   account for the middleware, group creation for tickets, three custom fields (`negotiation_state`,
+   `negotiator_resource_state`, `negotiator_resource_transition_event`), Core Workflow for conditional field display and
+   read-only enforcement on `negotiation_state` and `negotiator_resource_state`, two triggers (new external article
+   excluding middleware bot account, `negotiator_resource_transition_event` changed to non-null value). Consider
+   creating script which would do all of these configuration by calling Zammad API. It would make the testing easier.
 
 ---
 
 #### Acceptance Criteria
 
-- A negotiation approved by an admin in Negotiator results in one Zammad ticket created per resource for each opted-in
-  organization, with correct initial field values (`negotiation_state: IN_PROGRESS`,
-  `negotiator_resource_state: SUBMITTED`, ticket title `[NEGO-1234] {resourceName}`).
-- A representative selecting a valid event in `negotiator_resource_transition_event` and saving the ticket triggers the
-  correct state change in Negotiator. The `negotiator_resource_transition_event` field is cleared to null and
-  `negotiator_resource_state` is updated to the new state.
+- A negotiation approved by an admin in Negotiator results in the correct ticket structure for each opted-in
+  organization based on its `ticketStrategy`:
+  - `PER_RESOURCE`: one Zammad ticket per resource with correct initial field values (`negotiation_state: IN_PROGRESS`,
+    `negotiator_resource_state: SUBMITTED`, title `[NEGO-1234] {resourceName}`). All tickets for the same negotiation
+    and organization are linked as related in Zammad.
+  - `PER_NEGOTIATION`: one Zammad ticket covering all resources with correct initial field values (
+    `negotiation_state: IN_PROGRESS`, `negotiator_resource_state: SUBMITTED`, title `[NEGO-1234] All resources`).
+- A representative at a `PER_RESOURCE` organization selecting a valid event in `negotiator_resource_transition_event`
+  triggers the correct single-resource state change in Negotiator. The `negotiator_resource_transition_event` field is
+  cleared to null and `negotiator_resource_state` is updated to the new state.
+- A representative at a `PER_NEGOTIATION` organization selecting a valid event in `negotiator_resource_transition_event`
+  triggers a bulk state change for all resources in the ticket. The `negotiator_resource_transition_event` field is
+  cleared to null and `negotiator_resource_state` is updated exactly once regardless of how many
+  `negotiation.resource.state.updated` webhooks Negotiator dispatches.
 - A representative selecting an invalid transition event receives a system comment explaining why the transition was
-  rejected and listing the currently allowed transitions. The `negotiator_resource_transition_event` field is cleared to
-  null. No change is made in Negotiator.
-- A PUBLIC post created in Negotiator appears as a comment in all Zammad tickets for that negotiation. A PRIVATE post
-  appears only in tickets belonging to the addressed organization.
-- A message sent from a Zammad ticket appears as a post of the correct type (PUBLIC or PRIVATE based on
-  `negotiator_post_type`) in the Negotiator negotiation. The message does not appear as a duplicate comment in the
-  originating ticket.
+  rejected and listing the currently allowed transitions. For `PER_NEGOTIATION` the comment lists which resources cannot
+  accept the transition. The `negotiator_resource_transition_event` field is cleared to null. No change is made in
+  Negotiator.
+- A PUBLIC post created in Negotiator appears as a comment in all distinct Zammad tickets for that negotiation. A
+  PRIVATE post appears only in tickets belonging to the addressed organization.
+- A message sent from a Zammad ticket appears as a PRIVATE post in the Negotiator negotiation. The message does not
+  appear as a duplicate comment in the originating ticket.
 - Webhook deliveries from Negotiator with an invalid HMAC signature are rejected with HTTP 401 and not processed.
 - Webhook deliveries from Negotiator with a timestamp outside the ±5-minute window are rejected with HTTP 401 and not
   processed.
@@ -1029,10 +1278,10 @@ changes are required:
 ### Phase 2
 
 **Scope:** Phase 2 extends the integration to cover three additional Negotiator events that were intentionally deferred
-from Phase 1: negotiation state changes, negotiation info updates, and attachments. By the end of Phase 2 the help desk
-ticket stays fully in sync with the negotiation throughout its lifecycle, not only during the initial resource workflow,
-but also when the negotiation is paused, concluded, or abandoned, when the researcher updates the access form, and when
-files are exchanged in either direction.
+from Phase 1: negotiation state changes, access form payload updates, and attachments. By the end of Phase 2 the help
+desk ticket stays fully in sync with the negotiation throughout its lifecycle, not only during the initial resource
+workflow, but also when the negotiation is paused, concluded, or abandoned, when the researcher updates the access form,
+and when files are exchanged in either direction.
 
 **Negotiation state changes (`negotiation.state.updated` for states other than `IN_PROGRESS`):** When a negotiation
 moves to `PAUSED`, `CONCLUDED`, or `ABANDONED`, all tickets for that negotiation must be updated. This requires a new
@@ -1040,21 +1289,79 @@ moves to `PAUSED`, `CONCLUDED`, or `ABANDONED`, all tickets for that negotiation
 Zammad adapter maps Negotiator states to the closest Zammad ticket state (e.g. `CONCLUDED` → closed as resolved,
 `ABANDONED` → closed as cancelled).
 
-**Negotiation info updates (`negotiation.info.updated`):** When the researcher updates the access form, the ticket
-description should be refreshed. The middleware fetches the updated `NegotiationDTO.humanReadable` via a secondary REST
-call and send it as a new comment to the ticket. This requires a new `NegotiationInfoUpdatedHandler`.
+**Access form payload updates:** When the researcher updates the negotiation access form, the help desk ticket
+description should be refreshed to reflect the new content, and any attachments uploaded during the edit must also be
+forwarded to the help desk. This requires a new webhook event to be introduced in Negotiator — currently no such event
+exists. The existing `negotiation.info.updated` event (`WebhookEventType.NEGOTIATION_INFO_UPDATED`) is **not** suitable
+for this purpose: it is fired by `InformationSubmissionServiceImpl` when a representative submits an
+`InformationSubmission` (the Information Requirements feature), not when the researcher edits the negotiation payload.
+`NegotiationServiceImpl.updateNegotiation()` updates `negotiation.payload` at line 195 but publishes no application
+event and dispatches no webhook. A new `NegotiationPayloadUpdatedEvent` Spring application event must therefore be
+introduced in Negotiator, published from `NegotiationServiceImpl` after the payload is saved, and wired into the webhook
+dispatch system following the same pattern as existing events — a new `WebhookEventType` constant (e.g.
+`NEGOTIATION_PAYLOAD_UPDATED`), a new webhook payload DTO carrying `negotiationId`, and a new `WebhookMappingStrategy`
+registration. On the middleware side a new `NegotiationPayloadUpdatedHandler` fetches the updated negotiation from
+Negotiator via a secondary REST call, posts the refreshed content as a new comment to all mapped tickets, and forwards
+any standalone attachments that have not yet been forwarded (see attachment deduplication below).
 
-**Attachments (`negotiation.attachment.added`):** Attachments are currently not covered by any Negotiator webhook. A new
-`AttachmentAddedEvent` Spring application event must be introduced in Negotiator and wired into the webhook dispatch
-system following the same pattern as the existing `NewPostEvent` — a new `WebhookEventType` constant, a new webhook
-payload DTO carrying `negotiationId`, `attachmentId`, `organizationId` (nullable for public), `name`, and `contentType`,
-and a new `WebhookMappingStrategy` registration. On the middleware side a new `NegotiationAttachmentAddedHandler`
-fetches the binary content from `GET /v3/attachments/{id}` and calls a new `addAttachment()` method on
-`HelpDeskAdapter`. For attachments uploaded from the help desk, `HelpdeskPostHandler` is extended to detect attachments
-in the callback payload and upload them to Negotiator via `POST /v3/negotiations/{negotiationId}/attachments` as a
-separate call after the post is created. The `originated_posts` deduplication mechanism is extended with an
-`originated_attachments` table using filename and file size as the deduplication key, following the same hash-based
-pattern as `originated_posts`.
+**Attachments:** Attachments are currently not linked to posts anywhere in the data model — both `Post` and `Attachment`
+independently reference `negotiation_id` and `organization_id`, but there is no `post_id` FK on `Attachment` and no
+`attachments` collection on `Post`. To support transferring attachments to the help desk as part of the post flow,
+attachments must be optionally linked to posts. The link is optional because attachments can also be uploaded
+independently — during negotiation creation or via the negotiation payload edit — and those must continue to work
+without a post reference.
+
+The following Negotiator changes are required:
+
+- **Migration** — `ALTER TABLE attachment ADD COLUMN post_id VARCHAR(255) NULL` with a FK to `post(id)`.
+- **`Attachment` entity** — add `@ManyToOne @JoinColumn(name = "post_id") private Post post`.
+- **`Post` entity** — add `@OneToMany(mappedBy = "post") private List<Attachment> attachments`.
+- **`PostCreateDTO`** — add `private List<String> attachmentIds` so the caller can reference previously uploaded
+  attachments.
+- **`PostServiceImpl.create()`** — after saving the post entity, fetch each attachment by ID, verify it belongs to the
+  same negotiation and is not already linked to another post, set `attachment.setPost(postEntity)`, and save.
+- **`PostDTO`** — add `private List<AttachmentMetadataDTO> attachments` so attachment metadata is returned alongside the
+  post.
+- **`NegotiationPostAddedWebhookEvent` and `NewPostEvent`** — add `List<String> attachmentIds` so the webhook payload
+  carries the IDs of all attachments linked to the post.
+
+The frontend `handleSendMessage()` in `NegotiationPosts.vue` currently makes two independent calls — one to create the
+post and one to upload the attachment — with no link between them. It must be updated to upload the attachment first via
+`POST /v3/negotiations/{negotiationId}/attachments`, collect the returned attachment ID, and then include it in the
+`PostCreateDTO` body when calling `POST /v3/negotiations/{negotiationId}/posts`. The user experience is unchanged —
+one "Send message" button — only the internal call sequence changes.
+
+On the middleware side, `NegotiationPostAddedHandler` is extended to read `attachmentIds` from the webhook payload and,
+for each ID, fetch the binary content from `GET /attachments/{id}` before calling the adapter. A new `addComment()`
+overload (or an extended `addComment()` signature) on `HelpDeskAdapter` accepts an optional list of attachment binaries
+alongside the comment text, so the adapter can attach the files to the help desk ticket article in the same API call.
+Post-linked attachments are deduplicated automatically through the existing `originated_posts` mechanism — if the
+originating post is excluded from fan-out, its attachments are excluded with it.
+
+For the reverse direction (help desk → Negotiator), `HelpdeskPostHandler` is extended to detect attachments in the
+callback payload. If attachments are present, each file is uploaded to Negotiator first via
+`POST /v3/negotiations/{negotiationId}/attachments`, and the returned attachment IDs are included in
+`PostCreateDTO.attachmentIds` when creating the post. This keeps the post and its attachments linked from the moment
+they are created in Negotiator.
+
+**Attachment deduplication for standalone attachments:** Post-linked attachments are deduplicated automatically through
+the `originated_posts` mechanism. Standalone attachments — those uploaded during negotiation creation or access form
+payload edits — have no post reference and are handled separately. These attachments reach the middleware via
+`NegotiationApprovedHandler` (negotiation creation attachments are included in the initial ticket body) and
+`NegotiationPayloadUpdatedHandler` (attachments uploaded during payload edit). To prevent re-forwarding the same file on
+every subsequent payload update, the middleware maintains a `forwarded_attachments` table:
+
+| Column           | Type      | Constraints  |
+|------------------|-----------|--------------|
+| `negotiation_id` | VARCHAR   | composite PK |
+| `attachment_id`  | VARCHAR   | composite PK |
+| `forwarded_at`   | TIMESTAMP | NOT NULL     |
+
+When a standalone attachment is forwarded to a help desk ticket, a row is inserted. When
+`NegotiationPayloadUpdatedHandler` fires, it fetches all attachment IDs for the negotiation from Negotiator via
+`GET /v3/negotiations/{negotiationId}/attachments`, subtracts the IDs already present in `forwarded_attachments` for the
+relevant ticket, and forwards only the delta. Attachments linked to posts (`post_id IS NOT NULL`) are excluded from this
+query — they are managed entirely through the post flow and never enter `forwarded_attachments`.
 
 All changes in Phase 2 follow the established patterns from Phase 1. No architectural changes are required.
 
@@ -1126,3 +1433,33 @@ Before Phase 5 implementation begins, the choice of queue infrastructure technol
 RabbitMQ, Redis Streams) will be discussed and agreed with the developers of the Negotiator application so it meet their
 expectations.
 
+## 8. Out of Scope
+
+### 8.1 Information Requirements and Submissions
+
+Negotiator supports a feature called **Information Requirements**: a Negotiator administrator can configure that a
+representative must fill out an additional access form before a specific resource state transition is permitted. This is
+modelled by the `InformationRequirement` entity, which links a `NegotiationResourceEvent` (the transition that triggers
+the requirement) to an `AccessForm` that must be completed. The representative's response is stored as an
+`InformationSubmission`, which carries a JSON payload and is scoped to a specific `Resource`, `Negotiation`, and
+`InformationRequirement`.
+
+When a representative attempts a state transition for which an unsatisfied `InformationRequirement` exists, Negotiator
+blocks the transition until the corresponding `InformationSubmission` has been provided. The form that must be filled is
+dynamic and deployment-specific, determined by the `AccessForm` configuration.
+
+As discussed, this feature is out of scope for the help desk integration currently.
+
+### 8.2 Admin Adding Resources to an In-Progress Negotiation
+
+A Negotiator administrator can add new resources to a negotiation regardless of its current state, including when the
+negotiation is already `IN_PROGRESS`. When a new resource is added to an in-progress negotiation, the help desk
+integration will not automatically create a ticket for that resource in the relevant organization's help desk.
+
+Supporting this case would require a new webhook event in Negotiator fired when a resource is added to an existing
+negotiation, as well as additional routing logic in the middleware to distinguish a late-added resource from the initial
+batch created at approval time. This complexity is deferred. Organizations that need to handle late-added resources must
+manage them through the Negotiator UI directly.
+
+Note: there is a bug in updateResourcesInANegotiation method. The NewResourcesAddedEvent is published even when no new
+resources are added.
