@@ -134,7 +134,7 @@ jobs:
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
           images: |
-            bbmrieric/negotiator-link
+            ghcr.io/bbmri-eric/negotiator-link
           tags: |
             type=ref,event=branch
             type=raw,value=${{ github.head_ref }},event=pr
