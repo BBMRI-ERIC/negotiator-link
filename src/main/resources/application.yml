@@ -2,4 +2,5 @@ spring:
   application:
     name: negotiator-link
 
-organizations: []
+negotiatorlink:
+  organizations: []

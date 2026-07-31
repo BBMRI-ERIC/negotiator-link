@@ -8,7 +8,7 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @Data
-@ConfigurationProperties
+@ConfigurationProperties(prefix = "negotiatorlink")
 public class OrganizationConfigProperties {
 
   private List<OrgEntry> organizations = new ArrayList<>();
