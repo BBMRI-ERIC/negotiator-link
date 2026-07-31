@@ -1,7 +1,10 @@
-package eu.bbmri_eric.negotiator.negotiatorlink.core.config;
+package eu.bbmri_eric.negotiator.negotiatorlink.integration.core.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
