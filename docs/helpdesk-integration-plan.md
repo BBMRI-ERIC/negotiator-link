@@ -387,7 +387,8 @@ The middleware validates the requested transition by calling
 `GET /v3/negotiations/{negotiationId}/resources/{resourceId}/lifecycle` to retrieve the set of currently allowed events.
 
 - **If the transition is valid:** the middleware calls
-  `POST /v3/negotiations/{negotiationId}/resources/{resourceId}/lifecycle` to apply the transition. Negotiator persists
+  `POST /v3/negotiations/{negotiationId}/resources/{resourceId}/lifecycle/{event}` to apply the transition. Negotiator
+  persists
   the change and asynchronously dispatches a `negotiation.resource.state.updated` webhook back to the middleware. The
   middleware processes this webhook normally: it updates the `negotiator_resource_state` field on the ticket and clears
   `negotiator_resource_transition_event` back to `null`.
@@ -413,6 +414,9 @@ if it is permitted for **all** resources.
   cannot accept the transition and what transitions are currently allowed for each. The representative will be blocked
   in the help desk from applying a resource state transition and will be informed in the system comment that they need
   to continue in the negotiation in the Negotiator UI to resolve the discrepancy.
+
+Note: the endpoint `POST /v3/negotiations/{negotiationId}/resources/{resourceId}/lifecycle/{event}` expects as a
+resourceId a sourceId of the resource which can be obtained from ticket_mapping table as resource_source_id.
 
 The middleware includes the representative's identity from the help desk as the `X-Helpdesk-Actor` request header on all
 Negotiator calls, so transitions are recorded in the negotiation timeline under the representative's name rather than
@@ -538,6 +542,7 @@ The middleware persists a `ticket_mapping` table that is the single source of tr
 | `negotiation_id`      | VARCHAR | composite PK |
 | `helpdesk_ticket_id`  | VARCHAR | composite PK |
 | `resource_id`         | VARCHAR | composite PK |
+| `resource_source_id`  | VARCHAR | NOT NULL     |
 | `organization_id`     | VARCHAR | NOT NULL     |
 | `organization_ext_id` | VARCHAR | NOT NULL     |
 
@@ -610,7 +615,8 @@ for each (organizationExternalId, resources[]) group:
                   │        INSERT INTO ticket_mapping:
                   │            negotiation_id      = negotiation.negotiationId
                   │            helpdesk_ticket_id  = ticketId returned by help desk
-                  │            resource_id         = resource.resourceId
+                  │            resource_id         = resource.Id
+                  │            resource_source_id  = resource.sourceId
                   │            organization_id     = resource.organizationId
                   │            organization_ext_id = organizationExternalId
                   │
@@ -624,7 +630,8 @@ for each (organizationExternalId, resources[]) group:
                            INSERT INTO ticket_mapping:
                                negotiation_id      = negotiation.negotiationId
                                helpdesk_ticket_id  = ticketId returned by help desk
-                               resource_id         = resource.resourceId
+                               resource_id         = resource.Id
+                               resource_source_id  = resource.sourceId
                                organization_id     = resource.organizationId
                                organization_ext_id = organizationExternalId
                            │
@@ -872,11 +879,15 @@ Exposes typed methods for example:
 
 ```java
 NegotiationDTO getNegotiation(String negotiationId)
+
 List<ResourceWithStatusDTO> getResources(String negotiationId)
+
 Set<String> getPossibleResourceEvents(String negotiationId, String resourceId)
+
 void sendResourceEvent(String negotiationId, String resourceId, String event)
 
 void sendBulkResourceEvent(String negotiationId, List<String> resourceIds, String event)
+
 void createPost(String negotiationId, PostCreateDTO post)
 ```
 
@@ -893,6 +904,7 @@ Persists and queries the `ticket_mapping` table. Exposes for example:
 
 ```java
 void save(TicketMapping mapping)
+
 List<TicketMapping> findByNegotiationId(String negotiationId)
 
 List<TicketMapping> findByTicketIdAndOrganization(String ticketId, String organizationExternalId)
@@ -1128,11 +1140,20 @@ lifecycle and communicate with researchers entirely from Zammad without opening 
 
 **Change 1: Add `ROLE_HELPDESK_INTEGRATION` Spring Security authority and `negotiator_helpdesk` scope**
 
-The middleware's service account must be able to post messages and trigger resource lifecycle transitions. Without this
-change Phase 1 is architecturally blocked. Four targeted changes are required:
+The middleware's service account must be able to read negotiation data, post messages, and trigger resource lifecycle
+transitions. Without this change Phase 1 is architecturally blocked. Five targeted changes are required:
 
 - `CustomJWTAuthConverter` — map the `negotiator_helpdesk` OAuth 2.0 scope to the Spring Security authority
   `ROLE_HELPDESK_INTEGRATION`
+- `NegotiationAccessManagerImpl.verifyReadAccessForNegotiation()` — add
+  `!AuthenticatedUserContext.isHelpdeskIntegration()` as an additional condition in the existing `if` statement
+  This unblocks `GET /v3/negotiations/{id}` (used by `NegotiationApprovedHandler` to fetch negotiation metadata and
+  payload) and `GET /v3/negotiations/{id}/resources` (used by `NegotiationApprovedHandler` to list resources with their
+  current states and `organizationExternalId` for routing).
+- `NegotiationServiceImpl.isAuthorizedForNegotiation()` — add `AuthenticatedUserContext.isHelpdeskIntegration()` as an
+  additional condition in the existing `return` statement. This method is a separate deprecated access check used by
+  `DBAttachmentService.isAuthorizedForAttachment()` and must be updated independently to unblock
+  `GET /v3/attachments/{id}` (Phase 2).
 - `PostServiceImpl.checkAuthorization()` — add a branch allowing `ROLE_HELPDESK_INTEGRATION` to post messages to any
   negotiation when the negotiation state allows it
 - `NegotiationController.sendEventForNegotiationResource()` — add `ROLE_HELPDESK_INTEGRATION` as an additional
@@ -1140,6 +1161,11 @@ change Phase 1 is architecturally blocked. Four targeted changes are required:
 - `ResourceLifecycleServiceImpl.isSecurityRuleMet()` — add an `isHelpdeskIntegration` branch; update the relevant
   transitions in `ResourceStateMachineConfig` (those currently secured with `isRepresentative`) to also accept
   `isHelpdeskIntegration`
+
+Note: `GET /v3/negotiations/{negotiationId}/resources/{resourceId}/lifecycle` (used by
+`HelpdeskResourceTransitionHandler` to validate a requested transition before applying it) is already accessible to
+`ROLE_HELPDESK_INTEGRATION` without any additional change — `ResourceLifecycleServiceImpl.getPossibleEvents()` routes
+through `isSecurityRuleMet()` which already has an `isRepresentativeOrHelpdeskIntegration` branch.
 
 **Change 2: Populate `helpdeskActor` on posts created via the help desk**
 
@@ -1177,6 +1203,20 @@ changes are required:
   `negotiation.setStateForResource()`
 - `Negotiation.buildResourceStateChangeRecord()` — accept the nullable `helpdeskActor` string and set it on the
   `NegotiationResourceLifecycleRecord` before it is added to the cascade
+
+**Change 4: Implement `GET /v3/posts/{postId}` for middleware post text retrieval**
+
+The middleware needs to fetch the full text of a post when a `negotiation.post.added` webhook arrives — the webhook
+payload carries only a `postId`, not the post body. This endpoint currently cannot be used by anyone: the path falls
+through to the catch-all `denyAll()` rule in `HTTPRegistryConfigurer`, and `PostServiceImpl.findById()` is an
+unimplemented stub returning `null`. Two targeted changes are required:
+
+- `HTTPRegistryConfigurer` — add an explicit `authenticated()` rule for `/v3/posts/{id}` so the path is not caught by
+  the catch-all `denyAll()` rule.
+- `PostServiceImpl.findById()` — implement the method body to load the `Post` entity by ID and map it to `PostDTO`,
+  applying the same visibility rules as the existing post-listing endpoint. A caller holding `ROLE_HELPDESK_INTEGRATION`
+  must be permitted to read any post by ID without being subject to the negotiation participant check, since the
+  middleware needs to relay posts to the help desk regardless of which organization the post is addressed to.
 
 ---
 
@@ -1248,9 +1288,9 @@ changes are required:
 
 - A negotiation approved by an admin in Negotiator results in the correct ticket structure for each opted-in
   organization based on its `ticketStrategy`:
-  - `PER_RESOURCE`: one Zammad ticket per resource with correct initial field values (`negotiation_state: IN_PROGRESS`,
-    `negotiator_resource_state: SUBMITTED`, title `[NEGO-1234] {resourceName}`). All tickets for the same negotiation
-    and organization are linked as related in Zammad.
+  - `PER_RESOURCE`: one Zammad ticket per resource with correct initial field values (
+    `negotiation_state: IN_PROGRESS`, `negotiator_resource_state: SUBMITTED`, title `[NEGO-1234] {resourceName}`). All
+    tickets for the same negotiation and organization are linked as related in Zammad.
   - `PER_NEGOTIATION`: one Zammad ticket covering all resources with correct initial field values (
     `negotiation_state: IN_PROGRESS`, `negotiator_resource_state: SUBMITTED`, title `[NEGO-1234] All resources`).
 - A representative at a `PER_RESOURCE` organization selecting a valid event in `negotiator_resource_transition_event`
