@@ -35,6 +35,7 @@ notation.
 - Adapter implementations have integration tests using WireMock to stub the help desk HTTP API.
 - Prefer slice tests (`@WebMvcTest`, `@DataJpaTest`) for focused testing.
 - Test class names: `{SubjectUnderTest}Test`. One test file per production class.
+- Test method naming: `subject_when_outcome` — e.g. `constructor_whenCallbackSecretIsBlank_throws`, `findByExternalId_whenOrgUnknown_returnsEmpty`.
 - Arrange/Act/Assert structure, no blank lines between related assertions.
 
 ## Bug Patterns to Avoid
