@@ -36,6 +36,8 @@ notation.
 - Prefer slice tests (`@WebMvcTest`, `@DataJpaTest`) for focused testing.
 - Test class names: `{SubjectUnderTest}Test`. One test file per production class.
 - Test method naming: `subject_when_outcome` — e.g. `constructor_whenCallbackSecretIsBlank_throws`, `findByExternalId_whenOrgUnknown_returnsEmpty`.
+- Unit tests live under `src/test/java/.../unit/` mirroring the production package beneath it.
+- Integration tests (those that load a Spring context) live under `src/test/java/.../integration/` mirroring the production package beneath it.
 - Arrange/Act/Assert structure, no blank lines between related assertions.
 
 ## Bug Patterns to Avoid
