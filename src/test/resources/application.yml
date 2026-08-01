@@ -9,3 +9,15 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
+
+negotiatorlink:
+  organizations:
+    - organizationExternalId: "bbmri:DE:MHH"
+      type: "zammad"
+      ticketStrategy: "PER_RESOURCE"
+      baseUrl: "https://zammad.mhh.de"
+      credentials:
+        apiToken: "test-api-token"
+      callbackSecret: "test-callback-secret"
+      platformConfig:
+        groupId: 3

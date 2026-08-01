@@ -577,15 +577,15 @@ organizations:
     callbackSecret: "${ZAMMAD_AMC_CALLBACK_SECRET}"
     groupId: 5
 
-  - organizationExternalId: "bbmri:UK:OXFORD"
-    type: "serviceNow"
+  - organizationExternalId: "bbmri:CZ:FNOL"
+    type: "alvao"
     ticketStrategy: "PER_RESOURCE"
-    baseUrl: "https://oxford.service-now.com"
+    baseUrl: "https://fnol.onalvao.com/AlvaoRestApi/v1"
     credentials:
-      username: "${SERVICENOW_USERNAME}"
-      password: "${SERVICENOW_PASSWORD}"
-    callbackSecret: "${SERVICENOW_CALLBACK_SECRET}"
-    assignmentGroupId: "287ebd7da9fe198100f92cc8d1d2154e"
+      username: "${ALVAO_FNOL_USERNAME}"
+      password: "${ALVAO_FNOL_PASSWORD}"
+    callbackSecret: "${ALVAO_FNOL_CALLBACK_SECRET}"
+    serviceId: 42 # identifies the service tree node under which tickets are created
 ```
 
 ### 4.2 Negotiator → Middleware → Help Desk
@@ -1042,6 +1042,10 @@ Zammad ([Ticket endpoints](https://docs.zammad.org/en/latest/api/ticket/index.ht
   as related in Zammad.
 - `parseCallback()` — deserializes the Zammad webhook payload into `HelpdeskCallbackEvent`, extracting `ticket.id`,
   `ticket.negotiator_resource_transition_event`, and `article.body`
+
+#### AlvaoAdapter
+
+A reference design for a second adapter implementation targeting the [ALVAO Service Desk](https://www.alvao.com/en/service-desk) platform.
 
 ---
 
