@@ -444,7 +444,7 @@ Before calling the bulk transition endpoint, the middleware inserts a row into `
 `new_state`.
 
 When a `negotiation.resource.state.updated` webhook arrives, `ResourceStateUpdatedHandler` checks whether the
-`(negotiationId, ticketId)` combination has an entry in `originated_transitions`. If a matching row is found:
+`(negotiationId, ticketId, new_state)` combination has an entry in `originated_transitions`. If a matching row is found:
 
 - The handler increments `received_count` atomically.
 - If this is the **first** webhook for this record (`received_count` becomes 1 after increment): the handler updates
