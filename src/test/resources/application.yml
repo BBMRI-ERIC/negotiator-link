@@ -11,6 +11,8 @@ spring:
       ddl-auto: create-drop
 
 negotiatorlink:
+  webhook:
+    secret: "whsec_dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaA=="
   organizations:
     - organizationExternalId: "bbmri:DE:MHH"
       type: "zammad"

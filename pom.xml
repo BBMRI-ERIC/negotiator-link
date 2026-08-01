@@ -113,6 +113,13 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- Standard Webhooks verification -->
+        <dependency>
+            <groupId>com.standardwebhooks</groupId>
+            <artifactId>standardwebhooks</artifactId>
+            <version>1.1.1</version>
+        </dependency>
+
         <!-- Utilities -->
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -124,6 +131,10 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-configuration-processor</artifactId>
             <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
         </dependency>
     </dependencies>
 

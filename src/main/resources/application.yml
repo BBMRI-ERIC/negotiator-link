@@ -13,4 +13,6 @@ spring:
     enabled: true
 
 negotiatorlink:
+  webhook:
+    secret: ${NEGOTIATOR_WEBHOOK_SECRET}
   organizations: []
