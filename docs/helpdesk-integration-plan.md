@@ -444,7 +444,7 @@ Before calling the bulk transition endpoint, the middleware inserts a row into `
 `new_state`.
 
 When a `negotiation.resource.state.updated` webhook arrives, `ResourceStateUpdatedHandler` checks whether the
-`(negotiationId, ticketId)` combination has an entry in `originated_transitions`. If a matching row is found:
+`(negotiationId, ticketId, new_state)` combination has an entry in `originated_transitions`. If a matching row is found:
 
 - The handler increments `received_count` atomically.
 - If this is the **first** webhook for this record (`received_count` becomes 1 after increment): the handler updates
@@ -959,7 +959,7 @@ One class per event type. Each handler receives the parsed event, the resolved `
   `NegotiatorClient.createPost()` with visibility type always set to `PRIVATE`
 
 Each handler has a single, testable responsibility. No handler contains routing logic. Routing is always resolved before
-the handler is called. Some other handlers like NegotiationInfoUpdatedHandler, etc. will added during phase 2 and 3 (see
+the handler is called. Some other handlers like NegotiationInfoUpdatedHandler, etc. will added during milestone 2 and 3 (see
 section 7).
 
 ---
@@ -1120,22 +1120,22 @@ eu.bbmri_eric.negotiator.negotiator-link
 
 ## 7. Implementation Plan
 
-The implementation is divided into five phases. Each phase delivers a working, testable increment of the integration.
-Phase 1 establishes the full bidirectional foundation (ticket creation, resource state transitions, and message
-exchange) which proves the integration concept end to end. Later phases extend coverage to additional Negotiator events,
-attachments, reliability, and async processing. Phases are intentionally ordered so that each one builds on a stable,
-tested previous phase without requiring rework.
+The implementation is divided into five milestones. Each milestone delivers a working, testable increment of the integration.
+Milestone 1 establishes the full bidirectional foundation (ticket creation, resource state transitions, and message
+exchange) which proves the integration concept end to end. Later milestones extend coverage to additional Negotiator events,
+attachments, reliability, and async processing. Milestones are intentionally ordered so that each one builds on a stable,
+tested previous milestone without requiring rework.
 
-Phase 1 is described in the most detail. Later phases are described at a higher level of abstraction. This is
-intentional, because implementation of Phase 1 could surface details that are not captured now.
+Milestone 1 is described in the most detail. Later milestones are described at a higher level of abstraction. This is
+intentional, because implementation of Milestone 1 could surface details that are not captured now.
 
-### Phase 1
+### Milestone 1
 
-**Scope:** Phase 1 delivers the complete bidirectional integration for the core representative workflows: ticket
+**Scope:** Milestone 1 delivers the complete bidirectional integration for the core representative workflows: ticket
 creation when a negotiation is approved, resource state transitions from the help desk, and bidirectional message
 exchange (PUBLIC and PRIVATE posts). Security as described in Section 5 is implemented in full from the start since the
 middleware would not work without introduction of the new authority `ROLE_HELPDESK_INTEGRATION` and new scope. The
-Zammad adapter is the reference implementation. At the end of Phase 1 a representative can manage the full resource
+Zammad adapter is the reference implementation. At the end of milestone 1 a representative can manage the full resource
 lifecycle and communicate with researchers entirely from Zammad without opening Negotiator.
 
 ---
@@ -1145,7 +1145,7 @@ lifecycle and communicate with researchers entirely from Zammad without opening 
 **Change 1: Add `ROLE_HELPDESK_INTEGRATION` Spring Security authority and `negotiator_helpdesk` scope**
 
 The middleware's service account must be able to read negotiation data, post messages, and trigger resource lifecycle
-transitions. Without this change Phase 1 is architecturally blocked. Five targeted changes are required:
+transitions. Without this change milestone 1 is architecturally blocked. Five targeted changes are required:
 
 - `CustomJWTAuthConverter` — map the `negotiator_helpdesk` OAuth 2.0 scope to the Spring Security authority
   `ROLE_HELPDESK_INTEGRATION`
@@ -1157,7 +1157,7 @@ transitions. Without this change Phase 1 is architecturally blocked. Five target
 - `NegotiationServiceImpl.isAuthorizedForNegotiation()` — add `AuthenticatedUserContext.isHelpdeskIntegration()` as an
   additional condition in the existing `return` statement. This method is a separate deprecated access check used by
   `DBAttachmentService.isAuthorizedForAttachment()` and must be updated independently to unblock
-  `GET /v3/attachments/{id}` (Phase 2).
+  `GET /v3/attachments/{id}` (milestone 2).
 - `PostServiceImpl.checkAuthorization()` — add a branch allowing `ROLE_HELPDESK_INTEGRATION` to post messages to any
   negotiation when the negotiation state allows it
 - `NegotiationController.sendEventForNegotiationResource()` — add `ROLE_HELPDESK_INTEGRATION` as an additional
@@ -1239,7 +1239,7 @@ unimplemented stub returning `null`. Two targeted changes are required:
    and `Webhook-Id` seen-cache (in-memory TTL, 15-minute window).
 
 4. **Negotiator client** — `NegotiatorClient` with OAuth 2.0 Client Credentials token acquisition and caching via Spring
-   Security's `OAuth2AuthorizedClientManager`. Methods required in Phase 1: `getNegotiation`, `getResources`,
+   Security's `OAuth2AuthorizedClientManager`. Methods required in milestone 1: `getNegotiation`, `getResources`,
    `getPossibleResourceEvents`, `sendResourceEvent`, `createPost`, `getPostText`.
 
 5. **Persistence** — `ticket_mapping` table (`negotiation_id`, `helpdesk_ticket_id`, `resource_id`, `organization_id`,
@@ -1248,7 +1248,7 @@ unimplemented stub returning `null`. Two targeted changes are required:
    `received_count`, `new_state`, `created_at`), all managed via Spring Data JPA. Scheduled cleanup job deleting rows
    older than 24 hours from both `originated_posts` and `originated_transitions`.
 
-6. **Event routing and handlers** — `EventRouter` with Strategy pattern dispatch. Handlers implemented in Phase 1:
+6. **Event routing and handlers** — `EventRouter` with Strategy pattern dispatch. Handlers implemented in milestone 1:
 
 - `NegotiationApprovedHandler` — triggered by `negotiation.state.updated` with `event: APPROVE`; fetches all resources
   from Negotiator; groups resources by `organizationExternalId`; for each group matching an entry in the YAML config,
@@ -1319,10 +1319,10 @@ unimplemented stub returning `null`. Two targeted changes are required:
 - Help desk callbacks with an invalid or missing shared secret are rejected with HTTP 401 and not processed.
 - The application refuses to start if any required secret environment variable is absent.
 
-### Phase 2
+### Milestone 2
 
-**Scope:** Phase 2 extends the integration to cover three additional Negotiator events that were intentionally deferred
-from Phase 1: negotiation state changes, access form payload updates, and attachments. By the end of Phase 2 the help
+**Scope:** Milestone 2 extends the integration to cover three additional Negotiator events that were intentionally deferred
+from milestone 1: negotiation state changes, access form payload updates, and attachments. By the end of milestone 2 the help
 desk ticket stays fully in sync with the negotiation throughout its lifecycle, not only during the initial resource
 workflow, but also when the negotiation is paused, concluded, or abandoned, when the researcher updates the access form,
 and when files are exchanged in either direction.
@@ -1407,18 +1407,18 @@ When a standalone attachment is forwarded to a help desk ticket, a row is insert
 relevant ticket, and forwards only the delta. Attachments linked to posts (`post_id IS NOT NULL`) are excluded from this
 query — they are managed entirely through the post flow and never enter `forwarded_attachments`.
 
-All changes in Phase 2 follow the established patterns from Phase 1. No architectural changes are required.
+All changes in milestone 2 follow the established patterns from milestone 1. No architectural changes are required.
 
-### Phase 3
+### Milestone 3
 
-**Scope:** Phase 3 handles the case where a negotiation is transferred to a different researcher (author change). This
+**Scope:** Milestone 3 handles the case where a negotiation is transferred to a different researcher (author change). This
 is the only remaining Negotiator-level event that affects the help desk ticket but is not yet covered.
 
 Negotiation transfer is performed via `PATCH /v3/negotiations/{id}` with `authorSubjectId` in `NegotiationUpdateDTO` (
 `NegotiationServiceImpl.java:201-208`). The transfer simply updates `negotiation.createdBy` and saves. No
 `ApplicationEvent` is published and no webhook event type for transfer currently exists.
 
-Phase 3 therefore requires a Negotiator change before middleware work can begin: a new `NegotiationTransferredEvent`
+Milestone 3 therefore requires a Negotiator change before middleware work can begin: a new `NegotiationTransferredEvent`
 Spring application event published from `NegotiationServiceImpl` at the point where
 `negotiationEntity.setCreatedBy(person)` is called, a new `NEGOTIATION_TRANSFERRED` webhook event type constant, a new
 payload DTO carrying `negotiationId` and the new author's identifier, and a new `WebhookMappingStrategy` registration
@@ -1429,12 +1429,12 @@ negotiation to reflect the new requester identity. The exact representation in t
 ticket description or adding a system comment noting the transfer) is an adapter-level decision implemented in adapter
 it self. In the `ZammadAdapter`, it will be done with system coment.
 
-### Phase 4
+### Milestone 4
 
-**Scope:** Phase 4 addresses reliability and observability of the middleware.
+**Scope:** Milestone 4 addresses reliability and observability of the middleware.
 
 **Reliability — handling Negotiator downtime:** In the current synchronous design, if Negotiator is unavailable when a
-help desk callback arrives, the middleware's outbound REST call fails and the event is lost with no recovery path. Phase
+help desk callback arrives, the middleware's outbound REST call fails and the event is lost with no recovery path. Milestone
 4 introduces retry logic with exponential backoff for all outbound calls to both Negotiator and help desk platforms.
 Transient failures (HTTP 5xx, connection timeout) are retried up to a configurable number of attempts. Permanent
 failures (HTTP 4xx, unknown mapping) are not retried. Spring Retry (`spring-retry`) is the natural choice given the
@@ -1458,9 +1458,9 @@ multi-value `negotiationId` filter (so the catch-up pass can batch-query posts f
 Prometheus and visualised in Grafana dashboards, giving operators visibility into webhook delivery rates, processing
 latency, and error counts across both directions of the integration.
 
-### Phase 5
+### Milestone 5
 
-**Scope:** Phase 5 replaces synchronous webhook processing with an asynchronous queue-based model, addressing the
+**Scope:** Milestone 5 replaces synchronous webhook processing with an asynchronous queue-based model, addressing the
 Negotiator delivery timeout constraint and enabling horizontal scaling.
 
 In the current synchronous design all processing (secondary REST calls to Negotiator, help desk API calls) happens
@@ -1468,12 +1468,12 @@ within the HTTP request thread that received the webhook. Negotiator's read time
 `WebhookTimeoutProperties.java`). Under load or when Negotiator or help desk APIs are slow, the middleware risks missing
 this window, causing Negotiator to record the delivery as failed.
 
-Phase 5 introduces an internal queue for both inbound directions. When `NegotiatorWebhookController` or
+Milestone 5 introduces an internal queue for both inbound directions. When `NegotiatorWebhookController` or
 `HelpdeskCallbackController` receives a verified request, it enqueues the event and returns HTTP 200 immediately. A
 separate worker pool dequeues events and processes them asynchronously, with no time pressure from the inbound HTTP
 timeout.
 
-Before Phase 5 implementation begins, the choice of queue infrastructure technology (e.g. database-backed queue,
+Before milestone 5 implementation begins, the choice of queue infrastructure technology (e.g. database-backed queue,
 RabbitMQ, Redis Streams) will be discussed and agreed with the developers of the Negotiator application so it meet their
 expectations.
 
