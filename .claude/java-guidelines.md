@@ -33,7 +33,7 @@ notation.
 
 - Every handler must have a unit test covering the happy path and the main failure branches.
 - Adapter implementations have integration tests using WireMock to stub the help desk HTTP API.
-- Prefer slice tests (`@WebMvcTest`, `@DataJpaTest`) for focused testing.
+- Use `@DataJpaTest` for repository slice tests — imports from `org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest` (Spring Boot 4.x moved it from `org.springframework.boot.test.autoconfigure.orm.jpa`). `TestEntityManager` is at `org.springframework.boot.jpa.test.autoconfigure.TestEntityManager`.
 - Test class names: `{SubjectUnderTest}Test`. One test file per production class.
 - Test method naming: `subject_when_outcome` — e.g. `constructor_whenCallbackSecretIsBlank_throws`, `findByExternalId_whenOrgUnknown_returnsEmpty`.
 - Unit tests live under `src/test/java/.../unit/` mirroring the production package beneath it.
