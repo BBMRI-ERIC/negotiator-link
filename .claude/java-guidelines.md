@@ -102,7 +102,7 @@ Make utility classes `final` with a private constructor to prevent instantiation
 After adding or modifying code, verify the build:
 
 ```
-./mvnw clean install
+./mvnw com.spotify.fmt:fmt-maven-plugin:format -q && clean install
 ```
 
 All tests must pass before considering a task complete.
