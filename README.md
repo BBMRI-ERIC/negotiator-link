@@ -12,7 +12,7 @@ The middleware bridges two directions:
 - **Negotiator → Help Desk:** When a negotiation is approved, a ticket is automatically created in the organization's
   help desk. Subsequent negotiation events (e.g. state changes, new posts, resource state updates) are reflected in the
   ticket in real time.
-- **Help Desk → Negotiator:** Representatives can trigger resource state transitions and send public or private messages
+- **Help Desk → Negotiator:** Representatives can trigger resource state transitions and send a private messages
   to researchers directly from the help desk ticket. The middleware forwards these actions to Negotiator on their
   behalf.
 
