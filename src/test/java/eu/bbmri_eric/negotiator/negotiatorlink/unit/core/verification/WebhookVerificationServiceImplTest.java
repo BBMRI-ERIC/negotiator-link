@@ -5,26 +5,26 @@ import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.standardwebhooks.Webhook;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.verification.StandardWebhookVerifier;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.verification.WebhookAuthenticationException;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.verification.WebhookVerificationServiceImpl;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 
-class StandardWebhookVerifierTest {
+class WebhookVerificationServiceImplTest {
 
   private static final String SECRET = "whsec_dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaA==";
   private static final String WEBHOOK_ID = "msg_abc123";
   private static final String BODY = "{\"event\":\"test\"}";
 
-  private StandardWebhookVerifier verifier;
+  private WebhookVerificationServiceImpl service;
   private Webhook webhook;
 
   @BeforeEach
   void setUp() {
-    verifier = new StandardWebhookVerifier(SECRET);
+    service = new WebhookVerificationServiceImpl(SECRET);
     webhook = new Webhook(SECRET);
   }
 
@@ -32,13 +32,13 @@ class StandardWebhookVerifierTest {
   void verify_whenValidRequest_doesNotThrow() {
     var request = buildRequest(WEBHOOK_ID, sign(WEBHOOK_ID, Instant.now(), BODY));
     assertThatNoException()
-        .isThrownBy(() -> verifier.verify(request, BODY.getBytes(StandardCharsets.UTF_8)));
+        .isThrownBy(() -> service.verify(request, BODY.getBytes(StandardCharsets.UTF_8)));
   }
 
   @Test
   void verify_whenSignatureTampered_throwsWebhookAuthenticationException() {
     var request = buildRequest(WEBHOOK_ID, "v1,invalidsignature==");
-    assertThatThrownBy(() -> verifier.verify(request, BODY.getBytes(StandardCharsets.UTF_8)))
+    assertThatThrownBy(() -> service.verify(request, BODY.getBytes(StandardCharsets.UTF_8)))
         .isInstanceOf(WebhookAuthenticationException.class);
   }
 
@@ -46,7 +46,7 @@ class StandardWebhookVerifierTest {
   void verify_whenTimestampTooOld_throwsWebhookAuthenticationException() {
     var staleInstant = Instant.now().minusSeconds(6 * 60);
     var request = buildRequest(WEBHOOK_ID, sign(WEBHOOK_ID, staleInstant, BODY), staleInstant);
-    assertThatThrownBy(() -> verifier.verify(request, BODY.getBytes(StandardCharsets.UTF_8)))
+    assertThatThrownBy(() -> service.verify(request, BODY.getBytes(StandardCharsets.UTF_8)))
         .isInstanceOf(WebhookAuthenticationException.class);
   }
 
@@ -56,25 +56,25 @@ class StandardWebhookVerifierTest {
     request.addHeader("Webhook-Id", WEBHOOK_ID);
     request.addHeader("Webhook-Timestamp", String.valueOf(Instant.now().getEpochSecond()));
     // Webhook-Signature header intentionally omitted
-    assertThatThrownBy(() -> verifier.verify(request, BODY.getBytes(StandardCharsets.UTF_8)))
+    assertThatThrownBy(() -> service.verify(request, BODY.getBytes(StandardCharsets.UTF_8)))
         .isInstanceOf(WebhookAuthenticationException.class)
         .hasMessageContaining("Webhook-Signature");
   }
 
   @Test
   void checkAndMarkSeen_whenFirstCall_returnsFalse() {
-    assertThat(verifier.checkAndMarkSeen("new-id-1")).isFalse();
+    assertThat(service.checkAndMarkSeen("new-id-1")).isFalse();
   }
 
   @Test
   void checkAndMarkSeen_whenCalledTwice_returnsTrueOnSecond() {
-    verifier.checkAndMarkSeen("new-id-2");
-    assertThat(verifier.checkAndMarkSeen("new-id-2")).isTrue();
+    service.checkAndMarkSeen("new-id-2");
+    assertThat(service.checkAndMarkSeen("new-id-2")).isTrue();
   }
 
   @Test
   void constructor_whenSecretIsBlank_throwsIllegalStateException() {
-    assertThatThrownBy(() -> new StandardWebhookVerifier(""))
+    assertThatThrownBy(() -> new WebhookVerificationServiceImpl(""))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("NEGOTIATOR_WEBHOOK_SECRET");
   }

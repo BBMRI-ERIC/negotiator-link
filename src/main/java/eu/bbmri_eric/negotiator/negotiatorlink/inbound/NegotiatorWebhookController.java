@@ -1,6 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.inbound;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.core.verification.WebhookVerifier;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.verification.WebhookVerificationService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -12,9 +12,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class NegotiatorWebhookController {
 
-  private final WebhookVerifier verifier;
+  private final WebhookVerificationService verifier;
 
-  public NegotiatorWebhookController(WebhookVerifier verifier) {
+  public NegotiatorWebhookController(WebhookVerificationService verifier) {
     this.verifier = verifier;
   }
 
