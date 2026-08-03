@@ -9,10 +9,24 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
+  security:
+    oauth2:
+      client:
+        registration:
+          negotiator:
+            client-id: test-client-id
+            client-secret: test-client-secret
+            authorization-grant-type: client_credentials
+            scope: negotiator_helpdesk
+        provider:
+          negotiator:
+            token-uri: http://localhost:9999/token
 
 negotiatorlink:
   webhook:
     secret: "whsec_dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaA=="
+  negotiator:
+    base-url: http://localhost:8081/api
   organizations:
     - organizationExternalId: "bbmri:DE:MHH"
       type: "zammad"

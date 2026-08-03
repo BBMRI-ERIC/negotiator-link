@@ -25,6 +25,12 @@
       "description": "Generated server url"
     }
   ],
+  "security": [
+    {
+      "security_auth": [],
+      "bearerAuth": []
+    }
+  ],
   "tags": [
     {
       "name": "Discovery services",
@@ -155,6 +161,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -303,6 +314,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -435,6 +451,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -562,6 +583,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -701,6 +727,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -849,6 +880,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -987,6 +1023,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -1135,6 +1176,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -1271,6 +1317,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -1412,6 +1463,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -1545,6 +1601,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -1693,6 +1754,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -1822,6 +1888,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -1967,6 +2038,14 @@
                 "OVERRIDE"
               ]
             }
+          },
+          {
+            "name": "X-Helpdesk-Actor",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1990,6 +2069,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -2084,6 +2168,9 @@
           }
         },
         "security": [
+          {
+            "bearerAuth": []
+          },
           {
             "security_auth": []
           }
@@ -2146,6 +2233,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -2239,6 +2331,9 @@
           }
         },
         "security": [
+          {
+            "bearerAuth": []
+          },
           {
             "security_auth": []
           }
@@ -2310,6 +2405,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -2404,6 +2504,9 @@
         },
         "security": [
           {
+            "bearerAuth": []
+          },
+          {
             "security_auth": []
           }
         ]
@@ -2448,6 +2551,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -2596,6 +2704,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -2725,6 +2838,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -2865,6 +2983,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -3013,6 +3136,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -3150,6 +3278,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -3297,6 +3430,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -3436,6 +3574,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -3585,6 +3728,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -3733,6 +3881,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -3892,6 +4045,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -4020,6 +4178,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -4157,6 +4320,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -4306,6 +4474,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -4446,6 +4619,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -4573,6 +4751,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -4709,6 +4892,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -4859,6 +5047,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -4986,6 +5179,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -5122,6 +5320,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -5260,6 +5463,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -5400,6 +5608,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -5529,6 +5742,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -5661,6 +5879,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -5843,6 +6066,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -5981,6 +6209,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -6132,6 +6365,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -6270,6 +6508,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -6430,6 +6673,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -6573,6 +6821,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -6733,6 +6986,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -6876,6 +7134,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -7160,6 +7423,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -7254,6 +7522,9 @@
         },
         "security": [
           {
+            "bearerAuth": []
+          },
+          {
             "security_auth": []
           }
         ]
@@ -7294,6 +7565,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -7388,6 +7664,9 @@
           }
         },
         "security": [
+          {
+            "bearerAuth": []
+          },
           {
             "security_auth": []
           }
@@ -7432,6 +7711,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -7525,6 +7809,9 @@
           }
         },
         "security": [
+          {
+            "bearerAuth": []
+          },
           {
             "security_auth": []
           }
@@ -7577,6 +7864,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -7670,6 +7962,9 @@
           }
         },
         "security": [
+          {
+            "bearerAuth": []
+          },
           {
             "security_auth": []
           }
@@ -7723,6 +8018,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -7878,6 +8178,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -8018,6 +8323,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -8111,6 +8421,9 @@
           }
         },
         "security": [
+          {
+            "bearerAuth": []
+          },
           {
             "security_auth": []
           }
@@ -8187,6 +8500,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -8281,6 +8599,9 @@
         },
         "security": [
           {
+            "bearerAuth": []
+          },
+          {
             "security_auth": []
           }
         ]
@@ -8314,6 +8635,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -8451,6 +8777,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -8578,6 +8909,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -8715,6 +9051,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -8844,6 +9185,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -8979,6 +9325,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -9117,6 +9468,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -9266,6 +9622,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -9360,6 +9721,9 @@
         },
         "security": [
           {
+            "bearerAuth": []
+          },
+          {
             "security_auth": []
           }
         ]
@@ -9416,6 +9780,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -9552,6 +9921,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -9692,6 +10066,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -9828,6 +10207,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -9958,6 +10342,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -10107,6 +10496,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -10245,6 +10639,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -10385,6 +10784,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -10553,6 +10957,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -10702,6 +11111,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -10862,6 +11276,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -11002,6 +11421,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -11140,6 +11564,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -11287,6 +11716,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -11439,6 +11873,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -11586,6 +12025,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -11723,6 +12167,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -11816,6 +12265,9 @@
           }
         },
         "security": [
+          {
+            "bearerAuth": []
+          },
           {
             "security_auth": []
           }
@@ -11853,6 +12305,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -11946,6 +12403,9 @@
           }
         },
         "security": [
+          {
+            "bearerAuth": []
+          },
           {
             "security_auth": []
           }
@@ -11998,6 +12458,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -12091,6 +12556,9 @@
           }
         },
         "security": [
+          {
+            "bearerAuth": []
+          },
           {
             "security_auth": []
           }
@@ -12136,6 +12604,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -12229,6 +12702,9 @@
           }
         },
         "security": [
+          {
+            "bearerAuth": []
+          },
           {
             "security_auth": []
           }
@@ -12282,6 +12758,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -12376,6 +12857,9 @@
         },
         "security": [
           {
+            "bearerAuth": []
+          },
+          {
             "security_auth": []
           }
         ]
@@ -12419,6 +12903,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -12565,6 +13054,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -12721,6 +13215,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -12993,6 +13492,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -13131,6 +13635,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -13304,6 +13813,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -13597,6 +14111,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -13691,6 +14210,9 @@
         },
         "security": [
           {
+            "bearerAuth": []
+          },
+          {
             "security_auth": []
           }
         ]
@@ -13727,6 +14249,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -13860,6 +14387,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -13988,6 +14520,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -14121,6 +14658,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -14249,6 +14791,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -14371,6 +14918,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -14519,6 +15071,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -14641,6 +15198,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -14790,6 +15352,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -14923,6 +15490,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -15062,6 +15634,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -15156,6 +15733,9 @@
         },
         "security": [
           {
+            "bearerAuth": []
+          },
+          {
             "security_auth": []
           }
         ]
@@ -15200,6 +15780,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -15367,6 +15952,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -15505,6 +16095,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -15797,6 +16392,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -15945,6 +16545,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -16038,6 +16643,9 @@
           }
         },
         "security": [
+          {
+            "bearerAuth": []
+          },
           {
             "security_auth": []
           }
@@ -16090,6 +16698,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -16183,6 +16796,9 @@
           }
         },
         "security": [
+          {
+            "bearerAuth": []
+          },
           {
             "security_auth": []
           }
@@ -16227,6 +16843,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -16320,6 +16941,9 @@
           }
         },
         "security": [
+          {
+            "bearerAuth": []
+          },
           {
             "security_auth": []
           }
@@ -16377,6 +17001,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -16470,6 +17099,9 @@
           }
         },
         "security": [
+          {
+            "bearerAuth": []
+          },
           {
             "security_auth": []
           }
@@ -16517,6 +17149,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -16611,6 +17248,9 @@
         },
         "security": [
           {
+            "bearerAuth": []
+          },
+          {
             "security_auth": []
           }
         ]
@@ -16655,6 +17295,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -16783,6 +17428,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -16927,6 +17577,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -17049,6 +17704,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -17192,6 +17852,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -17400,6 +18065,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -17542,6 +18212,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -17681,6 +18356,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -17774,6 +18454,9 @@
           }
         },
         "security": [
+          {
+            "bearerAuth": []
+          },
           {
             "security_auth": []
           }
@@ -17810,6 +18493,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -17903,6 +18591,9 @@
           }
         },
         "security": [
+          {
+            "bearerAuth": []
+          },
           {
             "security_auth": []
           }
@@ -17965,6 +18656,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -18120,6 +18816,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -18253,6 +18954,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -18385,6 +19091,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -18521,6 +19232,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -18663,6 +19379,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -18803,6 +19524,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -18945,6 +19671,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -19086,6 +19817,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -19180,6 +19916,9 @@
         },
         "security": [
           {
+            "bearerAuth": []
+          },
+          {
             "security_auth": []
           }
         ]
@@ -19233,6 +19972,11 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
+                }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -19391,6 +20135,11 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
+              },
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -19493,6 +20242,45 @@
   },
   "components": {
     "schemas": {
+      "PingWebhookEvent": {
+        "description": "Webhook data payload for a ping delivery.",
+        "properties": {
+          "webhookId": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Identifier of the target webhook",
+            "example": 1
+          }
+        }
+      },
+      "PingWebhookEventEnvelope": {
+        "type": "object",
+        "description": "Outbound webhook envelope for event type 'ping'.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Semantic webhook event type",
+            "enum": [
+              "ping"
+            ],
+            "example": "ping"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "UTC timestamp describing when the source event happened",
+            "example": "2026-04-24T07:12:30Z"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PingWebhookEvent"
+          }
+        },
+        "required": [
+          "data",
+          "timestamp",
+          "type"
+        ]
+      },
       "NegotiationResourceUpdatedWebhookEvent": {
         "description": "Webhook data payload for newly added negotiation resources.",
         "properties": {
@@ -19523,6 +20311,89 @@
           },
           "data": {
             "$ref": "#/components/schemas/NegotiationResourceUpdatedWebhookEvent"
+          }
+        },
+        "required": [
+          "data",
+          "timestamp",
+          "type"
+        ]
+      },
+      "NegotiationStateUpdatedWebhookEvent": {
+        "description": "Webhook data payload for a negotiation state transition.",
+        "properties": {
+          "negotiationId": {
+            "type": "string",
+            "description": "Identifier of the affected negotiation",
+            "example": "negotiation-2"
+          },
+          "fromState": {
+            "type": "string",
+            "description": "Source state before transition",
+            "enum": [
+              "DRAFT",
+              "SUBMITTED",
+              "APPROVED",
+              "DECLINED",
+              "IN_PROGRESS",
+              "PAUSED",
+              "CONCLUDED",
+              "ABANDONED"
+            ],
+            "example": "DRAFT"
+          },
+          "toState": {
+            "type": "string",
+            "description": "Target state after transition",
+            "enum": [
+              "DRAFT",
+              "SUBMITTED",
+              "APPROVED",
+              "DECLINED",
+              "IN_PROGRESS",
+              "PAUSED",
+              "CONCLUDED",
+              "ABANDONED"
+            ],
+            "example": "SUBMITTED"
+          },
+          "event": {
+            "type": "string",
+            "description": "State-machine event that triggered the transition",
+            "enum": [
+              "SUBMIT",
+              "APPROVE",
+              "DECLINE",
+              "START",
+              "PAUSE",
+              "UNPAUSE",
+              "ABANDON",
+              "CONCLUDE"
+            ],
+            "example": "SUBMIT"
+          }
+        }
+      },
+      "NegotiationStateUpdatedWebhookEventEnvelope": {
+        "type": "object",
+        "description": "Outbound webhook envelope for event type 'negotiation.state.updated'.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Semantic webhook event type",
+            "enum": [
+              "negotiation.state.updated"
+            ],
+            "example": "negotiation.state.updated"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "UTC timestamp describing when the source event happened",
+            "example": "2026-04-24T07:12:30Z"
+          },
+          "data": {
+            "$ref": "#/components/schemas/NegotiationStateUpdatedWebhookEvent"
           }
         },
         "required": [
@@ -19578,6 +20449,97 @@
           },
           "data": {
             "$ref": "#/components/schemas/NegotiationPostAddedWebhookEvent"
+          }
+        },
+        "required": [
+          "data",
+          "timestamp",
+          "type"
+        ]
+      },
+      "NegotiationAddedWebhookEvent": {
+        "description": "Webhook data payload for a newly created negotiation.",
+        "properties": {
+          "negotiationId": {
+            "type": "string",
+            "description": "Identifier of the created negotiation",
+            "example": "negotiation-3"
+          },
+          "currentState": {
+            "type": "string",
+            "description": "Current negotiation state",
+            "enum": [
+              "DRAFT",
+              "SUBMITTED",
+              "APPROVED",
+              "DECLINED",
+              "IN_PROGRESS",
+              "PAUSED",
+              "CONCLUDED",
+              "ABANDONED"
+            ],
+            "example": "SUBMITTED"
+          }
+        }
+      },
+      "NegotiationAddedWebhookEventEnvelope": {
+        "type": "object",
+        "description": "Outbound webhook envelope for event type 'negotiation.added'.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Semantic webhook event type",
+            "enum": [
+              "negotiation.added"
+            ],
+            "example": "negotiation.added"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "UTC timestamp describing when the source event happened",
+            "example": "2026-04-24T07:12:30Z"
+          },
+          "data": {
+            "$ref": "#/components/schemas/NegotiationAddedWebhookEvent"
+          }
+        },
+        "required": [
+          "data",
+          "timestamp",
+          "type"
+        ]
+      },
+      "NegotiationInfoUpdatedWebhookEvent": {
+        "description": "Webhook data payload for updated negotiation information.",
+        "properties": {
+          "negotiationId": {
+            "type": "string",
+            "description": "Identifier of the affected negotiation",
+            "example": "negotiation-1"
+          }
+        }
+      },
+      "NegotiationInfoUpdatedWebhookEventEnvelope": {
+        "type": "object",
+        "description": "Outbound webhook envelope for event type 'negotiation.info.updated'.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Semantic webhook event type",
+            "enum": [
+              "negotiation.info.updated"
+            ],
+            "example": "negotiation.info.updated"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "UTC timestamp describing when the source event happened",
+            "example": "2026-04-24T07:12:30Z"
+          },
+          "data": {
+            "$ref": "#/components/schemas/NegotiationInfoUpdatedWebhookEvent"
           }
         },
         "required": [
@@ -19687,219 +20649,6 @@
           "type"
         ]
       },
-      "NegotiationInfoUpdatedWebhookEvent": {
-        "description": "Webhook data payload for updated negotiation information.",
-        "properties": {
-          "negotiationId": {
-            "type": "string",
-            "description": "Identifier of the affected negotiation",
-            "example": "negotiation-1"
-          }
-        }
-      },
-      "NegotiationInfoUpdatedWebhookEventEnvelope": {
-        "type": "object",
-        "description": "Outbound webhook envelope for event type 'negotiation.info.updated'.",
-        "properties": {
-          "type": {
-            "type": "string",
-            "description": "Semantic webhook event type",
-            "enum": [
-              "negotiation.info.updated"
-            ],
-            "example": "negotiation.info.updated"
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time",
-            "description": "UTC timestamp describing when the source event happened",
-            "example": "2026-04-24T07:12:30Z"
-          },
-          "data": {
-            "$ref": "#/components/schemas/NegotiationInfoUpdatedWebhookEvent"
-          }
-        },
-        "required": [
-          "data",
-          "timestamp",
-          "type"
-        ]
-      },
-      "PingWebhookEvent": {
-        "description": "Webhook data payload for a ping delivery.",
-        "properties": {
-          "webhookId": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Identifier of the target webhook",
-            "example": 1
-          }
-        }
-      },
-      "PingWebhookEventEnvelope": {
-        "type": "object",
-        "description": "Outbound webhook envelope for event type 'ping'.",
-        "properties": {
-          "type": {
-            "type": "string",
-            "description": "Semantic webhook event type",
-            "enum": [
-              "ping"
-            ],
-            "example": "ping"
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time",
-            "description": "UTC timestamp describing when the source event happened",
-            "example": "2026-04-24T07:12:30Z"
-          },
-          "data": {
-            "$ref": "#/components/schemas/PingWebhookEvent"
-          }
-        },
-        "required": [
-          "data",
-          "timestamp",
-          "type"
-        ]
-      },
-      "NegotiationAddedWebhookEvent": {
-        "description": "Webhook data payload for a newly created negotiation.",
-        "properties": {
-          "negotiationId": {
-            "type": "string",
-            "description": "Identifier of the created negotiation",
-            "example": "negotiation-3"
-          },
-          "currentState": {
-            "type": "string",
-            "description": "Current negotiation state",
-            "enum": [
-              "DRAFT",
-              "SUBMITTED",
-              "APPROVED",
-              "DECLINED",
-              "IN_PROGRESS",
-              "PAUSED",
-              "CONCLUDED",
-              "ABANDONED"
-            ],
-            "example": "SUBMITTED"
-          }
-        }
-      },
-      "NegotiationAddedWebhookEventEnvelope": {
-        "type": "object",
-        "description": "Outbound webhook envelope for event type 'negotiation.added'.",
-        "properties": {
-          "type": {
-            "type": "string",
-            "description": "Semantic webhook event type",
-            "enum": [
-              "negotiation.added"
-            ],
-            "example": "negotiation.added"
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time",
-            "description": "UTC timestamp describing when the source event happened",
-            "example": "2026-04-24T07:12:30Z"
-          },
-          "data": {
-            "$ref": "#/components/schemas/NegotiationAddedWebhookEvent"
-          }
-        },
-        "required": [
-          "data",
-          "timestamp",
-          "type"
-        ]
-      },
-      "NegotiationStateUpdatedWebhookEvent": {
-        "description": "Webhook data payload for a negotiation state transition.",
-        "properties": {
-          "negotiationId": {
-            "type": "string",
-            "description": "Identifier of the affected negotiation",
-            "example": "negotiation-2"
-          },
-          "fromState": {
-            "type": "string",
-            "description": "Source state before transition",
-            "enum": [
-              "DRAFT",
-              "SUBMITTED",
-              "APPROVED",
-              "DECLINED",
-              "IN_PROGRESS",
-              "PAUSED",
-              "CONCLUDED",
-              "ABANDONED"
-            ],
-            "example": "DRAFT"
-          },
-          "toState": {
-            "type": "string",
-            "description": "Target state after transition",
-            "enum": [
-              "DRAFT",
-              "SUBMITTED",
-              "APPROVED",
-              "DECLINED",
-              "IN_PROGRESS",
-              "PAUSED",
-              "CONCLUDED",
-              "ABANDONED"
-            ],
-            "example": "SUBMITTED"
-          },
-          "event": {
-            "type": "string",
-            "description": "State-machine event that triggered the transition",
-            "enum": [
-              "SUBMIT",
-              "APPROVE",
-              "DECLINE",
-              "START",
-              "PAUSE",
-              "UNPAUSE",
-              "ABANDON",
-              "CONCLUDE"
-            ],
-            "example": "SUBMIT"
-          }
-        }
-      },
-      "NegotiationStateUpdatedWebhookEventEnvelope": {
-        "type": "object",
-        "description": "Outbound webhook envelope for event type 'negotiation.state.updated'.",
-        "properties": {
-          "type": {
-            "type": "string",
-            "description": "Semantic webhook event type",
-            "enum": [
-              "negotiation.state.updated"
-            ],
-            "example": "negotiation.state.updated"
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time",
-            "description": "UTC timestamp describing when the source event happened",
-            "example": "2026-04-24T07:12:30Z"
-          },
-          "data": {
-            "$ref": "#/components/schemas/NegotiationStateUpdatedWebhookEvent"
-          }
-        },
-        "required": [
-          "data",
-          "timestamp",
-          "type"
-        ]
-      },
       "ProblemDetail": {
         "type": "object",
         "properties": {
@@ -19924,6 +20673,489 @@
           "properties": {
             "type": "object",
             "additionalProperties": {}
+          }
+        }
+      },
+      "ContentDisposition": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "charset": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "deprecated": true
+          },
+          "creationDate": {
+            "type": "string",
+            "format": "date-time",
+            "deprecated": true
+          },
+          "modificationDate": {
+            "type": "string",
+            "format": "date-time",
+            "deprecated": true
+          },
+          "readDate": {
+            "type": "string",
+            "format": "date-time",
+            "deprecated": true
+          },
+          "inline": {
+            "type": "boolean"
+          },
+          "attachment": {
+            "type": "boolean"
+          },
+          "formData": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DefaultHttpStatusCode": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/HttpStatusCode"
+          }
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "properties": {
+              "connection": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "ifModifiedSince": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "contentType": {
+                "$ref": "#/components/schemas/MediaType"
+              },
+              "contentLength": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "empty": {
+                "type": "boolean"
+              },
+              "location": {
+                "type": "string",
+                "format": "uri"
+              },
+              "host": {
+                "type": "object",
+                "properties": {
+                  "hostString": {
+                    "type": "string"
+                  },
+                  "address": {
+                    "type": "object",
+                    "properties": {
+                      "hostAddress": {
+                        "type": "string"
+                      },
+                      "address": {
+                        "type": "string",
+                        "format": "byte"
+                      },
+                      "hostName": {
+                        "type": "string"
+                      },
+                      "linkLocalAddress": {
+                        "type": "boolean"
+                      },
+                      "anyLocalAddress": {
+                        "type": "boolean"
+                      },
+                      "multicastAddress": {
+                        "type": "boolean"
+                      },
+                      "loopbackAddress": {
+                        "type": "boolean"
+                      },
+                      "siteLocalAddress": {
+                        "type": "boolean"
+                      },
+                      "mcglobal": {
+                        "type": "boolean"
+                      },
+                      "mcnodeLocal": {
+                        "type": "boolean"
+                      },
+                      "mclinkLocal": {
+                        "type": "boolean"
+                      },
+                      "mcsiteLocal": {
+                        "type": "boolean"
+                      },
+                      "mcorgLocal": {
+                        "type": "boolean"
+                      },
+                      "canonicalHostName": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "port": {
+                    "type": "integer",
+                    "format": "int32"
+                  },
+                  "unresolved": {
+                    "type": "boolean"
+                  },
+                  "hostName": {
+                    "type": "string"
+                  }
+                }
+              },
+              "all": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "writeOnly": true
+              },
+              "lastModified": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "date": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "acceptLanguage": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "range": {
+                      "type": "string"
+                    },
+                    "weight": {
+                      "type": "number",
+                      "format": "double"
+                    }
+                  }
+                }
+              },
+              "accessControlMaxAge": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "acceptCharset": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "contentDisposition": {
+                "$ref": "#/components/schemas/ContentDisposition"
+              },
+              "ifUnmodifiedSince": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "cacheControl": {
+                "type": "string"
+              },
+              "contentLanguage": {
+                "type": "string"
+              },
+              "acceptPatch": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MediaType"
+                }
+              },
+              "allow": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/HttpMethod"
+                },
+                "uniqueItems": true
+              },
+              "bearerAuth": {
+                "type": "string",
+                "writeOnly": true
+              },
+              "etag": {
+                "type": "string"
+              },
+              "expires": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "ifMatch": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "ifNoneMatch": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "origin": {
+                "type": "string"
+              },
+              "pragma": {
+                "type": "string"
+              },
+              "range": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/HttpRange"
+                }
+              },
+              "upgrade": {
+                "type": "string"
+              },
+              "vary": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "basicAuth": {
+                "type": "string",
+                "writeOnly": true
+              },
+              "accept": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MediaType"
+                }
+              },
+              "acceptLanguageAsLocales": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "accessControlAllowHeaders": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "accessControlAllowMethods": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/HttpMethod"
+                }
+              },
+              "accessControlAllowOrigin": {
+                "type": "string"
+              },
+              "accessControlExposeHeaders": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "accessControlRequestHeaders": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "accessControlRequestMethod": {
+                "$ref": "#/components/schemas/HttpMethod"
+              },
+              "accessControlAllowCredentials": {
+                "type": "boolean"
+              }
+            }
+          },
+          "typeMessageCode": {
+            "type": "string"
+          },
+          "detailMessageCode": {
+            "type": "string"
+          },
+          "titleMessageCode": {
+            "type": "string"
+          },
+          "body": {
+            "$ref": "#/components/schemas/ProblemDetail"
+          },
+          "statusCode": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DefaultHttpStatusCode"
+              },
+              {
+                "$ref": "#/components/schemas/HttpStatus"
+              }
+            ]
+          },
+          "detailMessageArguments": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "HttpMethod": {},
+      "HttpRange": {},
+      "HttpStatus": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/HttpStatusCode"
+          }
+        ],
+        "enum": [
+          "100 CONTINUE",
+          "101 SWITCHING_PROTOCOLS",
+          "102 PROCESSING",
+          "103 EARLY_HINTS",
+          "103 CHECKPOINT",
+          "200 OK",
+          "201 CREATED",
+          "202 ACCEPTED",
+          "203 NON_AUTHORITATIVE_INFORMATION",
+          "204 NO_CONTENT",
+          "205 RESET_CONTENT",
+          "206 PARTIAL_CONTENT",
+          "207 MULTI_STATUS",
+          "208 ALREADY_REPORTED",
+          "226 IM_USED",
+          "300 MULTIPLE_CHOICES",
+          "301 MOVED_PERMANENTLY",
+          "302 FOUND",
+          "302 MOVED_TEMPORARILY",
+          "303 SEE_OTHER",
+          "304 NOT_MODIFIED",
+          "305 USE_PROXY",
+          "307 TEMPORARY_REDIRECT",
+          "308 PERMANENT_REDIRECT",
+          "400 BAD_REQUEST",
+          "401 UNAUTHORIZED",
+          "402 PAYMENT_REQUIRED",
+          "403 FORBIDDEN",
+          "404 NOT_FOUND",
+          "405 METHOD_NOT_ALLOWED",
+          "406 NOT_ACCEPTABLE",
+          "407 PROXY_AUTHENTICATION_REQUIRED",
+          "408 REQUEST_TIMEOUT",
+          "409 CONFLICT",
+          "410 GONE",
+          "411 LENGTH_REQUIRED",
+          "412 PRECONDITION_FAILED",
+          "413 PAYLOAD_TOO_LARGE",
+          "413 REQUEST_ENTITY_TOO_LARGE",
+          "414 URI_TOO_LONG",
+          "414 REQUEST_URI_TOO_LONG",
+          "415 UNSUPPORTED_MEDIA_TYPE",
+          "416 REQUESTED_RANGE_NOT_SATISFIABLE",
+          "417 EXPECTATION_FAILED",
+          "418 I_AM_A_TEAPOT",
+          "419 INSUFFICIENT_SPACE_ON_RESOURCE",
+          "420 METHOD_FAILURE",
+          "421 DESTINATION_LOCKED",
+          "422 UNPROCESSABLE_ENTITY",
+          "423 LOCKED",
+          "424 FAILED_DEPENDENCY",
+          "425 TOO_EARLY",
+          "426 UPGRADE_REQUIRED",
+          "428 PRECONDITION_REQUIRED",
+          "429 TOO_MANY_REQUESTS",
+          "431 REQUEST_HEADER_FIELDS_TOO_LARGE",
+          "451 UNAVAILABLE_FOR_LEGAL_REASONS",
+          "500 INTERNAL_SERVER_ERROR",
+          "501 NOT_IMPLEMENTED",
+          "502 BAD_GATEWAY",
+          "503 SERVICE_UNAVAILABLE",
+          "504 GATEWAY_TIMEOUT",
+          "505 HTTP_VERSION_NOT_SUPPORTED",
+          "506 VARIANT_ALSO_NEGOTIATES",
+          "507 INSUFFICIENT_STORAGE",
+          "508 LOOP_DETECTED",
+          "509 BANDWIDTH_LIMIT_EXCEEDED",
+          "510 NOT_EXTENDED",
+          "511 NETWORK_AUTHENTICATION_REQUIRED"
+        ]
+      },
+      "HttpStatusCode": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "boolean"
+          },
+          "is4xxClientError": {
+            "type": "boolean"
+          },
+          "is5xxServerError": {
+            "type": "boolean"
+          },
+          "is1xxInformational": {
+            "type": "boolean"
+          },
+          "is2xxSuccessful": {
+            "type": "boolean"
+          },
+          "is3xxRedirection": {
+            "type": "boolean"
+          }
+        }
+      },
+      "MediaType": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "subtype": {
+            "type": "string"
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "qualityValue": {
+            "type": "number",
+            "format": "double"
+          },
+          "wildcardSubtype": {
+            "type": "boolean"
+          },
+          "subtypeSuffix": {
+            "type": "string"
+          },
+          "concrete": {
+            "type": "boolean"
+          },
+          "wildcardType": {
+            "type": "boolean"
+          },
+          "charset": {
+            "type": "string"
           }
         }
       },
@@ -20332,6 +21564,11 @@
               "PRIVATE",
               "PUBLIC"
             ]
+          },
+          "helpdeskActor": {
+            "type": "string",
+            "description": "Display name of the help desk actor who created this post (e.g. the representative's name or email). Only accepted from callers holding ROLE_HELPDESK_INTEGRATION. Stored for display purposes only.",
+            "example": "john.smith@mhh.de"
           }
         },
         "required": [
@@ -20363,6 +21600,11 @@
               "PRIVATE",
               "PUBLIC"
             ]
+          },
+          "helpdeskActor": {
+            "type": "string",
+            "description": "Display name of the help desk actor who created this post (e.g. the representative's name or email). Only accepted from callers holding ROLE_HELPDESK_INTEGRATION. Stored for display purposes only.",
+            "example": "john.smith@mhh.de"
           },
           "_links": {
             "$ref": "#/components/schemas/Links"
@@ -20399,16 +21641,16 @@
             "description": "Timestamp of the last successful login",
             "example": "2021-01-01T12:00:00Z"
           },
-          "representativeOfAnyResource": {
-            "type": "boolean"
-          },
-          "admin": {
+          "serviceAccount": {
             "type": "boolean"
           },
           "networkManager": {
             "type": "boolean"
           },
-          "serviceAccount": {
+          "admin": {
+            "type": "boolean"
+          },
+          "representativeOfAnyResource": {
             "type": "boolean"
           }
         }
@@ -21028,7 +22270,7 @@
           "accessFormId": {
             "type": "integer",
             "format": "int64",
-            "description": "ID of the access form related to the resource",
+            "description": "Optional ID of the access form related to the resource",
             "example": 42
           },
           "discoveryServiceId": {
@@ -21049,7 +22291,6 @@
           }
         },
         "required": [
-          "accessFormId",
           "description",
           "discoveryServiceId",
           "name",
@@ -21868,6 +23109,11 @@
               "RESOURCE_NOT_MADE_AVAILABLE",
               "RESOURCE_MADE_AVAILABLE"
             ]
+          },
+          "helpdeskActor": {
+            "type": "string",
+            "description": "Display name of the help desk actor who triggered this update (e.g. the representative's name or email). Only accepted from callers holding ROLE_HELPDESK_INTEGRATION. Stored for display purposes only.",
+            "example": "john.smith@mhh.de"
           }
         },
         "required": [
@@ -22029,16 +23275,16 @@
             "description": "Timestamp of the last successful login",
             "example": "2021-01-01T12:00:00Z"
           },
-          "representativeOfAnyResource": {
-            "type": "boolean"
-          },
-          "admin": {
+          "serviceAccount": {
             "type": "boolean"
           },
           "networkManager": {
             "type": "boolean"
           },
-          "serviceAccount": {
+          "admin": {
+            "type": "boolean"
+          },
+          "representativeOfAnyResource": {
             "type": "boolean"
           },
           "_links": {
@@ -22209,16 +23455,16 @@
               "type": "string"
             }
           },
-          "representativeOfAnyResource": {
-            "type": "boolean"
-          },
-          "admin": {
+          "serviceAccount": {
             "type": "boolean"
           },
           "networkManager": {
             "type": "boolean"
           },
-          "serviceAccount": {
+          "admin": {
+            "type": "boolean"
+          },
+          "representativeOfAnyResource": {
             "type": "boolean"
           },
           "_links": {
@@ -22426,35 +23672,11 @@
       "EntityModelNetworkStatistics": {
         "type": "object",
         "properties": {
-          "totalNumberOfNegotiations": {
-            "type": "integer",
-            "format": "int32",
-            "description": "Total number of negotiations in the network",
-            "example": 150
-          },
-          "networkId": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Unique identifier of the network",
-            "example": 101
-          },
-          "numberOfIgnoredNegotiations": {
-            "type": "integer",
-            "format": "int32",
-            "description": "Number of negotiations ignored in the network",
-            "example": 10
-          },
           "medianResponseTime": {
             "type": "number",
             "format": "double",
             "description": "Median response time for negotiations in days",
             "example": 10.6
-          },
-          "numberOfSuccessfulNegotiations": {
-            "type": "integer",
-            "format": "int32",
-            "description": "Number of successful negotiations in the network",
-            "example": 120
           },
           "statusDistribution": {
             "type": "object",
@@ -22478,11 +23700,35 @@
               }
             }
           },
+          "networkId": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unique identifier of the network",
+            "example": 101
+          },
           "numberOfNewRequesters": {
             "type": "integer",
             "format": "int32",
             "description": "Number of new requesters in the network",
             "example": 30
+          },
+          "totalNumberOfNegotiations": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Total number of negotiations in the network",
+            "example": 150
+          },
+          "numberOfIgnoredNegotiations": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Number of negotiations ignored in the network",
+            "example": 10
+          },
+          "numberOfSuccessfulNegotiations": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Number of successful negotiations in the network",
+            "example": 120
           },
           "numberOfActiveRepresentatives": {
             "type": "integer",
@@ -22855,6 +24101,11 @@
             }
           }
         }
+      },
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
       }
     }
   },
