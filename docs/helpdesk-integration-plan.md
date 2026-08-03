@@ -1208,6 +1208,12 @@ changes are required:
 - `Negotiation.buildResourceStateChangeRecord()` — accept the nullable `helpdeskActor` string and set it on the
   `NegotiationResourceLifecycleRecord` before it is added to the cascade
 
+The changes above cover the single-resource path (`PUT …/lifecycle/{event}`). The bulk path (`PATCH /v3/negotiations/{id}/resources`) also needs to carry actor identity. Three additional targeted changes are required:
+
+- `UpdateResourcesDTO.java` — add `private String helpdeskActor`; the field is populated by the middleware in the request body and is accepted only from callers holding `ROLE_HELPDESK_INTEGRATION`
+- `NegotiationController.updateResources()` — add an explicit `ROLE_HELPDESK_INTEGRATION` authorization branch (the endpoint is currently `.authenticated()` only in `HTTPRegistryConfigurer`); strip `helpdeskActor` from the DTO unless the caller holds `ROLE_HELPDESK_INTEGRATION` before delegating to the service
+- `ResourceService` / `ResourceServiceImpl.updateResourcesInANegotiation()` — thread the nullable `helpdeskActor` through `setStatusForUpdatedResources` → `updateResourceStatus` → `negotiation.setStateForResource(resourceId, state, helpdeskActor)`
+
 **Change 4: Implement `GET /v3/posts/{postId}` for middleware post text retrieval**
 
 The middleware needs to fetch the full text of a post when a `negotiation.post.added` webhook arrives — the webhook
