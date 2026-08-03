@@ -1,6 +1,11 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.verification;
 
-public interface ReplayCache {
+import jakarta.servlet.http.HttpServletRequest;
+
+public interface WebhookVerificationService {
+
+  /** Verifies signature and timestamp. Throws {@link WebhookAuthenticationException} on failure. */
+  void verify(HttpServletRequest request, byte[] body);
 
   /**
    * Returns {@code true} if this webhookId was already processed (replay prevention). On first call
