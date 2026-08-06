@@ -637,7 +637,7 @@ for each (organizationExternalId, resources[]) group:
                            │
                            ▼
                        link all created tickets as related
-                       (call adapter.linkRelatedTickets() for each pair)
+                       (call adapter.linkRelatedTickets(createdTickets, config))
 ```
 
 For all subsequent events (e.g. negotiation state change, new post, resource state change), the middleware looks up all
@@ -797,13 +797,19 @@ validation enforced. SSL verification is never disabled outside of isolated loca
 #### 5.2.2 Help Desk → Middleware (Inbound Callbacks)
 
 The middleware exposes the endpoint `POST /webhooks/helpdesk/{organizationExternalId}`. This endpoint is protected by
-shared secret verification. Each organization has its own `callbackSecret` in the YAML config, injected from an
+callback authentication. Each organization has its own `callbackSecret` in the YAML config, injected from an
 environment variable.
 
-The exact mechanism by which the help desk platform sends this secret is adapter-specific. It may be a custom HTTP
-header, an HMAC signature over the payload, or a query parameter. The adapter implementation is responsible for
-verifying it. The middleware core calls `adapter.verifyCallback(headers, body, callbackSecret)` and rejects with HTTP
-401 if verification fails.
+The exact mechanism depends on the help desk platform and is encapsulated entirely in the adapter. The middleware core
+calls `adapter.verifyCallback(headers, body, callbackSecret)` and rejects with HTTP 401 if verification fails.
+
+**Zammad:** Zammad signs outbound webhooks using HMAC-SHA1. When a webhook is configured with an HMAC token, Zammad
+includes an `X-Hub-Signature` header containing `sha1=<HMAC-SHA1(secret, body)>`. The `ZammadAdapter` verifies this
+header using a constant-time comparison (`MessageDigest.isEqual`) to prevent timing attacks. The `callbackSecret` in
+the YAML config is the HMAC token configured in the Zammad webhook settings. Zammad also supports HTTP Basic Auth and
+Bearer Token for outbound webhooks, but HMAC-SHA1 is preferred because it authenticates the payload itself — a
+replayed request with a stolen credential still passes Basic Auth or Bearer Token checks, whereas a tampered or
+replayed body fails HMAC verification.
 
 ## 6. Middleware Architecture
 
@@ -933,8 +939,8 @@ One class per event type. Each handler receives the parsed event, the resolved `
   from Negotiator; groups resources by `organizationExternalId`; for each group whose `organizationExternalId` matches
   an entry in the YAML config, branches on `ticketStrategy`: for `PER_NEGOTIATION` creates one ticket covering all
   resources and inserts one `ticket_mapping` row per resource all pointing to the same `helpdesk_ticket_id`; for
-  `PER_RESOURCE` creates one ticket per resource, inserts one `ticket_mapping` row per resource, then calls
-  `adapter.linkRelatedTickets()` for all tickets created for that org in that negotiation
+  `PER_RESOURCE` creates one ticket per resource, inserts one `ticket_mapping` row per resource, collects all
+  `CreatedTicket` objects, then calls `adapter.linkRelatedTickets(createdTickets, config)` once for that org
 - `NegotiationStateUpdatedHandler` — updates `negotiation_state` field on all mapped tickets; for `PER_NEGOTIATION` orgs
   the distinct set of `helpdesk_ticket_id` values for the negotiation is used (multiple rows share the same ticket ID,
   so deduplication is needed before calling the adapter)
@@ -977,16 +983,18 @@ public interface HelpDeskAdapter {
 
     /**
      * Verify the authenticity of an inbound callback from the help desk platform.
-     * Return false if verificaiton fails.
+     * Return false if verification fails.
      */
     boolean verifyCallback(HttpHeaders headers, byte[] body, String callbackSecret);
 
     /**
      * Create a new ticket for a resource in a negotiation.
-     * Called once per resource when negotiation reaches IN_PROGRESS. 
-     * Returns ticketId.
+     * Called once per resource (PER_RESOURCE) or once per org (PER_NEGOTIATION) when the
+     * negotiation reaches IN_PROGRESS.
+     * Returns a CreatedTicket carrying the platform ticket ID and any platform-specific
+     * metadata the adapter needs later (e.g. ticket number for Zammad link creation).
      */
-    String createTicket(CreateTicketRequest request, OrganizationConfig config);
+    CreatedTicket createTicket(CreateTicketRequest request, OrganizationConfig config);
 
     /**
      * Update the negotiation_state display field on an existing ticket.
@@ -1005,7 +1013,7 @@ public interface HelpDeskAdapter {
     void addComment(String ticketId, String commentText, OrganizationConfig config);
 
     /**
-     * Post a system notification comment (e.g. illegal transition rejection, post not send). 
+     * Post a system notification comment (e.g. illegal transition rejection, post not sent).
      */
     void addSystemComment(String ticketId, String message, OrganizationConfig config);
 
@@ -1013,35 +1021,54 @@ public interface HelpDeskAdapter {
      * Parse a raw help desk callback payload into the middleware's
      * internal HelpdeskCallbackEvent model.
      */
-    HelpdeskCallbackEvent parseCallback(Map<String, Object> payload);
+    Optional<HelpdeskCallbackEvent> parseCallback(Map<String, Object> payload);
 
-  /**
-   * Link a set of tickets as related so representatives can navigate between them.
-   * Called once after all PER_RESOURCE tickets for a negotiation+org are created.
-   */
-  void linkRelatedTickets(List<String> ticketIds, OrganizationConfig config);
+    /**
+     * Link a set of tickets as related so representatives can navigate between them.
+     * Called by NegotiationApprovedHandler after all PER_RESOURCE tickets for a
+     * negotiation+org are created, passing the full list of CreatedTicket objects.
+     * Each adapter uses whatever platform-specific data it needs from CreatedTicket
+     * (e.g. ZammadAdapter uses ticketNumber for the links API).
+     */
+    void linkRelatedTickets(List<CreatedTicket> tickets, OrganizationConfig config);
 }
 ```
 
-`createTicket()` returns the platform-specific ticket ID as a `String`. This is what gets stored in
-`ticket_mapping.helpdesk_ticket_id`.
+`createTicket()` returns a `CreatedTicket` record instead of a plain `String`. `CreatedTicket` carries the platform
+ticket ID (stored in `ticket_mapping.helpdesk_ticket_id`) and the ticket number. For Zammad the ticket number is
+required by the links API (`POST /api/v1/links/add` expects the source ticket's human-readable number, not its ID);
+it is captured from the `POST /api/v1/tickets` response so no extra HTTP calls are needed in `linkRelatedTickets`.
+The `CreatedTicket` record is defined in the `core/model` package so both the interface and the handlers can reference
+it.
 
 #### ZammadAdapter
 
-The first and only concrete adapter in this MVP product. Implements `HelpDeskAdapter` for
-Zammad ([Ticket endpoints](https://docs.zammad.org/en/latest/api/ticket/index.html), [Article endpoints](https://docs.zammad.org/en/latest/api/ticket/articles.html)):
+The first and only concrete adapter in this MVP product. A Spring `@Component` singleton. Implements `HelpDeskAdapter`
+for Zammad ([Ticket endpoints](https://docs.zammad.org/en/latest/api/ticket/index.html),
+[Article endpoints](https://docs.zammad.org/en/latest/api/ticket/articles.html)). Uses an injected
+`RestClient.Builder`; each method builds a `RestClient` scoped to the org's `baseUrl` with
+`Authorization: Token token={apiToken}` set from `config.credentials().get("apiToken")`.
 
-- `verifyCallback()` — verifies the `X-Helpdesk-Secret` header against `callbackSecret`
-- `createTicket()` — calls `POST /api/v1/tickets` with `group_id`, sets initial custom field values
+- `verifyCallback()` — reads `X-Hub-Signature` header, computes `HMAC-SHA1(callbackSecret, body)`, compares using
+  `MessageDigest.isEqual` (constant-time). Returns `false` if the header is absent or the signature does not match.
+- `createTicket()` — calls `POST /api/v1/tickets` with `group_id` from `config.platformConfig().get("groupId")`,
+  sets `negotiation_state`, `negotiator_resource_state`, and `negotiator_resource_transition_event: null` as top-level
+  custom fields, includes an initial `article` in the request body. The Zammad response contains both `id` (ticket ID)
+  and `number` (ticket number); both are captured and returned in the `CreatedTicket` record. Title format:
+  `[{negotiationDisplayId}] {resourceName} — Access Request` for `PER_RESOURCE`;
+  `[{negotiationDisplayId}] Resources Access Request` for `PER_NEGOTIATION`.
+- `updateNegotiationState()` — calls `PUT /api/v1/tickets/{id}` setting `negotiation_state`.
 - `updateResourceState()` — calls `PUT /api/v1/tickets/{id}` setting `negotiator_resource_state` and
   `negotiator_resource_transition_event: null`.
 - `addComment()` — calls `POST /api/v1/ticket_articles` with `internal: false`. Comments added by the middleware's bot
   account do not trigger callbacks because the Zammad trigger is configured to exclude the middleware's API user (see
   help desk setup in Section 3.3.1).
-- `linkRelatedTickets()` — calls `POST /api/v1/links` for each pair of ticket IDs, using link type `normal` to mark them
-  as related in Zammad.
+- `addSystemComment()` — same as `addComment()` but with `internal: true` (visible to agents only).
+- `linkRelatedTickets()` — calls `POST /api/v1/links/add` for each ordered pair from the provided `CreatedTicket` list,
+  using `ticketNumber` as `link_object_source_number` and `ticketId` as `link_object_target_value`. No extra HTTP calls
+  are needed because the ticket number is already captured from the `POST /api/v1/tickets` response in `createTicket()`.
 - `parseCallback()` — deserializes the Zammad webhook payload into `HelpdeskCallbackEvent`, extracting `ticket.id`,
-  `ticket.negotiator_resource_transition_event`, and `article.body`
+  `ticket.negotiator_resource_transition_event`, and `article.body`.
 
 #### AlvaoAdapter
 
@@ -1057,27 +1084,31 @@ depends on them, not the other way around.
 ```java
 record CreateTicketRequest(
         String negotiationId,        // internal UUID
-        String negotiationDisplayId, // used in ticket title and potentially as a subject in first comment
-        String resourceName,
-        // human-readable resource name — used in ticket title in ticket strategy PER_RESOURCE
+        String negotiationDisplayId, // used in ticket title
+        String resourceName,         // human-readable resource name; null for PER_NEGOTIATION tickets
         String negotiationState,     // "IN_PROGRESS" — initial value for negotiation_state field
         String resourceState,        // "SUBMITTED" — initial value for negotiator_resource_state field
-        String humanReadable         // ticket body
+        String ticketBody            // ticket body
 )
 
+record CreatedTicket(
+        String ticketId,     // platform ticket ID; stored in ticket_mapping.helpdesk_ticket_id
+        String ticketNumber  // platform ticket number; used by adapters that need it for linking
+                             // (e.g. Zammad links API requires the source ticket number, not ID)
+)
 
 record HelpdeskCallbackEvent(
         String ticketId,
-        HelpdeskCallbackType type,  // RESOURCE_TRANSITION or POST_MESSAGE
-        String resourceTransitionEvent,   // null if type = POST_MESSAGE
-        String postText
+        HelpdeskCallbackType type,         // RESOURCE_TRANSITION or POST_MESSAGE
+        String resourceTransitionEvent,    // null if type = POST_MESSAGE
+        String postText,                   // null if type = RESOURCE_TRANSITION
+        String helpdeskActor               // representative's identity from the help desk (name or email)
 )
 
 enum HelpdeskCallbackType {
     RESOURCE_TRANSITION,
     POST_MESSAGE
 }
-
 ```
 
 ---
@@ -1260,8 +1291,8 @@ unimplemented stub returning `null`. Two targeted changes are required:
   from Negotiator; groups resources by `organizationExternalId`; for each group matching an entry in the YAML config,
   branches on `ticketStrategy`: for `PER_NEGOTIATION` creates one ticket and inserts one `ticket_mapping` row per
   resource all pointing to the same `helpdesk_ticket_id`; for `PER_RESOURCE` creates one ticket per resource, inserts
-  one `ticket_mapping` row per resource, then calls `adapter.linkRelatedTickets()` with all ticket IDs created for that
-  org in that negotiation
+  one `ticket_mapping` row per resource, collects all `CreatedTicket` results, then calls
+  `adapter.linkRelatedTickets(createdTickets, config)` once for that org in that negotiation
 - `NegotiationPostAddedHandler` — fetches post text from Negotiator; for PUBLIC posts fans out to all distinct
   `helpdesk_ticket_id` values for the negotiation; for PRIVATE posts fans out only to distinct ticket IDs matching the
   post's `organizationId` and `negotiationId`; for both cases it excludes the originating ticket identified via
@@ -1279,11 +1310,13 @@ unimplemented stub returning `null`. Two targeted changes are required:
 - `HelpdeskPostHandler` — writes hash of post text and `ticketId` to `originated_posts` before calling Negotiator; calls
   `NegotiatorClient.createPost()` with visibility type always set to `PRIVATE`
 
-7. **Zammad adapter** — `ZammadAdapter` implementing the full `HelpDeskAdapter` interface: `verifyCallback` (checks
-   `X-Helpdesk-Secret` header), `createTicket` (title format: `[{negotiationDisplayId}] {resourceName} — Access Request`
-   for `PER_RESOURCE`; `[{negotiationDisplayId}] Resources Access Request` for `PER_NEGOTIATION`),
-   `updateResourceState`, `addComment`, `addSystemComment`, `linkRelatedTickets` (calls `POST /api/v1/links` for each
-   pair of ticket IDs with link type `normal`), `parseCallback`.
+7. **Zammad adapter** — `ZammadAdapter` implementing the full `HelpDeskAdapter` interface: `verifyCallback` (verifies
+   `X-Hub-Signature` HMAC-SHA1 header), `createTicket` (title format:
+   `[{negotiationDisplayId}] {resourceName} — Access Request` for `PER_RESOURCE`;
+   `[{negotiationDisplayId}] Resources Access Request` for `PER_NEGOTIATION`; returns `CreatedTicket` with both ticket
+   ID and ticket number from the response), `updateNegotiationState`, `updateResourceState`, `addComment`,
+   `addSystemComment`, `linkRelatedTickets` (calls `POST /api/v1/links/add` for each pair using ticket number from
+   `CreatedTicket`), `parseCallback`.
 
 8. **Help desk setup documentation** — step-by-step instructions for the Zammad admin covering: dedicated bot user
    account for the middleware, group creation for tickets, three custom fields (`negotiation_state`,

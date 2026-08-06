@@ -23,7 +23,7 @@ class OrganizationConfigRegistryTest {
     assertThat(result.get().type()).isEqualTo(HelpDeskType.ZAMMAD);
     assertThat(result.get().ticketStrategy()).isEqualTo(TicketStrategy.PER_RESOURCE);
     assertThat(result.get().credentials()).containsEntry("apiToken", "secret-token");
-    assertThat(result.get().platformConfig()).containsEntry("groupId", 3);
+    assertThat(result.get().platformConfig()).containsEntry("group", "Sales");
   }
 
   @Test
@@ -65,7 +65,7 @@ class OrganizationConfigRegistryTest {
     assertThatThrownBy(() -> new OrganizationConfigRegistry(propsWithEntry(entry)))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("bbmri:DE:MHH")
-        .hasMessageContaining("groupId");
+        .hasMessageContaining("group");
   }
 
   @Test
@@ -83,7 +83,7 @@ class OrganizationConfigRegistryTest {
     entry.setBaseUrl("https://zammad.mhh.de");
     entry.setCredentials(new HashMap<>(Map.of("apiToken", "secret-token")));
     entry.setCallbackSecret("secret-callback");
-    entry.setPlatformConfig(new HashMap<>(Map.of("groupId", 3)));
+    entry.setPlatformConfig(new HashMap<>(Map.of("group", "Sales")));
     return entry;
   }
 
