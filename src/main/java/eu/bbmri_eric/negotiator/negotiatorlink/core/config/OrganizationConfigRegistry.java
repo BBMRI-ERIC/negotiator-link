@@ -16,7 +16,7 @@ public class OrganizationConfigRegistry {
 
   private static final Map<HelpDeskType, Set<String>> REQUIRED_PLATFORM_KEYS =
       Map.of(
-          HelpDeskType.ZAMMAD, Set.of("groupId"),
+          HelpDeskType.ZAMMAD, Set.of("group"),
           HelpDeskType.ALVAO, Set.of());
 
   private final List<OrganizationConfig> configs;

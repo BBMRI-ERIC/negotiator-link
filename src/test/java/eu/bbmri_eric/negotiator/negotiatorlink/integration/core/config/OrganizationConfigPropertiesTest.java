@@ -24,7 +24,7 @@ class OrganizationConfigPropertiesTest {
     assertThat(config.get().baseUrl()).isEqualTo("https://zammad.mhh.de");
     assertThat(config.get().credentials()).containsEntry("apiToken", "test-api-token");
     assertThat(config.get().callbackSecret()).isEqualTo("test-callback-secret");
-    assertThat(config.get().platformConfig()).containsEntry("groupId", 3);
+    assertThat(config.get().platformConfig()).containsEntry("group", "Sales");
   }
 
   @Test
