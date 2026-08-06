@@ -17,14 +17,14 @@ public class NegotiatorClient {
   private final NegotiationsApi negotiationsApi;
   private final CommentsApi commentsApi;
 
-  NegotiatorClient(RestClient restClient, String baseUrl) {
+  public NegotiatorClient(RestClient restClient, String baseUrl) {
     var apiClient = new eu.bbmri_eric.negotiator.negotiatorlink.generated.ApiClient(restClient);
     apiClient.setBasePath(baseUrl);
     this.negotiationsApi = new NegotiationsApi(apiClient);
     this.commentsApi = new CommentsApi(apiClient);
   }
 
-  NegotiatorClient(NegotiationsApi negotiationsApi, CommentsApi commentsApi) {
+  public NegotiatorClient(NegotiationsApi negotiationsApi, CommentsApi commentsApi) {
     this.negotiationsApi = negotiationsApi;
     this.commentsApi = commentsApi;
   }
