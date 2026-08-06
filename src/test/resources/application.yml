@@ -29,11 +29,11 @@ negotiatorlink:
     base-url: http://localhost:8081/api
   organizations:
     - organizationExternalId: "bbmri:DE:MHH"
-      type: "zammad"
+      type: "ZAMMAD"
       ticketStrategy: "PER_RESOURCE"
       baseUrl: "https://zammad.mhh.de"
       credentials:
         apiToken: "test-api-token"
       callbackSecret: "test-callback-secret"
       platformConfig:
-        groupId: 3
+        group: "Sales"
