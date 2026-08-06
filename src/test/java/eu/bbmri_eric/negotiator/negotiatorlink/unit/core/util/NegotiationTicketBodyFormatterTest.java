@@ -71,6 +71,7 @@ class NegotiationTicketBodyFormatterTest {
 
             (diagnosis EQUALS B23.0)
 
+
           """;
 
   @Nested
@@ -117,7 +118,6 @@ class NegotiationTicketBodyFormatterTest {
       String expected =
           NEGOTIATION_HEADER
               + """
-
               ────────────────────────────────────────────────────────────
                 RESOURCE
               ────────────────────────────────────────────────────────────
@@ -153,7 +153,6 @@ class NegotiationTicketBodyFormatterTest {
       String expected =
           NEGOTIATION_HEADER
               + """
-
               ────────────────────────────────────────────────────────────
                 RESOURCES
               ────────────────────────────────────────────────────────────
