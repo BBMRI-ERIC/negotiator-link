@@ -1,10 +1,11 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.verification;
 
+import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.buildWebhookRequest;
+import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.signedWebhookPayload;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.standardwebhooks.Webhook;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.verification.WebhookAuthenticationException;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.verification.WebhookVerificationServiceImpl;
 import java.nio.charset.StandardCharsets;
@@ -20,24 +21,24 @@ class WebhookVerificationServiceImplTest {
   private static final String BODY = "{\"event\":\"test\"}";
 
   private WebhookVerificationServiceImpl service;
-  private Webhook webhook;
 
   @BeforeEach
   void setUp() {
     service = new WebhookVerificationServiceImpl(SECRET);
-    webhook = new Webhook(SECRET);
   }
 
   @Test
   void verify_whenValidRequest_doesNotThrow() {
-    var request = buildRequest(WEBHOOK_ID, sign(WEBHOOK_ID, Instant.now(), BODY));
+    var request =
+        buildWebhookRequest(
+            WEBHOOK_ID, signedWebhookPayload(SECRET, WEBHOOK_ID, Instant.now(), BODY));
     assertThatNoException()
         .isThrownBy(() -> service.verify(request, BODY.getBytes(StandardCharsets.UTF_8)));
   }
 
   @Test
   void verify_whenSignatureTampered_throwsWebhookAuthenticationException() {
-    var request = buildRequest(WEBHOOK_ID, "v1,invalidsignature==");
+    var request = buildWebhookRequest(WEBHOOK_ID, "v1,invalidsignature==");
     assertThatThrownBy(() -> service.verify(request, BODY.getBytes(StandardCharsets.UTF_8)))
         .isInstanceOf(WebhookAuthenticationException.class);
   }
@@ -45,7 +46,9 @@ class WebhookVerificationServiceImplTest {
   @Test
   void verify_whenTimestampTooOld_throwsWebhookAuthenticationException() {
     var staleInstant = Instant.now().minusSeconds(6 * 60);
-    var request = buildRequest(WEBHOOK_ID, sign(WEBHOOK_ID, staleInstant, BODY), staleInstant);
+    var request =
+        buildWebhookRequest(
+            WEBHOOK_ID, signedWebhookPayload(SECRET, WEBHOOK_ID, staleInstant, BODY), staleInstant);
     assertThatThrownBy(() -> service.verify(request, BODY.getBytes(StandardCharsets.UTF_8)))
         .isInstanceOf(WebhookAuthenticationException.class);
   }
@@ -77,26 +80,5 @@ class WebhookVerificationServiceImplTest {
     assertThatThrownBy(() -> new WebhookVerificationServiceImpl(""))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("NEGOTIATOR_WEBHOOK_SECRET");
-  }
-
-  private MockHttpServletRequest buildRequest(String webhookId, String signature) {
-    return buildRequest(webhookId, signature, Instant.now());
-  }
-
-  private MockHttpServletRequest buildRequest(
-      String webhookId, String signature, Instant timestamp) {
-    var request = new MockHttpServletRequest();
-    request.addHeader("Webhook-Id", webhookId);
-    request.addHeader("Webhook-Timestamp", String.valueOf(timestamp.getEpochSecond()));
-    request.addHeader("Webhook-Signature", signature);
-    return request;
-  }
-
-  private String sign(String msgId, Instant timestamp, String body) {
-    try {
-      return webhook.sign(msgId, timestamp.getEpochSecond(), body);
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
   }
 }

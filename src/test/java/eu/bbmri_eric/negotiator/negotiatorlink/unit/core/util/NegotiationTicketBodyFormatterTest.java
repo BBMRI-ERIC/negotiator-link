@@ -108,7 +108,8 @@ class NegotiationTicketBodyFormatterTest {
   }
 
   @Test
-  void getTicketBodyWithMultipleResources_withTwoResources_rendersAllResourcesWithSharedStateLine() {
+  void
+      getTicketBodyWithMultipleResources_withTwoResources_rendersAllResourcesWithSharedStateLine() {
     var negotiation = createNegotiation();
     var resource1 =
         createResource("Dummy test collection", "bbmri-eric:ID:SE_890:collection:dummy_collection");

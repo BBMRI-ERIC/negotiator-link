@@ -24,7 +24,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingReposit
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFormatter;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
-import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.OrganizationDTO;
+import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -200,36 +200,14 @@ class NegotiationStateUpdatedHandlerTest {
   }
 
   private EntityModelNegotiationDTO createNegotiation() {
-    var negotiation = new EntityModelNegotiationDTO();
-    negotiation.setId(NEGOTIATION_ID);
-    negotiation.setDisplayId(DISPLAY_ID);
-    negotiation.setStatus(NEGOTIATION_STATE);
-    return negotiation;
+    return TestUtil.negotiation(NEGOTIATION_ID, DISPLAY_ID, NEGOTIATION_STATE);
   }
 
   private EntityModelResourceWithStatusDTO createResource(String sourceId, Long id) {
-    var resource = new EntityModelResourceWithStatusDTO();
-    resource.setId(id);
-    resource.setSourceId(sourceId);
-    resource.setName("Resource " + sourceId);
-    resource.setCurrentState(EntityModelResourceWithStatusDTO.CurrentStateEnum.SUBMITTED);
-
-    var org = new OrganizationDTO();
-    org.setId(ORG_INTERNAL_ID);
-    org.setExternalId(ORG_EXT_ID);
-    resource.setOrganization(org);
-
-    return resource;
+    return TestUtil.resource(id, sourceId, "Resource " + sourceId, ORG_EXT_ID, ORG_INTERNAL_ID);
   }
 
   private OrganizationConfig createConfig(TicketStrategy strategy) {
-    return new OrganizationConfig(
-        ORG_EXT_ID,
-        HelpDeskType.ZAMMAD,
-        strategy,
-        "https://zammad.example.com",
-        Map.of("apiToken", "tok"),
-        "secret",
-        Map.of("group", "3"));
+    return TestUtil.organizationConfig(ORG_EXT_ID, strategy);
   }
 }

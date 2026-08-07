@@ -21,6 +21,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
+import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -153,12 +154,7 @@ class NegotiationPostAddedHandlerTest {
   }
 
   private EntityModelPostDTO createPost(EntityModelPostDTO.TypeEnum type) {
-    var p = new EntityModelPostDTO();
-    p.setId(POST_ID);
-    p.setText(POST_TEXT);
-    p.setType(type);
-    p.setOrganizationId(ORG_ID_STR);
-    return p;
+    return TestUtil.post(POST_ID, POST_TEXT, type, ORG_ID_STR);
   }
 
   private TicketMapping mapping(String ticketId, String orgId, String orgExtId) {
@@ -167,13 +163,6 @@ class NegotiationPostAddedHandlerTest {
   }
 
   private OrganizationConfig createConfig(String orgExtId) {
-    return new OrganizationConfig(
-        orgExtId,
-        HelpDeskType.ZAMMAD,
-        TicketStrategy.PER_RESOURCE,
-        "https://zammad.example.com",
-        Map.of("apiToken", "tok"),
-        "secret",
-        Map.of("group", "3"));
+    return TestUtil.organizationConfig(orgExtId, TicketStrategy.PER_RESOURCE);
   }
 }

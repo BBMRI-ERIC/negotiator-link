@@ -19,6 +19,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.ResourceStateUpdated
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -83,10 +84,10 @@ class ResourceStateUpdatedHandlerTest {
   void handle_perResource_updatesDirectly() {
     var config = createConfig(TicketStrategy.PER_RESOURCE);
     when(ticketMappingRepository.findByIdNegotiationIdAndIdResourceId(NEGOTIATION_ID, RESOURCE_ID))
-            .thenReturn(Optional.of(mapping()));
+        .thenReturn(Optional.of(mapping()));
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
     when(originatedTransitionRepository.findByNegotiationIdAndTicketId(NEGOTIATION_ID, TICKET_ID))
-            .thenReturn(Optional.empty());
+        .thenReturn(Optional.empty());
 
     handler.handle(eventData(NEW_STATE));
 
@@ -162,14 +163,7 @@ class ResourceStateUpdatedHandlerTest {
   }
 
   private OrganizationConfig createConfig(TicketStrategy strategy) {
-    return new OrganizationConfig(
-        ORG_EXT_ID,
-        HelpDeskType.ZAMMAD,
-        strategy,
-        "https://zammad.example.com",
-        Map.of("apiToken", "tok"),
-        "secret",
-        Map.of("group", "3"));
+    return TestUtil.organizationConfig(ORG_EXT_ID, strategy);
   }
 
   private OriginatedTransition transition(int expected, int received) {
