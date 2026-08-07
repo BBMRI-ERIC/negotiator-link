@@ -1,6 +1,5 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.util;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.UserResponseModel;
@@ -48,10 +47,10 @@ public final class NegotiationTicketBodyFormatter {
   }
 
   /** Builds the ticket title. */
-  public static String buildTitle(CreateTicketRequest request) {
-    String prefix = "[" + request.negotiationDisplayId() + "] ";
-    return request.resourceName() != null
-        ? prefix + request.resourceName() + " — Access Request"
+  public static String buildTitle(String negotiationDisplayId, String resourceName) {
+    String prefix = "[" + negotiationDisplayId + "] ";
+    return resourceName != null
+        ? prefix + resourceName + " — Access Request"
         : prefix + "Resources Access Request";
   }
 

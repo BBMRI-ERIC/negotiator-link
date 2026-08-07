@@ -1,10 +1,10 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.integration.inbound;
 
+import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.signedWebhookPayload;
+import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.utf8;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.standardwebhooks.Webhook;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,7 +29,6 @@ class NegotiatorWebhookControllerTest {
   void receiveWebhook_whenValidSignature_returns200() throws Exception {
     var webhookId = "msg-001";
     var timestamp = Instant.now();
-    var signature = sign(webhookId, timestamp);
 
     mockMvc
         .perform(
@@ -37,8 +36,9 @@ class NegotiatorWebhookControllerTest {
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .header("Webhook-Id", webhookId)
                 .header("Webhook-Timestamp", timestamp.getEpochSecond())
-                .header("Webhook-Signature", signature)
-                .content(BODY.getBytes(StandardCharsets.UTF_8)))
+                .header(
+                    "Webhook-Signature", signedWebhookPayload(secret, webhookId, timestamp, BODY))
+                .content(utf8(BODY)))
         .andExpect(status().isOk());
   }
 
@@ -51,7 +51,7 @@ class NegotiatorWebhookControllerTest {
                 .header("Webhook-Id", "msg-002")
                 .header("Webhook-Timestamp", Instant.now().getEpochSecond())
                 // Webhook-Signature intentionally omitted
-                .content(BODY.getBytes(StandardCharsets.UTF_8)))
+                .content(utf8(BODY)))
         .andExpect(status().isUnauthorized());
   }
 
@@ -66,7 +66,7 @@ class NegotiatorWebhookControllerTest {
                 .header("Webhook-Id", "msg-003")
                 .header("Webhook-Timestamp", timestamp.getEpochSecond())
                 .header("Webhook-Signature", "v1,invalidsignature==")
-                .content(BODY.getBytes(StandardCharsets.UTF_8)))
+                .content(utf8(BODY)))
         .andExpect(status().isUnauthorized());
   }
 
@@ -74,7 +74,6 @@ class NegotiatorWebhookControllerTest {
   void receiveWebhook_whenTimestampTooOld_returns401() throws Exception {
     var webhookId = "msg-004";
     var staleTimestamp = Instant.now().minusSeconds(6 * 60);
-    var signature = sign(webhookId, staleTimestamp);
 
     mockMvc
         .perform(
@@ -82,8 +81,10 @@ class NegotiatorWebhookControllerTest {
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .header("Webhook-Id", webhookId)
                 .header("Webhook-Timestamp", staleTimestamp.getEpochSecond())
-                .header("Webhook-Signature", signature)
-                .content(BODY.getBytes(StandardCharsets.UTF_8)))
+                .header(
+                    "Webhook-Signature",
+                    signedWebhookPayload(secret, webhookId, staleTimestamp, BODY))
+                .content(utf8(BODY)))
         .andExpect(status().isUnauthorized());
   }
 
@@ -91,7 +92,7 @@ class NegotiatorWebhookControllerTest {
   void receiveWebhook_whenDuplicate_returns200() throws Exception {
     var webhookId = "msg-005";
     var timestamp = Instant.now();
-    var signature = sign(webhookId, timestamp);
+    var signature = signedWebhookPayload(secret, webhookId, timestamp, BODY);
 
     // first delivery — marks as seen
     mockMvc
@@ -101,7 +102,7 @@ class NegotiatorWebhookControllerTest {
                 .header("Webhook-Id", webhookId)
                 .header("Webhook-Timestamp", timestamp.getEpochSecond())
                 .header("Webhook-Signature", signature)
-                .content(BODY.getBytes(StandardCharsets.UTF_8)))
+                .content(utf8(BODY)))
         .andExpect(status().isOk());
 
     // second delivery with same id — acknowledged silently
@@ -112,15 +113,7 @@ class NegotiatorWebhookControllerTest {
                 .header("Webhook-Id", webhookId)
                 .header("Webhook-Timestamp", timestamp.getEpochSecond())
                 .header("Webhook-Signature", signature)
-                .content(BODY.getBytes(StandardCharsets.UTF_8)))
+                .content(utf8(BODY)))
         .andExpect(status().isOk());
-  }
-
-  private String sign(String webhookId, Instant timestamp) {
-    try {
-      return new Webhook(secret).sign(webhookId, timestamp.getEpochSecond(), BODY);
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
   }
 }

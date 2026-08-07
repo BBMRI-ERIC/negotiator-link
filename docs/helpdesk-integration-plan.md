@@ -982,6 +982,12 @@ happens in the event handlers in the core, before the adapter is called.
 public interface HelpDeskAdapter {
 
     /**
+     * Returns the help desk type this adapter handles.
+     * Used to resolve the correct adapter from the registry.
+     */
+    HelpDeskType getType();
+
+    /**
      * Verify the authenticity of an inbound callback from the help desk platform.
      * Return false if verification fails.
      */
@@ -1083,12 +1089,10 @@ depends on them, not the other way around.
 
 ```java
 record CreateTicketRequest(
-        String negotiationId,        // internal UUID
-        String negotiationDisplayId, // used in ticket title
-        String resourceName,         // human-readable resource name; null for PER_NEGOTIATION tickets
-        String negotiationState,     // "IN_PROGRESS" — initial value for negotiation_state field
-        String resourceState,        // "SUBMITTED" — initial value for negotiator_resource_state field
-        String ticketBody            // ticket body
+        String title,            // pre-built ticket title
+        String negotiationState, // "IN_PROGRESS" — initial value for negotiation_state field
+        String resourceState,    // "SUBMITTED" — initial value for negotiator_resource_state field
+        String ticketBody        // ticket body
 )
 
 record CreatedTicket(

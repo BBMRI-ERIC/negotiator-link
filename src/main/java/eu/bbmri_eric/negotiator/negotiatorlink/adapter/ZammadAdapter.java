@@ -1,7 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.adapter;
 
-import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFormatter.buildTitle;
-
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreatedTicket;
@@ -27,18 +26,32 @@ import org.springframework.web.client.RestClient;
 @Component
 public class ZammadAdapter implements HelpDeskAdapter {
 
-  private static final String HMAC_ALGORITHM = "HmacSHA1";
-  private static final String SIGNATURE_HEADER = "X-Hub-Signature";
-  private static final String SIGNATURE_PREFIX = "sha1=";
   private static final String AUTH_HEADER = "Authorization";
   private static final String TICKET_ARTICLES_PATH = "/api/v1/ticket_articles";
   private static final String TICKETS_PATH = "/api/v1/tickets";
+  private static final String TICKET_BY_ID_PATH = TICKETS_PATH + "/{id}";
   private static final String LINKS_ADD_PATH = "/api/v1/links/add";
+
+  // Callback verification
+  private static final String HMAC_ALGORITHM = "HmacSHA1";
+  private static final String SIGNATURE_HEADER = "X-Hub-Signature";
+  private static final String SIGNATURE_PREFIX = "sha1=";
+
+  // Zammad JSON field names
+  private static final String FIELD_NEGOTIATION_STATE = "negotiation_state";
+  private static final String FIELD_RESOURCE_STATE = "negotiator_resource_state";
+  private static final String FIELD_TRANSITION_EVENT = "negotiator_resource_transition_event";
+  private static final String ARTICLE_TYPE_NOTE = "note";
 
   private final RestClient.Builder restClientBuilder;
 
   public ZammadAdapter(RestClient.Builder restClientBuilder) {
     this.restClientBuilder = restClientBuilder;
+  }
+
+  @Override
+  public HelpDeskType getType() {
+    return HelpDeskType.ZAMMAD;
   }
 
   @Override
@@ -63,28 +76,11 @@ public class ZammadAdapter implements HelpDeskAdapter {
 
   @Override
   public CreatedTicket createTicket(CreateTicketRequest request, OrganizationConfig config) {
-    RestClient client = buildClient(config);
-
-    String title = buildTitle(request);
-    String group = (String) config.platformConfig().get("group");
-
-    Map<String, Object> article = new HashMap<>();
-    article.put("subject", title);
-    article.put("body", request.ticketBody());
-    article.put("type", "note");
-    article.put("internal", false);
-
-    Map<String, Object> body = new HashMap<>();
-    body.put("title", title);
-    body.put("group", group);
-    body.put("negotiation_state", request.negotiationState());
-    body.put("negotiator_resource_state", request.resourceState());
-    body.put("negotiator_resource_transition_event", null);
-    body.put("article", article);
+    Map<String, Object> body = buildCreateTicketBody(request, config);
 
     @SuppressWarnings("unchecked")
     Map<String, Object> response =
-        client
+        buildClient(config)
             .post()
             .uri(TICKETS_PATH)
             .contentType(MediaType.APPLICATION_JSON)
@@ -92,40 +88,28 @@ public class ZammadAdapter implements HelpDeskAdapter {
             .retrieve()
             .body(Map.class);
 
-    String ticketId = String.valueOf(((Number) response.get("id")).longValue());
-    String ticketNumber = String.valueOf(response.get("number"));
-    log.info("Created Zammad ticket id={} number={} title='{}'", ticketId, ticketNumber, title);
-    return new CreatedTicket(ticketId, ticketNumber);
+    CreatedTicket ticket = parseCreatedTicket(response);
+    log.info(
+        "Created Zammad ticket id={} number={} title='{}'",
+        ticket.ticketId(),
+        ticket.ticketNumber(),
+        request.title());
+    return ticket;
   }
 
   @Override
   public void updateNegotiationState(
       String ticketId, String negotiationState, OrganizationConfig config) {
-    RestClient client = buildClient(config);
-    Map<String, Object> body = Map.of("negotiation_state", negotiationState);
-    client
-        .put()
-        .uri(TICKETS_PATH + "/{id}", ticketId)
-        .contentType(MediaType.APPLICATION_JSON)
-        .body(body)
-        .retrieve()
-        .toBodilessEntity();
+    putTicket(ticketId, Map.of(FIELD_NEGOTIATION_STATE, negotiationState), config);
   }
 
   @Override
   public void updateResourceState(
       String ticketId, String resourceState, OrganizationConfig config) {
-    RestClient client = buildClient(config);
     Map<String, Object> body = new HashMap<>();
-    body.put("negotiator_resource_state", resourceState);
-    body.put("negotiator_resource_transition_event", null);
-    client
-        .put()
-        .uri(TICKETS_PATH + "/{id}", ticketId)
-        .contentType(MediaType.APPLICATION_JSON)
-        .body(body)
-        .retrieve()
-        .toBodilessEntity();
+    body.put(FIELD_RESOURCE_STATE, resourceState);
+    body.put(FIELD_TRANSITION_EVENT, null);
+    putTicket(ticketId, body, config);
   }
 
   @Override
@@ -134,8 +118,9 @@ public class ZammadAdapter implements HelpDeskAdapter {
   }
 
   @Override
-  public void addSystemComment(String ticketId, String message, OrganizationConfig config) {
-    postArticle(ticketId, message, true, config);
+  public void addSystemComment(
+      String ticketId, String systemCommentText, OrganizationConfig config) {
+    postArticle(ticketId, systemCommentText, true, config);
   }
 
   @Override
@@ -146,21 +131,7 @@ public class ZammadAdapter implements HelpDeskAdapter {
     RestClient client = buildClient(config);
     for (int i = 0; i < tickets.size(); i++) {
       for (int j = i + 1; j < tickets.size(); j++) {
-        CreatedTicket source = tickets.get(i);
-        CreatedTicket target = tickets.get(j);
-        Map<String, Object> body = new HashMap<>();
-        body.put("link_type", "normal");
-        body.put("link_object_source", "Ticket");
-        body.put("link_object_source_number", source.ticketNumber());
-        body.put("link_object_target", "Ticket");
-        body.put("link_object_target_value", Long.parseLong(target.ticketId()));
-        client
-            .post()
-            .uri(LINKS_ADD_PATH)
-            .contentType(MediaType.APPLICATION_JSON)
-            .body(body)
-            .retrieve()
-            .toBodilessEntity();
+        post(client, LINKS_ADD_PATH, buildLinkBody(tickets.get(i), tickets.get(j)));
       }
     }
   }
@@ -171,17 +142,62 @@ public class ZammadAdapter implements HelpDeskAdapter {
     return Optional.empty();
   }
 
-  private void postArticle(
-      String ticketId, String text, boolean internal, OrganizationConfig config) {
-    RestClient client = buildClient(config);
+  private Map<String, Object> buildCreateTicketBody(
+      CreateTicketRequest request, OrganizationConfig config) {
+    Map<String, Object> article = new HashMap<>();
+    article.put("subject", request.title());
+    article.put("body", request.ticketBody());
+    article.put("type", ARTICLE_TYPE_NOTE);
+    article.put("internal", false);
+
+    Map<String, Object> body = new HashMap<>();
+    body.put("title", request.title());
+    body.put("group", config.platformConfig().get("group"));
+    body.put(FIELD_NEGOTIATION_STATE, request.negotiationState());
+    body.put(FIELD_RESOURCE_STATE, request.resourceState());
+    body.put(FIELD_TRANSITION_EVENT, null);
+    body.put("article", article);
+    return body;
+  }
+
+  private Map<String, Object> buildArticleBody(String ticketId, String text, boolean internal) {
     Map<String, Object> body = new HashMap<>();
     body.put("ticket_id", Long.parseLong(ticketId));
     body.put("body", text);
-    body.put("type", "note");
+    body.put("type", ARTICLE_TYPE_NOTE);
     body.put("internal", internal);
+    return body;
+  }
+
+  private Map<String, Object> buildLinkBody(CreatedTicket source, CreatedTicket target) {
+    Map<String, Object> body = new HashMap<>();
+    body.put("link_type", "normal");
+    body.put("link_object_source", "Ticket");
+    body.put("link_object_source_number", source.ticketNumber());
+    body.put("link_object_target", "Ticket");
+    body.put("link_object_target_value", Long.parseLong(target.ticketId()));
+    return body;
+  }
+
+  private void postArticle(
+      String ticketId, String text, boolean internal, OrganizationConfig config) {
+    post(buildClient(config), TICKET_ARTICLES_PATH, buildArticleBody(ticketId, text, internal));
+  }
+
+  private void putTicket(String ticketId, Map<String, Object> body, OrganizationConfig config) {
+    buildClient(config)
+        .put()
+        .uri(TICKET_BY_ID_PATH, ticketId)
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(body)
+        .retrieve()
+        .toBodilessEntity();
+  }
+
+  private void post(RestClient client, String path, Map<String, Object> body) {
     client
         .post()
-        .uri(TICKET_ARTICLES_PATH)
+        .uri(path)
         .contentType(MediaType.APPLICATION_JSON)
         .body(body)
         .retrieve()
@@ -195,5 +211,18 @@ public class ZammadAdapter implements HelpDeskAdapter {
         .baseUrl(config.baseUrl())
         .defaultHeader(AUTH_HEADER, "Token token=" + apiToken)
         .build();
+  }
+
+  private CreatedTicket parseCreatedTicket(Map<String, Object> response) {
+    if (response == null) {
+      throw new IllegalStateException("Zammad createTicket returned an empty response body");
+    }
+    Object idObj = response.get("id");
+    Object numberObj = response.get("number");
+    if (!(idObj instanceof Number id) || numberObj == null) {
+      throw new IllegalStateException(
+          "Zammad createTicket response missing 'id' or 'number' — response: " + response);
+    }
+    return new CreatedTicket(String.valueOf(id.longValue()), String.valueOf(numberObj));
   }
 }

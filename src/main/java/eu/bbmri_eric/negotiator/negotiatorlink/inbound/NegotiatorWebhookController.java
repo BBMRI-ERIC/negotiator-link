@@ -1,5 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.inbound;
 
+import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.EventRouter;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.verification.WebhookVerificationService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -13,9 +14,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class NegotiatorWebhookController {
 
   private final WebhookVerificationService verifier;
+  private final EventRouter eventRouter;
 
-  public NegotiatorWebhookController(WebhookVerificationService verifier) {
+  public NegotiatorWebhookController(WebhookVerificationService verifier, EventRouter eventRouter) {
     this.verifier = verifier;
+    this.eventRouter = eventRouter;
   }
 
   @PostMapping("/webhooks/negotiator")
@@ -27,6 +30,7 @@ public class NegotiatorWebhookController {
       return ResponseEntity.ok().build();
     }
     log.info("Received webhook {}", webhookId);
+    eventRouter.route(body);
     return ResponseEntity.ok().build();
   }
 }

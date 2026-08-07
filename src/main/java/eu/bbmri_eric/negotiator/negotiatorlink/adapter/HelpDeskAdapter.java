@@ -1,5 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.adapter;
 
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreatedTicket;
@@ -10,6 +11,9 @@ import java.util.Optional;
 import org.springframework.http.HttpHeaders;
 
 public interface HelpDeskAdapter {
+
+  /** Returns the help desk type this adapter handles. Used for auto-registration. */
+  HelpDeskType getType();
 
   /**
    * Verify the authenticity of an inbound callback from the help desk platform. Returns false if
