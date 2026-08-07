@@ -2,7 +2,6 @@ package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFormatter;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
@@ -10,8 +9,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.UserResponseModel
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 class NegotiationTicketBodyFormatterTest {
@@ -74,101 +71,73 @@ class NegotiationTicketBodyFormatterTest {
 
           """;
 
-  @Nested
-  @DisplayName("buildTitle")
-  class BuildTitle {
-
-    @Test
-    @DisplayName("includes the resource name when one is present")
-    void withResourceName_includesResourceNameInTitle() {
-      var request =
-          new CreateTicketRequest(
-              "neg-1", "NEGO-1", "Dummy Collection", "IN_PROGRESS", "SUBMITTED", "");
-
-      assertThat(NegotiationTicketBodyFormatter.buildTitle(request))
-          .isEqualTo("[NEGO-1] Dummy Collection — Access Request");
-    }
-
-    @Test
-    @DisplayName("falls back to the aggregate title when the resource name is null")
-    void withNullResourceName_usesAggregateTitle() {
-      var request =
-          new CreateTicketRequest("neg-1", "NEGO-1", null, "IN_PROGRESS", "SUBMITTED", "");
-
-      assertThat(NegotiationTicketBodyFormatter.buildTitle(request))
-          .isEqualTo("[NEGO-1] Resources Access Request");
-    }
+  @Test
+  void buildTitle_withResourceName_includesResourceNameInTitle() {
+    assertThat(NegotiationTicketBodyFormatter.buildTitle("NEGO-1", "Dummy Collection"))
+        .isEqualTo("[NEGO-1] Dummy Collection — Access Request");
   }
 
-  @Nested
-  @DisplayName("getTicketBodyWithSingleResource")
-  class SingleResource {
-
-    @Test
-    @DisplayName("renders the full body with a single resource block")
-    void returnsExpectedBody() {
-      var negotiation = createNegotiation();
-      var resource =
-          createResource(
-              "Dummy test collection", "bbmri-eric:ID:SE_890:collection:dummy_collection");
-
-      String body =
-          NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(negotiation, resource);
-
-      String expected =
-          NEGOTIATION_HEADER
-              + """
-              ────────────────────────────────────────────────────────────
-                RESOURCE
-              ────────────────────────────────────────────────────────────
-
-                Name:   Dummy test collection
-                ID:     bbmri-eric:ID:SE_890:collection:dummy_collection
-                State:  SUBMITTED
-              """;
-
-      assertThat(body).isEqualTo(expected);
-    }
+  @Test
+  void buildTitle_withNullResourceName_usesAggregateTitle() {
+    assertThat(NegotiationTicketBodyFormatter.buildTitle("NEGO-1", null))
+        .isEqualTo("[NEGO-1] Resources Access Request");
   }
 
-  @Nested
-  @DisplayName("getTicketBodyWithMultipleResources")
-  class MultipleResources {
+  @Test
+  void getTicketBodyWithSingleResource_withValidInputs_rendersFullBodyWithResourceBlock() {
+    var negotiation = createNegotiation();
+    var resource =
+        createResource("Dummy test collection", "bbmri-eric:ID:SE_890:collection:dummy_collection");
 
-    @Test
-    @DisplayName("renders all resources with a single shared state line")
-    void returnsExpectedBody() {
-      var negotiation = createNegotiation();
-      var resource1 =
-          createResource(
-              "Dummy test collection", "bbmri-eric:ID:SE_890:collection:dummy_collection");
-      var resource2 =
-          createResource(
-              "Dummy test collection2", "bbmri-eric:ID:SE_890:collection:dummy_collection2");
+    String body =
+        NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(negotiation, resource);
 
-      String body =
-          NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(
-              negotiation, List.of(resource1, resource2));
+    String expected =
+        NEGOTIATION_HEADER
+            + """
+            ────────────────────────────────────────────────────────────
+              RESOURCE
+            ────────────────────────────────────────────────────────────
 
-      String expected =
-          NEGOTIATION_HEADER
-              + """
-              ────────────────────────────────────────────────────────────
-                RESOURCES
-              ────────────────────────────────────────────────────────────
+              Name:   Dummy test collection
+              ID:     bbmri-eric:ID:SE_890:collection:dummy_collection
+              State:  SUBMITTED
+            """;
 
-                • Dummy test collection
-                  ID: bbmri-eric:ID:SE_890:collection:dummy_collection
+    assertThat(body).isEqualTo(expected);
+  }
 
-                • Dummy test collection2
-                  ID: bbmri-eric:ID:SE_890:collection:dummy_collection2
+  @Test
+  void getTicketBodyWithMultipleResources_withTwoResources_rendersAllResourcesWithSharedStateLine() {
+    var negotiation = createNegotiation();
+    var resource1 =
+        createResource("Dummy test collection", "bbmri-eric:ID:SE_890:collection:dummy_collection");
+    var resource2 =
+        createResource(
+            "Dummy test collection2", "bbmri-eric:ID:SE_890:collection:dummy_collection2");
 
-                ──────────────────────────────
-                State (all resources):  SUBMITTED
-              """;
+    String body =
+        NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(
+            negotiation, List.of(resource1, resource2));
 
-      assertThat(body).isEqualTo(expected);
-    }
+    String expected =
+        NEGOTIATION_HEADER
+            + """
+            ────────────────────────────────────────────────────────────
+              RESOURCES
+            ────────────────────────────────────────────────────────────
+
+              • Dummy test collection
+                ID: bbmri-eric:ID:SE_890:collection:dummy_collection
+
+              • Dummy test collection2
+                ID: bbmri-eric:ID:SE_890:collection:dummy_collection2
+
+              ──────────────────────────────
+              State (all resources):  SUBMITTED
+            """;
+
+    assertThat(body).isEqualTo(expected);
   }
 
   private EntityModelNegotiationDTO createNegotiation() {
