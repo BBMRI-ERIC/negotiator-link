@@ -1,7 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.adapter;
 
-import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFormatter.buildTitle;
-
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreatedTicket;
@@ -42,6 +41,11 @@ public class ZammadAdapter implements HelpDeskAdapter {
   }
 
   @Override
+  public HelpDeskType getType() {
+    return HelpDeskType.ZAMMAD;
+  }
+
+  @Override
   public boolean verifyCallback(HttpHeaders headers, byte[] body, String callbackSecret) {
     String signatureHeader = headers.getFirst(SIGNATURE_HEADER);
     if (signatureHeader == null || !signatureHeader.startsWith(SIGNATURE_PREFIX)) {
@@ -65,7 +69,7 @@ public class ZammadAdapter implements HelpDeskAdapter {
   public CreatedTicket createTicket(CreateTicketRequest request, OrganizationConfig config) {
     RestClient client = buildClient(config);
 
-    String title = buildTitle(request);
+    String title = request.title();
     String group = (String) config.platformConfig().get("group");
 
     Map<String, Object> article = new HashMap<>();

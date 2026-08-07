@@ -67,6 +67,11 @@ class ZammadAdapterTest {
   }
 
   @Test
+  void getType_returnsZammadType() {
+    assertThat(adapter.getType()).isEqualTo(HelpDeskType.ZAMMAD);
+  }
+
+  @Test
   void verifyCallback_validSignature_returnsTrue() throws Exception {
     byte[] body = "{\"ticket\":{\"id\":1}}".getBytes(StandardCharsets.UTF_8);
     HttpHeaders headers = new HttpHeaders();
@@ -111,7 +116,10 @@ class ZammadAdapterTest {
 
     var request =
         new CreateTicketRequest(
-            "nego-1", "NEGO-1", "Dummy Collection", "IN_PROGRESS", "SUBMITTED", "Ticket body");
+            "[NEGO-1] Dummy Collection — Access Request",
+            "IN_PROGRESS",
+            "SUBMITTED",
+            "Ticket body");
 
     CreatedTicket result = adapter.createTicket(request, config);
 
@@ -153,7 +161,8 @@ class ZammadAdapterTest {
                     .withBody("{\"id\":99,\"number\":\"22099\"}")));
 
     var request =
-        new CreateTicketRequest("nego-2", "NEGO-2", null, "IN_PROGRESS", "SUBMITTED", "Body text");
+        new CreateTicketRequest(
+            "[NEGO-2] Resources Access Request", "IN_PROGRESS", "SUBMITTED", "Body text");
 
     CreatedTicket result = adapter.createTicket(request, config);
 
