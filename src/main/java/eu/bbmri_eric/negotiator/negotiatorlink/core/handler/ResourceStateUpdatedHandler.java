@@ -121,14 +121,26 @@ public class ResourceStateUpdatedHandler implements NegotiatorEventHandler {
             .findByNegotiationIdAndTicketId(update.negotiationId(), context.ticketId())
             .orElse(null);
 
-    if (context.config.ticketStrategy() == TicketStrategy.PER_NEGOTIATION && originated != null) {
-      handleOriginatedTransition(originated, update.toState(), context);
-    } else {
-      log.info(
-          "Updating resource state to '{}' on ticket '{}' (Negotiator-triggered or from helpdesk with PER_RESOURCE strategy)",
+    try {
+      if (context.config.ticketStrategy() == TicketStrategy.PER_NEGOTIATION && originated != null) {
+        handleOriginatedTransition(originated, update.toState(), context);
+      } else {
+        log.info(
+            "Updating resource state to '{}' on ticket '{}' (Negotiator-triggered or from helpdesk with PER_RESOURCE strategy)",
+            update.toState(),
+            context.ticketId());
+        context
+            .adapter()
+            .updateResourceState(context.ticketId(), update.toState(), context.config());
+      }
+    } catch (Exception e) {
+      log.error(
+          "Failed to update resource state to '{}' on ticket '{}' for negotiation '{}' resource '{}'",
           update.toState(),
-          context.ticketId());
-      context.adapter().updateResourceState(context.ticketId(), update.toState(), context.config());
+          context.ticketId(),
+          update.negotiationId(),
+          update.resourceId(),
+          e);
     }
   }
 
@@ -152,7 +164,15 @@ public class ResourceStateUpdatedHandler implements NegotiatorEventHandler {
           "First webhook for originated transition on ticket '{}' — updating state to '{}'",
           ticketId,
           toState);
-      context.adapter().updateResourceState(ticketId, toState, context.config());
+      try {
+        context.adapter().updateResourceState(ticketId, toState, context.config());
+      } catch (Exception e) {
+        log.error(
+            "Failed to update resource state to '{}' on ticket '{}' for originated transition",
+            toState,
+            ticketId,
+            e);
+      }
     } else {
       log.debug(
           "Discarding redundant resource state webhook {}/{} for ticket '{}'",

@@ -96,8 +96,17 @@ public class ZammadAdapter implements HelpDeskAdapter {
             .retrieve()
             .body(Map.class);
 
-    String ticketId = String.valueOf(((Number) response.get("id")).longValue());
-    String ticketNumber = String.valueOf(response.get("number"));
+    if (response == null) {
+      throw new IllegalStateException("Zammad createTicket returned an empty response body");
+    }
+    Object idObj = response.get("id");
+    Object numberObj = response.get("number");
+    if (!(idObj instanceof Number) || numberObj == null) {
+      throw new IllegalStateException(
+          "Zammad createTicket response missing 'id' or 'number' — response: " + response);
+    }
+    String ticketId = String.valueOf(((Number) idObj).longValue());
+    String ticketNumber = String.valueOf(numberObj);
     log.info("Created Zammad ticket id={} number={} title='{}'", ticketId, ticketNumber, title);
     return new CreatedTicket(ticketId, ticketNumber);
   }
