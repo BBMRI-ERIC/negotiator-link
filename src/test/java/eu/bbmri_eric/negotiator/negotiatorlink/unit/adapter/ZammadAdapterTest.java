@@ -341,4 +341,21 @@ class ZammadAdapterTest {
   void parseCallback_dummyTest_returnsEmpty() {
     assertThat(adapter.parseCallback(null)).isEmpty();
   }
+
+  @Test
+  void extractCallbackId_headerAbsent_returnsEmpty() {
+    assertThat(adapter.extractCallbackId(new HttpHeaders())).isEmpty();
+  }
+
+  @Test
+  void extractCallbackId_differentIds_returnsDifferentValues() {
+    HttpHeaders first = new HttpHeaders();
+    first.set("X-Zammad-Delivery", "delivery-1");
+
+    HttpHeaders second = new HttpHeaders();
+    second.set("X-Zammad-Delivery", "delivery-2");
+
+    assertThat(adapter.extractCallbackId(first)).contains("delivery-1");
+    assertThat(adapter.extractCallbackId(second)).contains("delivery-2");
+  }
 }

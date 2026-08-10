@@ -36,6 +36,7 @@ public class ZammadAdapter implements HelpDeskAdapter {
   private static final String HMAC_ALGORITHM = "HmacSHA1";
   private static final String SIGNATURE_HEADER = "X-Hub-Signature";
   private static final String SIGNATURE_PREFIX = "sha1=";
+  private static final String DELIVERY_HEADER = "X-Zammad-Delivery";
 
   // Zammad JSON field names
   private static final String FIELD_NEGOTIATION_STATE = "negotiation_state";
@@ -52,6 +53,11 @@ public class ZammadAdapter implements HelpDeskAdapter {
   @Override
   public HelpDeskType getType() {
     return HelpDeskType.ZAMMAD;
+  }
+
+  @Override
+  public Optional<String> extractCallbackId(HttpHeaders headers) {
+    return Optional.ofNullable(headers.getFirst(DELIVERY_HEADER));
   }
 
   @Override

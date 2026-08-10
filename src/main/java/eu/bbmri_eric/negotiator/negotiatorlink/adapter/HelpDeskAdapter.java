@@ -22,6 +22,12 @@ public interface HelpDeskAdapter {
   boolean verifyCallback(HttpHeaders headers, byte[] body, String callbackSecret);
 
   /**
+   * Extracts the platform-specific webhook delivery ID from the request headers. Returns empty if
+   * the platform does not provide a delivery ID header.
+   */
+  Optional<String> extractCallbackId(HttpHeaders headers);
+
+  /**
    * Create a new ticket for a resource or organization in a negotiation. Called once per resource
    * (PER_RESOURCE) or once per org (PER_NEGOTIATION) when the negotiation reaches IN_PROGRESS.
    * Returns a CreatedTicket carrying the platform ticket ID (required) and ticket number (if
