@@ -2,11 +2,14 @@
 # Credentials are injected from environment variables — never hardcode real secrets.
 # Copy this file to docker/organizations.yml and adjust as needed.
 
-organizations:
-  - organizationExternalId: "bbmri:DE:MHH"
-    type: zammad
-    baseUrl: http://zammad-nginx:8080
-    credentials:
-      apiToken: "${ZAMMAD_MHH_API_TOKEN}"
-    callbackSecret: "${ZAMMAD_MHH_CALLBACK_SECRET}"
-    groupId: 1
+negotiatorlink:
+  organizations:
+    - organizationExternalId: "bbmri-eric:ID:SE_890"
+      type: "ZAMMAD"
+      ticketStrategy: "PER_RESOURCE"
+      baseUrl: http://zammad-nginx:8080
+      credentials:
+        apiToken: "${ZAMMAD_MHH_API_TOKEN}"
+      callbackSecret: "${ZAMMAD_MHH_CALLBACK_SECRET}"
+      platformConfig:
+        group: "negotiator-link"

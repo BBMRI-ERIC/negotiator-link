@@ -1,6 +1,8 @@
 spring:
   application:
     name: negotiator-link
+  config:
+    import: "optional:file:${ORGANIZATIONS_CONFIG_PATH:}"
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
@@ -22,7 +24,11 @@ spring:
             scope: negotiator_helpdesk
         provider:
           negotiator:
-            token-uri: ${NEGOTIATOR_TOKEN_URI}
+            issuer-uri: ${NEGOTIATOR_ISSUER_URI}
+
+logging:
+  level:
+    eu.bbmri_eric.negotiator.negotiatorlink: DEBUG
 
 negotiatorlink:
   webhook:
