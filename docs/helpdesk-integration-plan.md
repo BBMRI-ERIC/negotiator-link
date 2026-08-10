@@ -846,7 +846,10 @@ are:
 2. Resolve the correct `HelpDeskAdapter` implementation for that organization's `type`
 3. Delegate callback authentication to `adapter.verifyCallback(headers, body, callbackSecret)` — HTTP 401 if it returns
    false
-4. Pass the verified callback to `EventRouter` for processing
+4. Extract the platform-specific callback ID via `adapter.extractCallbackId(headers)` and check it against an
+   in-memory seen-cache (Caffeine, 15-minute TTL) keyed by `organizationExternalId + ":" + callbackId` — if already
+   seen, return HTTP 200 and discard silently (replay prevention scoped per organization)
+5. Pass the verified callback to `EventRouter` for processing
 
 ---
 

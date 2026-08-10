@@ -66,21 +66,38 @@ docker compose ps
 
 Go to `http://localhost:8888` and follow the first-time setup. Create an admin account when prompted.
 
-### Step 4 — Create a Zammad bot user for negotiator-link
+### Step 4 — Create a dedicated group for negotiator-link
+
+In Zammad: **Admin → Manage → Groups → New Group**
+
+- **Name**: `negotiator-link`
+- **Assignment Timeout**, **Follow-up** and other fields: leave at defaults
+
+This group will own all tickets created by the middleware.
+
+### Step 5 — Create a dedicated role for negotiator-link
+
+In Zammad: **Admin → Manage → Roles → New Role**
+
+- **Name**: `negotiator-link`
+- **Permissions**: enable `ticket.agent` and `user_preferences.access_token` (needed to generate API tokens)
+- **Group permissions**: select the `negotiator-link` group created above and set access to **full**
+
+### Step 6 — Create a Zammad bot user for negotiator-link
 
 negotiator-link needs a dedicated Zammad agent account for its API calls. This account is also used in trigger
-conditions to prevent feedback loops (see Step 6).
+conditions to prevent feedback loops (see Step 8).
 
 In Zammad: **Admin → Users → New User**
 
 - **First name**: `negotiator-link`
 - **Email**: `negotiator-link@local.dev`
-- **Role**: `Agent`
+- **Role**: `negotiator-link` (the role created in Step 5 — uncheck the default `Agent` role)
 - **Password**: any value (the account is only used via API token, never interactively)
 
-### Step 5 — Create a Zammad API token
+### Step 7 — Create a Zammad API token
 
-Log into Zammad as the `negotiator-link` bot user created in Step 4.
+Log into Zammad as the `negotiator-link` bot user created in Step 6.
 
 Go to **Avatar (top right) → Profile → Token Access → Create**.
 Give it a name (e.g. `negotiator-link`) and enable all permissions. Copy the token into `.env` as
@@ -90,7 +107,7 @@ Give it a name (e.g. `negotiator-link`) and enable all permissions. Copy the tok
 docker compose restart negotiator-link
 ```
 
-### Step 6 — Configure the Negotiator webhook
+### Step 8 — Configure the Negotiator webhook
 
 Log into Negotiator at `http://localhost:8080` as `admin` / `admin`.
 
@@ -100,34 +117,96 @@ Navigate to **Admin → Webhooks → Create** and fill in:
 - **Secret**: the value of `NEGOTIATOR_WEBHOOK_SECRET` from your `.env`
 - **Events**: select at minimum `negotiation.state.updated`
 
-### Step 6 — Configure Zammad webhook and triggers
+### Step 9 — Configure Zammad webhook and triggers
 
 **Create the webhook endpoint:**
 In Zammad: **Admin → Integrations → Webhooks → New Webhook**
 
 - **Name**: `negotiator-link`
-- **Endpoint**: `http://negotiator-link:8080/webhooks/helpdesk/bbmri:DE:MHH`
+- **Endpoint**: `http://negotiator-link:8080/webhooks/helpdesk/bbmri-eric%3AID%3ASE_890`
 - **HTTP method**: POST
-- **Custom header**: `X-Helpdesk-Secret: <value of ZAMMAD_MHH_CALLBACK_SECRET from .env>`
+- **SSL Verification**: No (in the production it would be "Yes")
+- **HMAC SHA1 signature token**: `<value of ZAMMAD_MHH_CALLBACK_SECRET from .env>` (ensure authentication and integrity of webhook)
 
 **Create trigger for new articles (post messages):**
 In Zammad: **Admin → Manage → Triggers → New Trigger**
 
 - **Name**: `negotiator-link: new article`
-- **Conditions**: `Article → Sender is → Customer` AND `Updated by → is not → <negotiator-link bot user>`
+- **Action execution**: Selective
+- **Conditions**: `Article → Created by is not → <negotiator-link bot user>` AND `Article → Updated by is not → <negotiator-link bot user>` AND `Article Action → is → created` AND `Article Visibility → is → public`
+- Enable expert mode and ensure the logic is set to match all (AND).
 - **Actions**: `Notify Webhook → negotiator-link`
+
+**Create the three custom ticket fields:**
+In Zammad: **Admin → System → Objects → Ticket → New Attribute**
+
+> After adding all three fields, click **Update Database** at the top of the Objects page and wait for Zammad to
+> restart before configuring the trigger below.
+
+*Field 1 — negotiation state (display only):*
+
+- **Name**: `negotiation_state`
+- **Display**: `Negotiation State`
+- **Type**: Single Selection Field
+- **Required**: No
+- **Default**: *(leave empty)*
+- **Options** (click **➕ Add** after each value):
+  `SUBMITTED`, `APPROVED`, `DECLINED`, `IN_PROGRESS`, `PAUSED`, `CONCLUDED`, `ABANDONED`
+- **Permissions → ticket.agent → edit**: Shown ✓, Required ✗
+- All other permission rows: Shown ✗, Required ✗
+- **Position**: 1000
+
+*Field 2 — resource state (display only):*
+
+- **Name**: `negotiator_resource_state`
+- **Display**: `Resource State`
+- **Type**: Single Selection Field
+- **Required**: No
+- **Default**: *(leave empty)*
+- **Options** (click **➕ Add** after each value):
+  `SUBMITTED`, `REPRESENTATIVE_UNREACHABLE`, `REPRESENTATIVE_CONTACTED`, `RETURNED_FOR_RESUBMISSION`,
+  `CHECKING_AVAILABILITY`, `RESOURCE_UNAVAILABLE_WILLING_TO_COLLECT`, `RESOURCE_UNAVAILABLE`,
+  `RESOURCE_AVAILABLE`, `ACCESS_CONDITIONS_INDICATED`, `ACCESS_CONDITIONS_MET`,
+  `RESOURCE_NOT_MADE_AVAILABLE`, `RESOURCE_MADE_AVAILABLE`
+- **Permissions → ticket.agent → edit**: Shown ✓, Required ✗
+- All other permission rows: Shown ✗, Required ✗
+- - **Position**: 1100
+
+*Field 3 — resource transition event (editable by representative):*
+
+- **Name**: `negotiator_resource_transition_event`
+- **Display**: `Request Resource State Transition`
+- **Type**: Single Selection Field
+- **Required**: No
+- **Default**: *(leave empty — must remain nullable)*
+- **Options** (click **➕ Add** after each value):
+  `MARK_AS_CHECKING_AVAILABILITY`,
+  `MARK_AS_AVAILABLE`, `MARK_AS_UNAVAILABLE`, `MARK_AS_CURRENTLY_UNAVAILABLE_BUT_WILLING_TO_COLLECT`,
+  `STEP_AWAY`, `INDICATE_ACCESS_CONDITIONS`,
+  `GRANT_ACCESS_TO_RESOURCE`
+- **Permissions → ticket.agent → edit**: Shown ✓, Required ✗
+- All other permission rows: Shown ✗, Required ✗
+- **Position**: 1200
+
+**Lock the two display-only fields as read-only via Core Workflow:**
+In Zammad: **Admin → System → Core Workflows → New Workflow**
+
+- **Name**: `negotiator-link: lock display fields`
+- **Object**: Ticket
+- **Conditions**: *(none — applies to all tickets)*
+- **Actions**:
+  - `negotiation_state` → **Set fixed to** *(read-only)*
+  - `negotiator_resource_state` → **Set fixed to** *(read-only)*
 
 **Create trigger for resource state transitions:**
 In Zammad: **Admin → Manage → Triggers → New Trigger**
 
 - **Name**: `negotiator-link: resource transition`
-- **Conditions**: `Ticket → negotiator_resource_transition_event → has changed` AND `is not → (empty)` AND
-  `Updated by → is not → <negotiator-link bot user>`
+- **Action execution**: Selective
+- **Conditions**: `Ticket → Request Resource State Transition → has changed` AND
+  `Updated by → is not → <negotiator-link bot user>` AND (Article Visibility → is → internal OR Article Action → is not → created)
+- make sure in expert mode under Condition that the logic AND is selected.
 - **Actions**: `Notify Webhook → negotiator-link`
-
-> The custom ticket fields (`negotiator_resource_state`, `negotiator_resource_transition_event`, etc.) must be created
-> first via **Admin → Objects** before the second trigger can be configured. See the
-> [integration plan](docs/helpdesk-integration-plan.md) for the full list of required fields.
 
 ### Test users
 
@@ -150,6 +229,16 @@ docker compose stop
 To resume:
 ```bash
 docker compose start
+```
+
+To rebuild and restart negotiator-link:
+```bash
+docker compose up --build -d negotiator-link
+```
+
+To see the logs of negotiator-link:
+```bash
+docker compose logs -f negotiator-link
 ```
 
 ## Related Projects
