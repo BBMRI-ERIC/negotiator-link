@@ -157,6 +157,9 @@ services:
       NEGOTIATOR_ISSUER_URI: http://oidc-server-mock:8080
       # Webhook signing secret — must match what is configured in Negotiator webhook entity
       NEGOTIATOR_WEBHOOK_SECRET: ${NEGOTIATOR_WEBHOOK_SECRET:-local-dev-webhook-secret}
+      # Zammad credentials — passed through so organizations.yml placeholders are resolved
+      ZAMMAD_MHH_API_TOKEN: ${ZAMMAD_MHH_API_TOKEN}
+      ZAMMAD_MHH_CALLBACK_SECRET: ${ZAMMAD_MHH_CALLBACK_SECRET}
       # Organization config
       ORGANIZATIONS_CONFIG_PATH: /config/organizations.yml
     volumes:

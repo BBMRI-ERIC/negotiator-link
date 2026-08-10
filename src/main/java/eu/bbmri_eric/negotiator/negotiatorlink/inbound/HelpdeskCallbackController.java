@@ -3,11 +3,14 @@ package eu.bbmri_eric.negotiator.negotiatorlink.inbound;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpDeskAdapter;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import jakarta.servlet.http.HttpServletRequest;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +28,9 @@ public class HelpdeskCallbackController {
 
   private final OrganizationConfigRegistry registry;
   private final Map<HelpDeskType, HelpDeskAdapter> adapters;
+
+  private final Cache<String, Boolean> seenWebhookIds =
+      Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(15)).build();
 
   public HelpdeskCallbackController(
       OrganizationConfigRegistry registry, Map<HelpDeskType, HelpDeskAdapter> adapters) {
@@ -64,6 +70,19 @@ public class HelpdeskCallbackController {
       log.warn(
           "Callback signature verification failed for organization '{}'", organizationExternalId);
       throw new ResponseStatusException(UNAUTHORIZED);
+    }
+
+    String webhookId = adapter.extractCallbackId(headers).orElse(null);
+    if (webhookId != null
+        && seenWebhookIds
+                .asMap()
+                .putIfAbsent(organizationExternalId + ":" + webhookId, Boolean.TRUE)
+            != null) {
+      log.debug(
+          "Duplicate helpdesk webhook '{}' for organization '{}' — acknowledged and discarded",
+          webhookId,
+          organizationExternalId);
+      return ResponseEntity.ok().build();
     }
 
     log.info("Received verified helpdesk callback for organization '{}'", organizationExternalId);

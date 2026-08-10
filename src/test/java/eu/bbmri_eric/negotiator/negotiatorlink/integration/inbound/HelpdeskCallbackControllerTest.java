@@ -68,4 +68,29 @@ class HelpdeskCallbackControllerTest {
                 .content(BODY.getBytes(StandardCharsets.UTF_8)))
         .andExpect(status().isNotFound());
   }
+
+  @Test
+  void receiveCallback_duplicateDelivery_returns200AndIsDiscarded() throws Exception {
+    byte[] bodyBytes = BODY.getBytes(StandardCharsets.UTF_8);
+    String sig = "sha1=" + hmacSha1Hex(CALLBACK_SECRET, bodyBytes);
+    String deliveryId = "duplicate-delivery-id-" + System.nanoTime();
+
+    mockMvc
+        .perform(
+            post("/webhooks/helpdesk/{org}", KNOWN_ORG)
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header("X-Hub-Signature", sig)
+                .header("X-Zammad-Delivery", deliveryId)
+                .content(bodyBytes))
+        .andExpect(status().isOk());
+
+    mockMvc
+        .perform(
+            post("/webhooks/helpdesk/{org}", KNOWN_ORG)
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header("X-Hub-Signature", sig)
+                .header("X-Zammad-Delivery", deliveryId)
+                .content(bodyBytes))
+        .andExpect(status().isOk());
+  }
 }
