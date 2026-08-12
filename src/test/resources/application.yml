@@ -37,3 +37,12 @@ negotiatorlink:
       callbackSecret: "test-callback-secret"
       platformConfig:
         group: "Sales"
+    - organizationExternalId: "bbmri:NL:LUMC"
+      type: "ZAMMAD"
+      ticketStrategy: "PER_NEGOTIATION"
+      baseUrl: "https://zammad.lumc.nl"
+      credentials:
+        apiToken: "test-api-token-lumc"
+      callbackSecret: "test-callback-secret-lumc"
+      platformConfig:
+        group: "Access"
