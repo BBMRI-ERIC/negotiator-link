@@ -1,0 +1,76 @@
+package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
+
+import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.HashUtil.sha256Hex;
+
+import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.HelpdeskCallbackHandler;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMapping;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostCreateDTO;
+import java.util.List;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+@Slf4j
+@Service
+public class HelpdeskPostHandler implements HelpdeskCallbackHandler {
+
+  private final TicketMappingRepository ticketMappingRepository;
+  private final OriginatedPostRepository originatedPostRepository;
+  private final NegotiatorClient negotiatorClient;
+
+  public HelpdeskPostHandler(
+      TicketMappingRepository ticketMappingRepository,
+      OriginatedPostRepository originatedPostRepository,
+      NegotiatorClient negotiatorClient) {
+    this.ticketMappingRepository = ticketMappingRepository;
+    this.originatedPostRepository = originatedPostRepository;
+    this.negotiatorClient = negotiatorClient;
+  }
+
+  @Override
+  public HelpdeskCallbackType getSupportedType() {
+    return HelpdeskCallbackType.POST_MESSAGE;
+  }
+
+  @Override
+  public void handle(HelpdeskCallbackEvent event, OrganizationConfig config) {
+    String ticketId = event.ticketId();
+
+    List<TicketMapping> mappings =
+        ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
+            ticketId, config.organizationExternalId());
+
+    if (mappings.isEmpty()) {
+      log.warn(
+          "No ticket mappings found for ticket '{}' org '{}' — skipping post",
+          ticketId,
+          config.organizationExternalId());
+      return;
+    }
+
+    TicketMapping anyMapping = mappings.getFirst();
+    String negotiationId = anyMapping.getId().getNegotiationId();
+    String organizationId = anyMapping.getOrganizationId();
+
+    String postText = event.postText();
+    String textHash = sha256Hex(postText);
+
+    originatedPostRepository.save(new OriginatedPost(textHash, organizationId, ticketId));
+
+    var post =
+        new PostCreateDTO()
+            .text(postText)
+            .type(PostCreateDTO.TypeEnum.PRIVATE)
+            .helpdeskActor(event.helpdeskActor());
+
+    negotiatorClient.createPost(negotiationId, post);
+    log.info(
+        "Forwarded help desk post from ticket '{}' to negotiation '{}' as PRIVATE post",
+        ticketId,
+        negotiationId);
+  }
+}

@@ -28,7 +28,7 @@ class OrganizationConfigPropertiesTest {
   }
 
   @Test
-  void findAll_whenTestYamlLoaded_returnsOneEntry() {
-    assertThat(registry.findAll()).hasSize(1);
+  void findAll_whenTestYamlLoaded_returnsBothTestOrgs() {
+    assertThat(registry.findAll()).hasSize(2);
   }
 }

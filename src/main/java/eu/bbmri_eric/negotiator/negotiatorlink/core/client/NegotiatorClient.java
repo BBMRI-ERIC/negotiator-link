@@ -41,18 +41,42 @@ public class NegotiatorClient {
     return Objects.requireNonNullElse(result.getEmbedded().getResources(), List.of());
   }
 
-  public Set<String> getPossibleResourceEvents(String negotiationId, String resourceId) {
+  /**
+   * Get possible resource events, which can be done based on resource current state
+   *
+   * @param negotiationId of the negotiation including the resource
+   * @param resourceSourceId of the resource
+   * @return the Set of possible resource transition events
+   */
+  public Set<String> getPossibleResourceEvents(String negotiationId, String resourceSourceId) {
     List<String> events =
-        negotiationsApi.getPossibleEventsForNegotiationResource(negotiationId, resourceId);
+        negotiationsApi.getPossibleEventsForNegotiationResource(negotiationId, resourceSourceId);
     return events == null ? Set.of() : Set.copyOf(events);
   }
 
+  /**
+   * Send event to Negotiator to update resource state.
+   *
+   * @param negotiationId in which the resource is involved
+   * @param resourceSourceId reference the source ID of the resource and determines which resource
+   *     to change
+   * @param event representing the transition action
+   * @param helpdeskActor gives the identity of the actor who is performing the action
+   */
   public void sendResourceEvent(
-      String negotiationId, String resourceId, String event, String helpdeskActor) {
+      String negotiationId, String resourceSourceId, String event, String helpdeskActor) {
     negotiationsApi.sendEventForNegotiationResource(
-        negotiationId, resourceId, event, helpdeskActor);
+        negotiationId, resourceSourceId, event, helpdeskActor);
   }
 
+  /**
+   * Bulk endpoint for updating resource states.
+   *
+   * @param negotiationId in which the resources are involved
+   * @param resourceIds reference the resource ID and determines which resources to change
+   * @param event representing the transition action
+   * @param helpdeskActor gives the identity of the actor who is performing the action
+   */
   public void sendBulkResourceEvent(
       String negotiationId, List<Long> resourceIds, String event, String helpdeskActor) {
     var dto = new UpdateResourcesDTO();

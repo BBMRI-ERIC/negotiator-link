@@ -1,10 +1,14 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.adapter;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreatedTicket;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
@@ -17,6 +21,7 @@ import java.util.Optional;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -45,9 +50,11 @@ public class ZammadAdapter implements HelpDeskAdapter {
   private static final String ARTICLE_TYPE_NOTE = "note";
 
   private final RestClient.Builder restClientBuilder;
+  private final ObjectMapper objectMapper;
 
-  public ZammadAdapter(RestClient.Builder restClientBuilder) {
+  public ZammadAdapter(RestClient.Builder restClientBuilder, ObjectMapper objectMapper) {
     this.restClientBuilder = restClientBuilder;
+    this.objectMapper = objectMapper;
   }
 
   @Override
@@ -144,8 +151,36 @@ public class ZammadAdapter implements HelpDeskAdapter {
 
   @Override
   public Optional<HelpdeskCallbackEvent> parseCallback(Map<String, Object> payload) {
-    // TODO: not implemented yet
-    return Optional.empty();
+    if (payload == null) {
+      return Optional.empty();
+    }
+
+    ZammadCallbackPayload parsed = objectMapper.convertValue(payload, ZammadCallbackPayload.class);
+
+    if (parsed.ticket() == null || parsed.ticket().id() == null) {
+      log.warn("Zammad callback payload missing 'ticket.id' — discarding");
+      return Optional.empty();
+    }
+
+    String ticketId = parsed.ticket().id();
+    String transitionEvent = normalize(parsed.ticket().transitionEvent());
+    boolean hasArticle = hasArticle(parsed.article());
+
+    if (transitionEvent == null && !hasArticle) {
+      log.debug("Zammad callback for ticket '{}' has no actionable content — discarding", ticketId);
+      return Optional.empty();
+    }
+
+    String postText = hasArticle ? parsed.article().body() : null;
+    String helpdeskActor = hasArticle ? parsed.article().from() : null;
+
+    return Optional.of(
+        new HelpdeskCallbackEvent(
+            ticketId,
+            resolveType(transitionEvent != null, hasArticle),
+            transitionEvent,
+            postText,
+            helpdeskActor));
   }
 
   private Map<String, Object> buildCreateTicketBody(
@@ -230,5 +265,32 @@ public class ZammadAdapter implements HelpDeskAdapter {
           "Zammad createTicket response missing 'id' or 'number' — response: " + response);
     }
     return new CreatedTicket(String.valueOf(id.longValue()), String.valueOf(numberObj));
+  }
+
+  private static HelpdeskCallbackType resolveType(boolean hasTransition, boolean hasArticle) {
+    if (hasTransition && hasArticle) {
+      return HelpdeskCallbackType.RESOURCE_TRANSITION_WITH_POST_MESSAGE;
+    }
+    return hasTransition
+        ? HelpdeskCallbackType.RESOURCE_TRANSITION
+        : HelpdeskCallbackType.POST_MESSAGE;
+  }
+
+  /** Treats blank transition events as absent. */
+  private static String normalize(String value) {
+    return StringUtils.isBlank(value) ? null : value;
+  }
+
+  private static boolean hasArticle(ZammadCallbackPayload.Article article) {
+    return article != null && article.body() != null;
+  }
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  private record ZammadCallbackPayload(Ticket ticket, Article article) {
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Ticket(String id, @JsonProperty(FIELD_TRANSITION_EVENT) String transitionEvent) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Article(String body, String from) {}
   }
 }
