@@ -10,6 +10,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.putRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.ZammadAdapter;
@@ -18,6 +19,8 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreatedTicket;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -49,7 +52,7 @@ class ZammadAdapterTest {
     wireMock.start();
     RestClient.Builder builder =
         RestClient.builder().requestFactory(new SimpleClientHttpRequestFactory());
-    adapter = new ZammadAdapter(builder);
+    adapter = new ZammadAdapter(builder, new ObjectMapper());
     config =
         new OrganizationConfig(
             "bbmri:DE:MHH",
@@ -338,8 +341,78 @@ class ZammadAdapterTest {
   }
 
   @Test
-  void parseCallback_dummyTest_returnsEmpty() {
+  void parseCallback_resourceTransitionOnly_returnsResourceTransitionEvent() {
+    Map<String, Object> payload =
+        Map.of(
+            "ticket",
+            Map.of(
+                "id", 1, "negotiator_resource_transition_event", "MARK_AS_CHECKING_AVAILABILITY"),
+            "article",
+            Map.of());
+
+    var expected =
+        new HelpdeskCallbackEvent(
+            "1",
+            HelpdeskCallbackType.RESOURCE_TRANSITION,
+            "MARK_AS_CHECKING_AVAILABILITY",
+            null,
+            null);
+    assertThat(adapter.parseCallback(payload)).contains(expected);
+  }
+
+  @Test
+  void parseCallback_publicArticleOnly_returnsPostMessage() {
+    Map<String, Object> payload =
+        Map.of(
+            "ticket",
+            Map.of("id", 2, "negotiator_resource_transition_event", ""),
+            "article",
+            Map.of(
+                "body", "Hello from help desk",
+                "from", "John Rep"));
+
+    var expected =
+        new HelpdeskCallbackEvent(
+            "2", HelpdeskCallbackType.POST_MESSAGE, null, "Hello from help desk", "John Rep");
+    assertThat(adapter.parseCallback(payload)).contains(expected);
+  }
+
+  @Test
+  void parseCallback_bothArticleAndTransition_returnsCombinedType() {
+    Map<String, Object> payload =
+        Map.of(
+            "ticket",
+            Map.of("id", 3, "negotiator_resource_transition_event", "MARK_AS_AVAILABLE"),
+            "article",
+            Map.of(
+                "body", "Granting access",
+                "from", "Jane Rep"));
+
+    var expected =
+        new HelpdeskCallbackEvent(
+            "3",
+            HelpdeskCallbackType.RESOURCE_TRANSITION_WITH_POST_MESSAGE,
+            "MARK_AS_AVAILABLE",
+            "Granting access",
+            "Jane Rep");
+    assertThat(adapter.parseCallback(payload)).contains(expected);
+  }
+
+  @Test
+  void parseCallback_nullPayload_returnsEmpty() {
     assertThat(adapter.parseCallback(null)).isEmpty();
+  }
+
+  @Test
+  void parseCallback_bothEmptyArticleAndNoTransitionEvent_returnsEmpty() {
+    Map<String, Object> payload =
+        Map.of(
+            "ticket",
+            Map.of("id", 4, "negotiator_resource_transition_event", ""),
+            "article",
+            Map.of());
+
+    assertThat(adapter.parseCallback(payload)).isEmpty();
   }
 
   @Test
