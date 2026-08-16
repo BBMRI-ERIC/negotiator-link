@@ -9,14 +9,19 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.ApiClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.api.CommentsApi;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.api.NegotiationsApi;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.api.UsersApi;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostCreateDTO;
+import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,9 +35,11 @@ class NegotiatorClientTest {
 
   private static final String BASE_URL = "http://negotiator.test";
   private static final String BEARER_TOKEN = "test-bearer-token";
+  private static final String ORG_EXT_ID = "bbmri:DE:MHH";
 
   private MockRestServiceServer server;
   private NegotiatorClient client;
+  private OrganizationConfig config;
 
   @BeforeEach
   void setUp() {
@@ -49,7 +56,12 @@ class NegotiatorClientTest {
 
     ApiClient apiClient = new ApiClient(restClient);
     apiClient.setBasePath(BASE_URL);
-    client = new NegotiatorClient(new NegotiationsApi(apiClient), new CommentsApi(apiClient));
+    var perOrgClient =
+        new NegotiatorClient.PerOrgClient(
+            new NegotiationsApi(apiClient), new CommentsApi(apiClient), new UsersApi(apiClient));
+    client = new NegotiatorClient(Map.of(ORG_EXT_ID, perOrgClient), BASE_URL);
+
+    config = TestUtil.organizationConfig(ORG_EXT_ID, TicketStrategy.PER_RESOURCE);
   }
 
   @Test
@@ -65,7 +77,7 @@ class NegotiatorClientTest {
                 """,
                 MediaType.APPLICATION_JSON));
 
-    EntityModelNegotiationDTO result = client.getNegotiation("neg-1");
+    EntityModelNegotiationDTO result = client.getNegotiation("neg-1", config);
 
     assertThat(result.getId()).isEqualTo("neg-1");
     assertThat(result.getDisplayId()).isEqualTo("NEGO-1");
@@ -89,7 +101,7 @@ class NegotiatorClientTest {
                 """,
                 MediaType.APPLICATION_JSON));
 
-    List<EntityModelResourceWithStatusDTO> resources = client.getResources("neg-1");
+    List<EntityModelResourceWithStatusDTO> resources = client.getResources("neg-1", config);
 
     assertThat(resources).hasSize(1);
     assertThat(resources.getFirst().getSourceId()).isEqualTo("src-1");
@@ -103,7 +115,7 @@ class NegotiatorClientTest {
         .andExpect(method(HttpMethod.GET))
         .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
 
-    assertThat(client.getResources("neg-1")).isEmpty();
+    assertThat(client.getResources("neg-1", config)).isEmpty();
   }
 
   @Test
@@ -118,7 +130,7 @@ class NegotiatorClientTest {
                 """,
                 MediaType.APPLICATION_JSON));
 
-    Set<String> events = client.getPossibleResourceEvents("neg-1", "res-1");
+    Set<String> events = client.getPossibleResourceEvents("neg-1", "res-1", config);
 
     assertThat(events).containsExactlyInAnyOrder("APPROVE", "DECLINE");
   }
@@ -132,7 +144,7 @@ class NegotiatorClientTest {
         .andExpect(header("X-Helpdesk-Actor", "john.doe@example.com"))
         .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
 
-    client.sendResourceEvent("neg-1", "res-1", "APPROVE", "john.doe@example.com");
+    client.sendResourceEvent("neg-1", "res-1", "APPROVE", "john.doe@example.com", config);
 
     server.verify();
   }
@@ -146,7 +158,7 @@ class NegotiatorClientTest {
         .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
 
     client.sendBulkResourceEvent(
-        "neg-1", List.of(10L, 11L), "CHECKING_AVAILABILITY", "jane@example.com");
+        "neg-1", List.of(10L, 11L), "CHECKING_AVAILABILITY", "jane@example.com", config);
 
     server.verify();
   }
@@ -169,7 +181,7 @@ class NegotiatorClientTest {
     dto.setType(PostCreateDTO.TypeEnum.PRIVATE);
     dto.setHelpdeskActor("jane@example.com");
 
-    EntityModelPostDTO result = client.createPost("neg-1", dto);
+    EntityModelPostDTO result = client.createPost("neg-1", dto, config);
 
     assertThat(result.getId()).isEqualTo("post-1");
     assertThat(result.getHelpdeskActor()).isEqualTo("jane@example.com");
@@ -188,7 +200,7 @@ class NegotiatorClientTest {
                 """,
                 MediaType.APPLICATION_JSON));
 
-    EntityModelPostDTO result = client.getPostText("post-99");
+    EntityModelPostDTO result = client.getPostText("post-99", config);
 
     assertThat(result.getId()).isEqualTo("post-99");
     assertThat(result.getText()).isEqualTo("some message");
@@ -201,7 +213,7 @@ class NegotiatorClientTest {
         .andExpect(method(HttpMethod.GET))
         .andRespond(withServerError());
 
-    assertThatThrownBy(() -> client.getNegotiation("neg-err"))
+    assertThatThrownBy(() -> client.getNegotiation("neg-err", config))
         .isInstanceOf(RestClientException.class);
   }
 }
