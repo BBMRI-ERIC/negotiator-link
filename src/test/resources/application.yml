@@ -9,24 +9,13 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
-  security:
-    oauth2:
-      client:
-        registration:
-          negotiator:
-            client-id: test-client-id
-            client-secret: test-client-secret
-            authorization-grant-type: client_credentials
-            scope: negotiator_helpdesk
-        provider:
-          negotiator:
-            token-uri: http://localhost:9999/token
 
 negotiatorlink:
   webhook:
     secret: "whsec_dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaA=="
   negotiator:
     base-url: http://localhost:8081/api
+    issuer-uri: http://localhost:9999
   organizations:
     - organizationExternalId: "bbmri:DE:MHH"
       type: "ZAMMAD"
@@ -37,6 +26,9 @@ negotiatorlink:
       callbackSecret: "test-callback-secret"
       platformConfig:
         group: "Sales"
+      negotiatorCredentials:
+        clientId: "test-client-id-mhh"
+        clientSecret: "test-client-secret-mhh"
     - organizationExternalId: "bbmri:NL:LUMC"
       type: "ZAMMAD"
       ticketStrategy: "PER_NEGOTIATION"
@@ -46,3 +38,6 @@ negotiatorlink:
       callbackSecret: "test-callback-secret-lumc"
       platformConfig:
         group: "Access"
+      negotiatorCredentials:
+        clientId: "test-client-id-lumc"
+        clientSecret: "test-client-secret-lumc"

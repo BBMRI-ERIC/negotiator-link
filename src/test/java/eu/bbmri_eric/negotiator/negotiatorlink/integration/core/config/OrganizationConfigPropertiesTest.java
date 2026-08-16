@@ -25,6 +25,9 @@ class OrganizationConfigPropertiesTest {
     assertThat(config.get().credentials()).containsEntry("apiToken", "test-api-token");
     assertThat(config.get().callbackSecret()).isEqualTo("test-callback-secret");
     assertThat(config.get().platformConfig()).containsEntry("group", "Sales");
+    assertThat(config.get().negotiatorCredentials().clientId()).isEqualTo("test-client-id-mhh");
+    assertThat(config.get().negotiatorCredentials().clientSecret())
+        .isEqualTo("test-client-secret-mhh");
   }
 
   @Test

@@ -39,6 +39,7 @@ public class OrganizationConfigRegistry {
   }
 
   private static OrganizationConfig toConfig(OrganizationConfigProperties.OrgEntry entry) {
+    var nc = entry.getNegotiatorCredentials();
     return new OrganizationConfig(
         entry.getOrganizationExternalId(),
         entry.getType(),
@@ -46,7 +47,8 @@ public class OrganizationConfigRegistry {
         entry.getBaseUrl(),
         entry.getCredentials(),
         entry.getCallbackSecret(),
-        entry.getPlatformConfig());
+        entry.getPlatformConfig(),
+        new NegotiatorCredentials(nc.getClientId(), nc.getClientSecret()));
   }
 
   private static void validate(List<OrganizationConfig> configs) {
@@ -70,6 +72,16 @@ public class OrganizationConfigRegistry {
               "Organization '%s': platformConfig.%s is required for type %s"
                   .formatted(orgId, key, config.type()));
         }
+      }
+      NegotiatorCredentials nc = config.negotiatorCredentials();
+      if (StringUtils.isBlank(nc.clientId())) {
+        throw new IllegalStateException(
+            "Organization '%s': negotiatorCredentials.clientId must not be blank".formatted(orgId));
+      }
+      if (StringUtils.isBlank(nc.clientSecret())) {
+        throw new IllegalStateException(
+            "Organization '%s': negotiatorCredentials.clientSecret must not be blank"
+                .formatted(orgId));
       }
     }
   }
