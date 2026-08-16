@@ -7,6 +7,8 @@ import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.resource;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.resourceStateUpdatedPayload;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.signedWebhookPayload;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.utf8;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
@@ -16,6 +18,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingRepository;
@@ -66,9 +69,10 @@ class ZammadAdapterE2ETest {
     var body = negotiationApprovedPayload(negotiationId);
     var resource = resource(10L, "src-1", "Biobank A", ORG_EXT_ID, ORG_ID);
 
-    when(negotiatorClient.getNegotiation(negotiationId))
+    when(negotiatorClient.getNegotiation(eq(negotiationId), any(OrganizationConfig.class)))
         .thenReturn(negotiation(negotiationId, "NEGO-E2E-1", "IN_PROGRESS"));
-    when(negotiatorClient.getResources(negotiationId)).thenReturn(List.of(resource));
+    when(negotiatorClient.getResources(eq(negotiationId), any(OrganizationConfig.class)))
+        .thenReturn(List.of(resource));
 
     zammadServer
         .expect(requestTo(ZAMMAD_BASE + "/api/v1/tickets"))
@@ -126,7 +130,7 @@ class ZammadAdapterE2ETest {
             String.valueOf(ORG_ID),
             ORG_EXT_ID));
 
-    when(negotiatorClient.getPostText(postId))
+    when(negotiatorClient.getPostText(eq(postId), any(OrganizationConfig.class)))
         .thenReturn(
             TestUtil.post(
                 postId,
