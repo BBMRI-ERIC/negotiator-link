@@ -15,6 +15,7 @@ import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.ZammadAdapter;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorCredentials;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
@@ -61,7 +62,8 @@ class ZammadAdapterTest {
             "http://localhost:" + wireMock.port(),
             Map.of("apiToken", API_TOKEN),
             CALLBACK_SECRET,
-            Map.of("group", "Sales"));
+            Map.of("group", "Sales"),
+            new NegotiatorCredentials("test-client-id", "test-client-secret"));
   }
 
   @AfterEach
