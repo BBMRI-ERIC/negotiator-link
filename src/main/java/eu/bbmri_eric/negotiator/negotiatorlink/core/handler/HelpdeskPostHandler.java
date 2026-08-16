@@ -64,10 +64,11 @@ public class HelpdeskPostHandler implements HelpdeskCallbackHandler {
     var post =
         new PostCreateDTO()
             .text(postText)
+            .organizationId(anyMapping.getOrganizationExtId())
             .type(PostCreateDTO.TypeEnum.PRIVATE)
             .helpdeskActor(event.helpdeskActor());
 
-    negotiatorClient.createPost(negotiationId, post);
+    negotiatorClient.createPost(negotiationId, post, config);
     log.info(
         "Forwarded help desk post from ticket '{}' to negotiation '{}' as PRIVATE post",
         ticketId,

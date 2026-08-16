@@ -2,6 +2,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.util;
 
 import com.standardwebhooks.Webhook;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorCredentials;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
@@ -143,6 +144,7 @@ public final class TestUtil {
         "https://zammad.example.com",
         Map.of("apiToken", "tok"),
         "secret",
-        Map.of("group", "3"));
+        Map.of("group", "3"),
+        new NegotiatorCredentials("test-client-id", "test-client-secret"));
   }
 }

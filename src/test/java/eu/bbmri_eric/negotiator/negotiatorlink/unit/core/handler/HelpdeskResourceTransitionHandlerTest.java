@@ -17,6 +17,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.OriginatedTransition
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.OriginatedTransitionRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingRepository;
@@ -66,14 +67,18 @@ class HelpdeskResourceTransitionHandlerTest {
     when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
             TICKET_ID, ORG_EXT_ID))
         .thenReturn(List.of(mapping(RESOURCE_ID, RESOURCE_SOURCE_ID)));
-    when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID))
+    when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID, config))
         .thenReturn(Set.of(REQUESTED_EVENT, "STEP_AWAY"));
 
     handler.handle(callbackEvent(), config);
 
     verify(negotiatorClient)
         .sendResourceEvent(
-            eq(NEGOTIATION_ID), eq(RESOURCE_SOURCE_ID), eq(REQUESTED_EVENT), eq(HELPDESK_ACTOR));
+            eq(NEGOTIATION_ID),
+            eq(RESOURCE_SOURCE_ID),
+            eq(REQUESTED_EVENT),
+            eq(HELPDESK_ACTOR),
+            eq(config));
     verify(adapter, never()).updateResourceState(any(), any(), any());
     verify(adapter, never()).addSystemComment(any(), any(), any());
   }
@@ -83,14 +88,14 @@ class HelpdeskResourceTransitionHandlerTest {
     when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
             TICKET_ID, ORG_EXT_ID))
         .thenReturn(List.of(mapping(RESOURCE_ID, RESOURCE_SOURCE_ID)));
-    when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID))
+    when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID, config))
         .thenReturn(Set.of("STEP_AWAY"));
 
     handler.handle(callbackEvent(), config);
 
     verify(adapter).updateResourceState(eq(TICKET_ID), eq(null), eq(config));
     verify(adapter).addSystemComment(eq(TICKET_ID), any(String.class), eq(config));
-    verify(negotiatorClient, never()).sendResourceEvent(any(), any(), any(), any());
+    verify(negotiatorClient, never()).sendResourceEvent(any(), any(), any(), any(), any());
   }
 
   @Test
@@ -101,7 +106,7 @@ class HelpdeskResourceTransitionHandlerTest {
 
     handler.handle(callbackEvent(), config);
 
-    verify(negotiatorClient, never()).sendResourceEvent(any(), any(), any(), any());
+    verify(negotiatorClient, never()).sendResourceEvent(any(), any(), any(), any(), any());
     verify(adapter, never()).updateResourceState(any(), any(), any());
     verify(adapter, never()).addSystemComment(any(), any(), any());
   }
@@ -116,9 +121,9 @@ class HelpdeskResourceTransitionHandlerTest {
     when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
             TICKET_ID, ORG_EXT_ID))
         .thenReturn(List.of(mapping1, mapping2));
-    when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID))
+    when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID, config))
         .thenReturn(Set.of(REQUESTED_EVENT));
-    when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID_2))
+    when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID_2, config))
         .thenReturn(Set.of(REQUESTED_EVENT));
 
     handler.handle(callbackEvent(), config);
@@ -133,7 +138,11 @@ class HelpdeskResourceTransitionHandlerTest {
 
     verify(negotiatorClient)
         .sendBulkResourceEvent(
-            eq(NEGOTIATION_ID), eq(List.of(101L, 102L)), eq(REQUESTED_EVENT), eq(HELPDESK_ACTOR));
+            eq(NEGOTIATION_ID),
+            eq(List.of(101L, 102L)),
+            eq(ResourceTransitionEvent.MARK_AS_CHECKING_AVAILABILITY.targetState()),
+            eq(HELPDESK_ACTOR),
+            eq(config));
     verify(adapter, never()).updateResourceState(any(), any(), any());
     verify(adapter, never()).addSystemComment(any(), any(), any());
   }
@@ -148,17 +157,47 @@ class HelpdeskResourceTransitionHandlerTest {
     when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
             TICKET_ID, ORG_EXT_ID))
         .thenReturn(List.of(mapping1, mapping2));
-    when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID))
+    when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID, config))
         .thenReturn(Set.of(REQUESTED_EVENT));
-    when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID_2))
+    when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID_2, config))
         .thenReturn(Set.of("STEP_AWAY"));
 
     handler.handle(callbackEvent(), config);
 
     verify(adapter).updateResourceState(eq(TICKET_ID), eq(null), eq(config));
     verify(adapter).addSystemComment(eq(TICKET_ID), any(String.class), eq(config));
-    verify(negotiatorClient, never()).sendBulkResourceEvent(any(), any(), any(), any());
+    verify(negotiatorClient, never()).sendBulkResourceEvent(any(), any(), any(), any(), any());
     verify(originatedTransitionRepository, never()).save(any());
+  }
+
+  @Test
+  void handle_perNegotiation_unknownEvent_passesThroughRawAsState() {
+    config = organizationConfig(ORG_EXT_ID, TicketStrategy.PER_NEGOTIATION);
+    String unknownEvent = "SOME_UNKNOWN_EVENT";
+
+    var mapping1 = mapping("101", RESOURCE_SOURCE_ID);
+    var mapping2 = mapping("102", RESOURCE_SOURCE_ID_2);
+
+    when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
+            TICKET_ID, ORG_EXT_ID))
+        .thenReturn(List.of(mapping1, mapping2));
+    when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID, config))
+        .thenReturn(Set.of(unknownEvent));
+    when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID_2, config))
+        .thenReturn(Set.of(unknownEvent));
+
+    handler.handle(
+        new HelpdeskCallbackEvent(
+            TICKET_ID,
+            HelpdeskCallbackType.RESOURCE_TRANSITION,
+            unknownEvent,
+            null,
+            HELPDESK_ACTOR),
+        config);
+
+    verify(negotiatorClient)
+        .sendBulkResourceEvent(
+            eq(NEGOTIATION_ID), any(), eq(unknownEvent), eq(HELPDESK_ACTOR), eq(config));
   }
 
   private TicketMapping mapping(String resourceId, String resourceSourceId) {

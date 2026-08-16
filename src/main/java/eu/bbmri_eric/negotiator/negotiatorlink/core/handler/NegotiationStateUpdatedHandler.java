@@ -78,8 +78,21 @@ public class NegotiationStateUpdatedHandler implements NegotiatorEventHandler {
     String negotiationId = event.getNegotiationId();
     log.info("Handling APPROVE for negotiation '{}'", negotiationId);
 
-    EntityModelNegotiationDTO negotiation = negotiatorClient.getNegotiation(negotiationId);
-    List<EntityModelResourceWithStatusDTO> resources = negotiatorClient.getResources(negotiationId);
+    // TODO: this need to be change to obtain the config from organization which is allowed to read
+    // the negotiation
+    //        and it is in registry. For now, we just take the first one since webhook does not
+    // provide the
+    //        organization externalId.
+    OrganizationConfig fetchConfig = registry.findAll().stream().findFirst().orElse(null);
+    if (fetchConfig == null) {
+      log.warn("No organizations configured — cannot fetch negotiation '{}'", negotiationId);
+      return;
+    }
+
+    EntityModelNegotiationDTO negotiation =
+        negotiatorClient.getNegotiation(negotiationId, fetchConfig);
+    List<EntityModelResourceWithStatusDTO> resources =
+        negotiatorClient.getResources(negotiationId, fetchConfig);
 
     if (resources.isEmpty()) {
       log.warn("No resources found for negotiation '{}' — nothing to ticket", negotiationId);
@@ -88,6 +101,9 @@ public class NegotiationStateUpdatedHandler implements NegotiatorEventHandler {
 
     groupByOrg(resources)
         .forEach((orgExtId, orgResources) -> ticketOrg(negotiation, orgExtId, orgResources));
+
+    // TODO: fetch the comment already present in the negotiation and add it to the ticket(s) as an
+    // external comment
   }
 
   /** Creates tickets for a single organization's resources, skipping/logging on any failure. */

@@ -6,6 +6,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.HelpdeskCallbackHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingRepository;
@@ -83,7 +84,7 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
     String resourceSourceId = mapping.getResourceSourceId();
 
     Set<String> allowedEvents =
-        negotiatorClient.getPossibleResourceEvents(negotiationId, resourceSourceId);
+        negotiatorClient.getPossibleResourceEvents(negotiationId, resourceSourceId, config);
 
     if (allowedEvents.contains(requestedEvent)) {
       log.info(
@@ -92,7 +93,7 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
           resourceSourceId,
           negotiationId);
       negotiatorClient.sendResourceEvent(
-          negotiationId, resourceSourceId, requestedEvent, helpdeskActor);
+          negotiationId, resourceSourceId, requestedEvent, helpdeskActor, config);
     } else {
       log.info(
           "Transition '{}' rejected for resource '{}' in negotiation '{}' — allowed: {}",
@@ -119,7 +120,8 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
     List<InvalidResource> invalidResources = new ArrayList<>();
     for (TicketMapping mapping : mappings) {
       Set<String> allowed =
-          negotiatorClient.getPossibleResourceEvents(negotiationId, mapping.getResourceSourceId());
+          negotiatorClient.getPossibleResourceEvents(
+              negotiationId, mapping.getResourceSourceId(), config);
       if (!allowed.contains(requestedEvent)) {
         invalidResources.add(new InvalidResource(mapping.getResourceSourceId(), allowed));
       }
@@ -145,13 +147,18 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
     originatedTransitionRepository.save(
         new OriginatedTransition(negotiationId, ticketId, mappings.size(), requestedEvent));
 
+    String targetState =
+        ResourceTransitionEvent.fromEvent(requestedEvent)
+            .map(ResourceTransitionEvent::targetState)
+            .orElse(requestedEvent);
+
     log.info(
         "Applying bulk transition '{}' to {} resource(s) in negotiation '{}'",
         requestedEvent,
         resourceIds.size(),
         negotiationId);
     negotiatorClient.sendBulkResourceEvent(
-        negotiationId, resourceIds, requestedEvent, helpdeskActor);
+        negotiationId, resourceIds, targetState, helpdeskActor, config);
   }
 
   private static String buildRejectionMessage(String requested, Set<String> allowed) {

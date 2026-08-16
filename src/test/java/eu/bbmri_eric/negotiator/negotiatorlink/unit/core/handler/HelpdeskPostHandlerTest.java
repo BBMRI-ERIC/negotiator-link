@@ -69,7 +69,7 @@ class HelpdeskPostHandlerTest {
     assertThat(savedPost.getTextHash()).isNotBlank();
 
     var dtoCaptor = ArgumentCaptor.forClass(PostCreateDTO.class);
-    verify(negotiatorClient).createPost(eq(NEGOTIATION_ID), dtoCaptor.capture());
+    verify(negotiatorClient).createPost(eq(NEGOTIATION_ID), dtoCaptor.capture(), eq(config));
     var dto = dtoCaptor.getValue();
     assertThat(dto.getText()).isEqualTo(POST_TEXT);
     assertThat(dto.getType()).isEqualTo(PostCreateDTO.TypeEnum.PRIVATE);
@@ -84,7 +84,7 @@ class HelpdeskPostHandlerTest {
 
     handler.handle(callbackEvent(), config);
 
-    verify(negotiatorClient, never()).createPost(any(), any());
+    verify(negotiatorClient, never()).createPost(any(), any(), any());
     verify(originatedPostRepository, never()).save(any());
   }
 

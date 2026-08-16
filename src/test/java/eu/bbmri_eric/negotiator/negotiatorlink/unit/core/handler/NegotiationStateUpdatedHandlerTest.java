@@ -127,7 +127,8 @@ class NegotiationStateUpdatedHandlerTest {
 
   @Test
   void handle_orgNotInConfig_skipsOrg() {
-    stubResources(createNegotiation(), List.of(createResource("r-1", 1L)));
+    var config = createConfig(TicketStrategy.PER_RESOURCE);
+    stubResources(createNegotiation(), config, List.of(createResource("r-1", 1L)));
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.empty());
 
     handler.handle(approveEventData());
@@ -140,7 +141,7 @@ class NegotiationStateUpdatedHandlerTest {
   void handle_nonApproveEvent_doesNotCreateTickets() {
     handler.handle(eventData("PAUSE", "IN_PROGRESS", "PAUSED"));
 
-    verify(negotiatorClient, never()).getResources(eq(NEGOTIATION_ID));
+    verify(negotiatorClient, never()).getResources(any(), any());
     verify(adapter, never()).createTicket(any(), any());
   }
 
@@ -149,14 +150,18 @@ class NegotiationStateUpdatedHandlerTest {
       EntityModelNegotiationDTO negotiation,
       OrganizationConfig config,
       List<EntityModelResourceWithStatusDTO> resources) {
-    stubResources(negotiation, resources);
+    stubResources(negotiation, config, resources);
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
   }
 
   private void stubResources(
-      EntityModelNegotiationDTO negotiation, List<EntityModelResourceWithStatusDTO> resources) {
-    when(negotiatorClient.getNegotiation(NEGOTIATION_ID)).thenReturn(negotiation);
-    when(negotiatorClient.getResources(NEGOTIATION_ID)).thenReturn(resources);
+      EntityModelNegotiationDTO negotiation,
+      OrganizationConfig config,
+      List<EntityModelResourceWithStatusDTO> resources) {
+    // handleApprove calls registry.findAll() to get fetchConfig, then uses it for client calls
+    when(registry.findAll()).thenReturn(List.of(config));
+    when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config)).thenReturn(negotiation);
+    when(negotiatorClient.getResources(NEGOTIATION_ID, config)).thenReturn(resources);
   }
 
   private CreateTicketRequest perResourceRequest(

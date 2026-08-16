@@ -58,7 +58,7 @@ public class NegotiationPostAddedHandler implements NegotiatorEventHandler {
     NegotiationPostAddedWebhookEvent event =
         objectMapper.convertValue(data, NegotiationPostAddedWebhookEvent.class);
 
-    PostContent content = fetchPostContent(event.getPostId());
+    PostContent content = fetchPostContent(event.getPostId(), event);
     if (content == null) {
       return;
     }
@@ -80,14 +80,43 @@ public class NegotiationPostAddedHandler implements NegotiatorEventHandler {
   }
 
   /** Loads the post and returns its content, or {@code null} if it cannot be forwarded. */
-  private PostContent fetchPostContent(String postId) {
-    EntityModelPostDTO post = negotiatorClient.getPostText(postId);
+  private PostContent fetchPostContent(String postId, NegotiationPostAddedWebhookEvent event) {
+    OrganizationConfig fetchConfig =
+        resolveFetchConfig(event.getNegotiationId(), event.getOrganizationId());
+    if (fetchConfig == null) {
+      log.warn("No usable org config to fetch post '{}' — skipping", postId);
+      return null;
+    }
+    EntityModelPostDTO post = negotiatorClient.getPostText(postId, fetchConfig);
     if (post == null || post.getText() == null) {
       log.warn("Post '{}' not found or has no text — skipping", postId);
       return null;
     }
     boolean isPublic = post.getType() == EntityModelPostDTO.TypeEnum.PUBLIC;
+    if (!isPublic && event.getOrganizationId() == null) {
+      log.warn(
+          "Post '{}' is PRIVATE but no organization ID was provided in the event — skipping",
+          postId);
+      return null;
+    }
+
     return new PostContent(post.getText(), isPublic, sha256Hex(post.getText()));
+  }
+
+  private OrganizationConfig resolveFetchConfig(String negotiationId, Long organizationId) {
+    if (organizationId != null) {
+      String orgIdStr = String.valueOf(organizationId);
+      return ticketMappingRepository.findAll().stream()
+          .filter(mapping -> orgIdStr.equals(mapping.getOrganizationId()))
+          .findFirst()
+          .flatMap(mapping -> registry.findByExternalId(mapping.getOrganizationExtId()))
+          .orElse(null);
+    }
+    // PUBLIC post: any opted-in org involved in this negotiation can fetch the post text.
+    return ticketMappingRepository.findByIdNegotiationId(negotiationId).stream()
+        .findFirst()
+        .flatMap(mapping -> registry.findByExternalId(mapping.getOrganizationExtId()))
+        .orElse(null);
   }
 
   /** Resolves the distinct target tickets for the post based on its visibility. */
@@ -109,8 +138,8 @@ public class NegotiationPostAddedHandler implements NegotiatorEventHandler {
    */
   private String resolveDeduplicatedTicketId(
       String textHash, Long organizationId, String postId, boolean isPublic) {
-    if (organizationId == null || isPublic) {
-      // help desks does not produce public messages
+    if (isPublic) {
+      // help desks does not produce public messages -> no deduplication needed
       return null;
     }
     String orgIdStr = String.valueOf(organizationId);
@@ -144,12 +173,7 @@ public class NegotiationPostAddedHandler implements NegotiatorEventHandler {
   }
 
   private void forwardToTicket(String ticketId, String orgExtId, String postText, String postId) {
-    OrganizationConfig config = registry.findByExternalId(orgExtId).orElse(null);
-    if (config == null) {
-      log.debug("Org '{}' not in config — skipping ticket '{}'", orgExtId, ticketId);
-      return;
-    }
-
+    OrganizationConfig config = registry.findByExternalId(orgExtId).orElseThrow();
     HelpDeskAdapter adapter = adapters.get(config.type());
     if (adapter == null) {
       log.error("No adapter for type '{}' (org '{}')", config.type(), orgExtId);
@@ -166,7 +190,6 @@ public class NegotiationPostAddedHandler implements NegotiatorEventHandler {
 
   private Map<String, String> resolveTargets(
       List<TicketMapping> allMappings, boolean isPublic, Long organizationId) {
-    // Use LinkedHashMap to preserve insertion order; keyed by ticketId to deduplicate
     Map<String, String> ticketToOrgExtId = new LinkedHashMap<>();
 
     for (TicketMapping mapping : allMappings) {
