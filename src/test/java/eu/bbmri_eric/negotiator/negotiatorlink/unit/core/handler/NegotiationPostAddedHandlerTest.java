@@ -184,6 +184,84 @@ class NegotiationPostAddedHandlerTest {
     return objectMapper.valueToTree(map);
   }
 
+  @Test
+  void handle_privatePost_withCreatedByNameAndEmail_prependsSenderHeader() {
+    var config = createConfig(ORG_EXT_ID);
+    var mappings = List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID));
+    when(ticketMappingRepository.findAll()).thenReturn(mappings);
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+    when(negotiatorClient.getPostText(eq(POST_ID), eq(config)))
+        .thenReturn(
+            TestUtil.post(
+                POST_ID,
+                POST_TEXT,
+                EntityModelPostDTO.TypeEnum.PRIVATE,
+                ORG_ID_STR,
+                "Jane Doe",
+                "jane@example.com"));
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
+    when(originatedPostRepository.findFirstByTextHashAndOrganizationIdOrderByCreatedAtAsc(
+            eq(POST_TEXT_HASH), eq(ORG_ID_STR)))
+        .thenReturn(Optional.empty());
+
+    handler.handle(postEventData(ORG_ID));
+
+    verify(adapter)
+        .addComment(
+            eq(TICKET_A), eq("From: Jane Doe <jane@example.com>\n\n" + POST_TEXT), eq(config));
+  }
+
+  @Test
+  void handle_privatePost_withCreatedByNameOnly_prependsNameHeader() {
+    var config = createConfig(ORG_EXT_ID);
+    var mappings = List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID));
+    when(ticketMappingRepository.findAll()).thenReturn(mappings);
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+    when(negotiatorClient.getPostText(eq(POST_ID), eq(config)))
+        .thenReturn(
+            TestUtil.post(
+                POST_ID,
+                POST_TEXT,
+                EntityModelPostDTO.TypeEnum.PRIVATE,
+                ORG_ID_STR,
+                "Jane Doe",
+                null));
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
+    when(originatedPostRepository.findFirstByTextHashAndOrganizationIdOrderByCreatedAtAsc(
+            eq(POST_TEXT_HASH), eq(ORG_ID_STR)))
+        .thenReturn(Optional.empty());
+
+    handler.handle(postEventData(ORG_ID));
+
+    verify(adapter).addComment(eq(TICKET_A), eq("From: Jane Doe\n\n" + POST_TEXT), eq(config));
+  }
+
+  @Test
+  void handle_privatePost_withCreatedByEmailOnly_prependsEmailHeader() {
+    var config = createConfig(ORG_EXT_ID);
+    var mappings = List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID));
+    when(ticketMappingRepository.findAll()).thenReturn(mappings);
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+    when(negotiatorClient.getPostText(eq(POST_ID), eq(config)))
+        .thenReturn(
+            TestUtil.post(
+                POST_ID,
+                POST_TEXT,
+                EntityModelPostDTO.TypeEnum.PRIVATE,
+                ORG_ID_STR,
+                null,
+                "jane@example.com"));
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
+    when(originatedPostRepository.findFirstByTextHashAndOrganizationIdOrderByCreatedAtAsc(
+            eq(POST_TEXT_HASH), eq(ORG_ID_STR)))
+        .thenReturn(Optional.empty());
+
+    handler.handle(postEventData(ORG_ID));
+
+    verify(adapter)
+        .addComment(eq(TICKET_A), eq("From: jane@example.com\n\n" + POST_TEXT), eq(config));
+  }
+
   private EntityModelPostDTO createPost(EntityModelPostDTO.TypeEnum type) {
     return TestUtil.post(POST_ID, POST_TEXT, type, ORG_ID_STR);
   }

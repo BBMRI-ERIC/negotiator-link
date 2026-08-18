@@ -9,6 +9,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegoti
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.OrganizationDTO;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.UserResponseModel;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -116,6 +117,23 @@ public final class TestUtil {
     p.setText(text);
     p.setType(type);
     p.setOrganizationId(orgId);
+    return p;
+  }
+
+  public static EntityModelPostDTO post(
+      String id,
+      String text,
+      EntityModelPostDTO.TypeEnum type,
+      String orgId,
+      String createdByName,
+      String createdByEmail) {
+    var p = post(id, text, type, orgId);
+    if (createdByName != null || createdByEmail != null) {
+      var author = new UserResponseModel();
+      author.setName(createdByName);
+      author.setEmail(createdByEmail);
+      p.setCreatedBy(author);
+    }
     return p;
   }
 

@@ -141,13 +141,16 @@ class ZammadAdapterE2ETest {
                 postId,
                 "Hello from Negotiator",
                 EntityModelPostDTO.TypeEnum.PRIVATE,
-                String.valueOf(ORG_ID)));
+                String.valueOf(ORG_ID),
+                "Jane Doe",
+                "jane@example.com"));
 
     zammadServer
         .expect(requestTo(ZAMMAD_BASE + "/api/v1/ticket_articles"))
         .andExpect(method(HttpMethod.POST))
         .andExpect(jsonPath("$.ticket_id").value(42))
-        .andExpect(jsonPath("$.body").value("Hello from Negotiator"))
+        .andExpect(
+            jsonPath("$.body").value("From: Jane Doe <jane@example.com>\n\nHello from Negotiator"))
         .andExpect(jsonPath("$.internal").value(false))
         .andRespond(withSuccess());
 

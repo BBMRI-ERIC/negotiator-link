@@ -14,6 +14,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.NegotiationPostAddedWebhookEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.UserResponseModel;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -100,7 +101,24 @@ public class NegotiationPostAddedHandler implements NegotiatorEventHandler {
       return null;
     }
 
-    return new PostContent(post.getText(), isPublic, sha256Hex(post.getText()));
+    String postText = getPostText(post);
+    return new PostContent(postText, isPublic, sha256Hex(post.getText()));
+  }
+
+  private String getPostText(EntityModelPostDTO post) {
+    UserResponseModel createdBy = post.getCreatedBy();
+    if (createdBy == null) {
+      return post.getText();
+    }
+
+    String name = createdBy.getName();
+    String email = createdBy.getEmail();
+    if (name == null && email == null) {
+      return post.getText();
+    }
+
+    String sender = name != null ? name + (email != null ? " <" + email + ">" : "") : email;
+    return "From: " + sender + "\n\n" + post.getText();
   }
 
   private OrganizationConfig resolveFetchConfig(String negotiationId, Long organizationId) {
