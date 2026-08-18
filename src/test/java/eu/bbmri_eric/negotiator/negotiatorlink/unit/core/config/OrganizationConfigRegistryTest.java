@@ -63,13 +63,23 @@ class OrganizationConfigRegistryTest {
   }
 
   @Test
-  void constructor_whenRequiredPlatformConfigKeyMissing_throws() {
+  void constructor_whenGroupAsRequiredPlatformConfigKeyMissing_throws() {
     var entry = zammadEntry();
-    entry.setPlatformConfig(new HashMap<>());
+    entry.setPlatformConfig(Map.of("botEmail", "someMail@test.com"));
     assertThatThrownBy(() -> new OrganizationConfigRegistry(propsWithEntry(entry)))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining(ORG_EXTERNAL_ID)
         .hasMessageContaining("group");
+  }
+
+  @Test
+  void constructor_whenEmailAsRequiredPlatformConfigKeyMissing_throws() {
+    var entry = zammadEntry();
+    entry.setPlatformConfig(Map.of("group", "Sales"));
+    assertThatThrownBy(() -> new OrganizationConfigRegistry(propsWithEntry(entry)))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining(ORG_EXTERNAL_ID)
+        .hasMessageContaining("botEmail");
   }
 
   @Test
@@ -115,7 +125,8 @@ class OrganizationConfigRegistryTest {
     entry.setBaseUrl("https://zammad.mhh.de");
     entry.setCredentials(new HashMap<>(Map.of("apiToken", "secret-token")));
     entry.setCallbackSecret("secret-callback");
-    entry.setPlatformConfig(new HashMap<>(Map.of("group", "Sales")));
+    entry.setPlatformConfig(
+        new HashMap<>(Map.of("group", "Sales", "botEmail", "some.email@test.com")));
     var creds = new OrganizationConfigProperties.NegotiatorCredentialsEntry();
     creds.setClientId(CLIENT_ID);
     creds.setClientSecret(CLIENT_SECRET);

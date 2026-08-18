@@ -22,7 +22,7 @@ import org.springframework.security.oauth2.client.AuthorizedClientServiceOAuth2A
 import org.springframework.security.oauth2.client.InMemoryOAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.OAuth2AuthorizeRequest;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProviderBuilder;
-import org.springframework.security.oauth2.client.registration.ClientRegistration;
+import org.springframework.security.oauth2.client.registration.ClientRegistrations;
 import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.web.client.RestClient;
@@ -184,12 +184,12 @@ public class NegotiatorClient {
 
   private PerOrgClient buildClient(NegotiatorCredentials creds) {
     var registration =
-        ClientRegistration.withRegistrationId("negotiator")
+        ClientRegistrations.fromIssuerLocation(issuerUri)
+            .registrationId("negotiator")
             .clientId(creds.clientId())
             .clientSecret(creds.clientSecret())
             .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
             .scope("negotiator_helpdesk")
-            .issuerUri(issuerUri)
             .build();
 
     var registrationRepo = new InMemoryClientRegistrationRepository(registration);

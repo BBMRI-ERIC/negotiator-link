@@ -13,3 +13,7 @@ negotiatorlink:
       callbackSecret: "${ZAMMAD_MHH_CALLBACK_SECRET}"
       platformConfig:
         group: "negotiator-link"
+        botEmail: "negotiator-link@local.dev"
+      negotiatorCredentials:
+        clientId: "${NEGOTIATOR_CLIENT_ID}"
+        clientSecret: "${NEGOTIATOR_CLIENT_SECRET}"

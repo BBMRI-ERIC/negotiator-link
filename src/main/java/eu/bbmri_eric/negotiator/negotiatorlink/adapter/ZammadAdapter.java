@@ -194,6 +194,7 @@ public class ZammadAdapter implements HelpDeskAdapter {
     Map<String, Object> body = new HashMap<>();
     body.put("title", request.title());
     body.put("group", config.platformConfig().get("group"));
+    body.put("customer", config.platformConfig().get("botEmail"));
     body.put(FIELD_NEGOTIATION_STATE, request.negotiationState());
     body.put(FIELD_RESOURCE_STATE, request.resourceState());
     body.put(FIELD_TRANSITION_EVENT, null);

@@ -62,7 +62,7 @@ class ZammadAdapterTest {
             "http://localhost:" + wireMock.port(),
             Map.of("apiToken", API_TOKEN),
             CALLBACK_SECRET,
-            Map.of("group", "Sales"),
+            Map.of("group", "Sales", "botEmail", "negotiator-link@mhh.de"),
             new NegotiatorCredentials("test-client-id", "test-client-secret"));
   }
 
@@ -121,7 +121,7 @@ class ZammadAdapterTest {
 
     var request =
         new CreateTicketRequest(
-            "[NEGO-1] Dummy Collection — Access Request",
+            "[NEGO-1] Access Request — Dummy Collection",
             "IN_PROGRESS",
             "SUBMITTED",
             "Ticket body");
@@ -138,13 +138,14 @@ class ZammadAdapterTest {
                 equalToJson(
                     """
                     {
-                      "title": "[NEGO-1] Dummy Collection — Access Request",
+                      "title": "[NEGO-1] Access Request — Dummy Collection",
                       "group": "Sales",
                       "negotiation_state": "IN_PROGRESS",
                       "negotiator_resource_state": "SUBMITTED",
                       "negotiator_resource_transition_event": null,
+                      "customer": "negotiator-link@mhh.de",
                       "article": {
-                        "subject": "[NEGO-1] Dummy Collection — Access Request",
+                        "subject": "[NEGO-1] Access Request — Dummy Collection",
                         "body": "Ticket body",
                         "type": "note",
                         "internal": false
@@ -184,6 +185,7 @@ class ZammadAdapterTest {
                       "negotiation_state": "IN_PROGRESS",
                       "negotiator_resource_state": "SUBMITTED",
                       "negotiator_resource_transition_event": null,
+                      "customer": "negotiator-link@mhh.de",
                       "article": {
                         "subject": "[NEGO-2] Resources Access Request",
                         "body": "Body text",

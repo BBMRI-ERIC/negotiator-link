@@ -26,6 +26,7 @@ negotiatorlink:
       callbackSecret: "test-callback-secret"
       platformConfig:
         group: "Sales"
+        botEmail: "negotiator-link@mhh.de"
       negotiatorCredentials:
         clientId: "test-client-id-mhh"
         clientSecret: "test-client-secret-mhh"
@@ -38,6 +39,7 @@ negotiatorlink:
       callbackSecret: "test-callback-secret-lumc"
       platformConfig:
         group: "Access"
+        botEmail: "negotiator-link@lumc.nl"
       negotiatorCredentials:
         clientId: "test-client-id-lumc"
         clientSecret: "test-client-secret-lumc"

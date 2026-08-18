@@ -163,7 +163,7 @@ public class NegotiationStateUpdatedHandler implements NegotiatorEventHandler {
 
     String body =
         NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(negotiation, resources);
-    String title = NegotiationTicketBodyFormatter.buildTitle(negotiation.getDisplayId(), null);
+    String title = NegotiationTicketBodyFormatter.buildTitle(negotiation, null);
     CreateTicketRequest request =
         new CreateTicketRequest(
             title, negotiation.getStatus(), resolveInitialState(resources.getFirst()), body);
@@ -188,8 +188,7 @@ public class NegotiationStateUpdatedHandler implements NegotiatorEventHandler {
     for (EntityModelResourceWithStatusDTO resource : resources) {
       String body =
           NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(negotiation, resource);
-      String title =
-          NegotiationTicketBodyFormatter.buildTitle(negotiation.getDisplayId(), resource.getName());
+      String title = NegotiationTicketBodyFormatter.buildTitle(negotiation, resource.getName());
       CreateTicketRequest request =
           new CreateTicketRequest(
               title, negotiation.getStatus(), resolveInitialState(resource), body);

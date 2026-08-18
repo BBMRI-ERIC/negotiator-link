@@ -182,7 +182,7 @@
                             </schemaMappings>
                             <configOptions>
                                 <useSpringBoot4>true</useSpringBoot4>
-                                <dateLibrary>java8</dateLibrary>
+                                <dateLibrary>java8-localdatetime</dateLibrary>
                                 <serializationLibrary>jackson</serializationLibrary>
                                 <openApiNullable>false</openApiNullable>
                                 <useBeanValidation>false</useBeanValidation>

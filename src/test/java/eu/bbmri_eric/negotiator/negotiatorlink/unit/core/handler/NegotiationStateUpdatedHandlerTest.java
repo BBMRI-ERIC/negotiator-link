@@ -167,7 +167,7 @@ class NegotiationStateUpdatedHandlerTest {
   private CreateTicketRequest perResourceRequest(
       EntityModelNegotiationDTO negotiation, EntityModelResourceWithStatusDTO resource) {
     return new CreateTicketRequest(
-        NegotiationTicketBodyFormatter.buildTitle(DISPLAY_ID, resource.getName()),
+        NegotiationTicketBodyFormatter.buildTitle(negotiation, resource.getName()),
         NEGOTIATION_STATE,
         RESOURCE_STATE,
         NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(negotiation, resource));
@@ -176,7 +176,7 @@ class NegotiationStateUpdatedHandlerTest {
   private CreateTicketRequest perNegotiationRequest(
       EntityModelNegotiationDTO negotiation, List<EntityModelResourceWithStatusDTO> resources) {
     return new CreateTicketRequest(
-        NegotiationTicketBodyFormatter.buildTitle(DISPLAY_ID, null),
+        NegotiationTicketBodyFormatter.buildTitle(negotiation, null),
         NEGOTIATION_STATE,
         RESOURCE_STATE,
         NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(negotiation, resources));

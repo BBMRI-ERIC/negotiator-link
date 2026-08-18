@@ -67,18 +67,19 @@ class ZammadAdapterE2ETest {
   void negotiationApproved_createsTicketInZammad() throws Exception {
     String negotiationId = "neg-e2e-1";
     var body = negotiationApprovedPayload(negotiationId);
-    var resource = resource(10L, "src-1", "Biobank A", ORG_EXT_ID, ORG_ID);
+    var resource = resource(10L, "src-1", "Resource A", ORG_EXT_ID, ORG_ID);
 
     when(negotiatorClient.getNegotiation(eq(negotiationId), any(OrganizationConfig.class)))
-        .thenReturn(negotiation(negotiationId, "NEGO-E2E-1", "IN_PROGRESS"));
+        .thenReturn(negotiation(negotiationId, "E2E-1", "IN_PROGRESS"));
     when(negotiatorClient.getResources(eq(negotiationId), any(OrganizationConfig.class)))
         .thenReturn(List.of(resource));
 
     zammadServer
         .expect(requestTo(ZAMMAD_BASE + "/api/v1/tickets"))
         .andExpect(method(HttpMethod.POST))
-        .andExpect(jsonPath("$.title").value("[NEGO-E2E-1] Biobank A — Access Request"))
+        .andExpect(jsonPath("$.title").value("[NEGO-E2E-1] Access Request — Resource A"))
         .andExpect(jsonPath("$.group").value("Sales"))
+        .andExpect(jsonPath("$.customer").value("negotiator-link@mhh.de"))
         .andExpect(jsonPath("$.negotiation_state").value("IN_PROGRESS"))
         .andExpect(jsonPath("$.negotiator_resource_state").value("SUBMITTED"))
         .andRespond(withSuccess("{\"id\":1,\"number\":\"1001\"}", MediaType.APPLICATION_JSON));
@@ -91,16 +92,20 @@ class ZammadAdapterE2ETest {
   @Test
   void resourceStateUpdated_updatesTicketInZammad() throws Exception {
     String negotiationId = "neg-e2e-2";
-    String resourceId = "res-e2e-1";
+    String resourceSourceId = "src-e2e-1";
     String ticketId = "t-2";
     var body =
         resourceStateUpdatedPayload(
-            negotiationId, resourceId, "SUBMITTED", "RESOURCE_AVAILABLE", "MARK_AS_AVAILABLE");
+            negotiationId,
+            resourceSourceId,
+            "SUBMITTED",
+            "RESOURCE_AVAILABLE",
+            "MARK_AS_AVAILABLE");
 
     ticketMappingRepository.save(
         new TicketMapping(
-            new TicketMappingId(negotiationId, ticketId, resourceId),
-            "src-e2e-1",
+            new TicketMappingId(negotiationId, ticketId, "res-e2e-1"),
+            resourceSourceId,
             String.valueOf(ORG_ID),
             ORG_EXT_ID));
 
