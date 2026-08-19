@@ -183,6 +183,15 @@ public class NegotiatorClient {
   }
 
   private PerOrgClient buildClient(NegotiatorCredentials creds) {
+    var manager = createAuthorizedClientManager(creds);
+    var restClient = createAuthenticatedRestClient(manager, creds);
+    var apiClient = createApiClient(restClient);
+    return new PerOrgClient(
+        new NegotiationsApi(apiClient), new CommentsApi(apiClient), new UsersApi(apiClient));
+  }
+
+  private AuthorizedClientServiceOAuth2AuthorizedClientManager createAuthorizedClientManager(
+      NegotiatorCredentials creds) {
     var registration =
         ClientRegistrations.fromIssuerLocation(issuerUri)
             .registrationId("negotiator")
@@ -191,41 +200,45 @@ public class NegotiatorClient {
             .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
             .scope("negotiator_helpdesk")
             .build();
-
     var registrationRepo = new InMemoryClientRegistrationRepository(registration);
     var clientService = new InMemoryOAuth2AuthorizedClientService(registrationRepo);
     var manager =
         new AuthorizedClientServiceOAuth2AuthorizedClientManager(registrationRepo, clientService);
     manager.setAuthorizedClientProvider(
         OAuth2AuthorizedClientProviderBuilder.builder().clientCredentials().build());
+    return manager;
+  }
 
-    var restClient =
-        restClientBuilder
-            .clone()
-            .requestInterceptor(
-                (request, body, execution) -> {
-                  var authorizeRequest =
-                      OAuth2AuthorizeRequest.withClientRegistrationId("negotiator")
-                          .principal("negotiator-link")
-                          .build();
-                  var authorizedClient = manager.authorize(authorizeRequest);
-                  if (authorizedClient == null) {
-                    log.error(
-                        "Failed to obtain OAuth2 access token for client '{}'", creds.clientId());
-                    throw new IllegalStateException(
-                        "Could not obtain OAuth2 access token for client '%s'"
-                            .formatted(creds.clientId()));
-                  }
-                  request
-                      .getHeaders()
-                      .setBearerAuth(authorizedClient.getAccessToken().getTokenValue());
-                  return execution.execute(request, body);
-                })
+  private RestClient createAuthenticatedRestClient(
+      AuthorizedClientServiceOAuth2AuthorizedClientManager manager, NegotiatorCredentials creds) {
+    return restClientBuilder
+        .clone()
+        .requestInterceptor(
+            (request, body, execution) -> {
+              request.getHeaders().setBearerAuth(resolveAccessToken(manager, creds));
+              return execution.execute(request, body);
+            })
+        .build();
+  }
+
+  private String resolveAccessToken(
+      AuthorizedClientServiceOAuth2AuthorizedClientManager manager, NegotiatorCredentials creds) {
+    var authorizeRequest =
+        OAuth2AuthorizeRequest.withClientRegistrationId("negotiator")
+            .principal("negotiator-link")
             .build();
+    var authorizedClient = manager.authorize(authorizeRequest);
+    if (authorizedClient == null) {
+      log.error("Failed to obtain OAuth2 access token for client '{}'", creds.clientId());
+      throw new IllegalStateException(
+          "Could not obtain OAuth2 access token for client '%s'".formatted(creds.clientId()));
+    }
+    return authorizedClient.getAccessToken().getTokenValue();
+  }
 
+  private ApiClient createApiClient(RestClient restClient) {
     var apiClient = new ApiClient(restClient);
     apiClient.setBasePath(baseUrl);
-    return new PerOrgClient(
-        new NegotiationsApi(apiClient), new CommentsApi(apiClient), new UsersApi(apiClient));
+    return apiClient;
   }
 }
