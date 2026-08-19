@@ -237,18 +237,18 @@ Limitations:
 **Decision:** When the middleware posts a message to Negotiator on behalf of a representative, it passes the
 representative's identity from the help desk as an `X-Helpdesk-Actor` request header. Negotiator stores this value in a
 new nullable `helpdesk_actor VARCHAR` column on the `Post` entity and returns it in `PostDTO`. The `Post.createdBy` FK
-continues to reference the middleware service account. `helpdeskActor` will be a display-only supplement, not a
+continues to reference the per-organization middleware account. `helpdeskActor` will be a display-only supplement, not a
 reference to a Negotiator user.
 
 **Justification:**
 
-- The middleware authenticates to Negotiator using the OAuth 2.0 Client Credentials flow. Without this mechanism, all
-  posts would be attributed to the middleware service account in the Negotiator UI and API, making it impossible to
-  distinguish which representative sent a given message.
+- The middleware authenticates to Negotiator using the OAuth 2.0 Client Credentials flow with a per-organization
+  account. Without this mechanism, all posts would be attributed to the middleware's org account in the Negotiator UI
+  and API, making it impossible to distinguish which representative sent a given message.
 - An alternative would be to prepend the representative's identity to the post body text (e.g.
   `[Via help desk: John Smith <john.smith@mhh.de>]`). This requires no schema changes but embeds identity in free-form
   text, making it fragile. A dedicated `helpdeskActor` column is explicit, queryable, and renders cleanly alongside the
-  `createdBy` service account without polluting the post content.
+  `createdBy` org account without polluting the post content.
 - Requiring the representative to have a Negotiator account is not acceptable. The integration is deliberately designed
   so that representatives never need to interact with Negotiator directly. Maintaining a mirrored user registry across
   both systems would introduce operational burden with no security benefit, since authorization is already enforced by
@@ -268,8 +268,8 @@ negotiation timeline when present, falling back to `createdBy.getName()` for tra
 
 - Resource state transitions are recorded in `NegotiationResourceLifecycleRecord`, which extends `AuditEntity`. The
   `createdBy` field is populated automatically by Spring JPA Auditing (`@CreatedBy`) from the currently authenticated
-  subject (the middleware service account). Without this mechanism, all help-desk-triggered transitions would appear in
-  the timeline as performed by the service account, not the actual representative.
+  subject (the per-organization middleware account). Without this mechanism, all help-desk-triggered transitions would
+  appear in the timeline as performed by the org account, not the actual representative.
 - The same reasoning as Decision 6 applies: requiring representatives to hold Negotiator accounts is not acceptable, and
   the help desk is the correct authorization boundary.
 - Because `NegotiationResourceLifecycleRecord` is created inside the state machine persistence listener (
@@ -553,9 +553,10 @@ multiple rows with the same ticket ID but different `resource_id` values.
 #### Organization Configuration
 
 The middleware also holds a YAML configuration file that defines which organizations have help desk integration enabled.
-Each entry carries the connection details for that organization's help desk instance. Credentials are never hardcoded —
-they are injected from environment variables at startup. An example configuration (probably will be extended during
-implementation, when some of the requeired fields will be identified):
+Each entry carries the connection details for that organization's help desk instance and the Negotiator OAuth2
+credentials for that organization's dedicated middleware account. Credentials are never hardcoded — they are injected
+from environment variables at startup. An example configuration (probably will be extended during implementation, when
+some of the required fields will be identified):
 
 ```yaml
 organizations:
@@ -567,6 +568,9 @@ organizations:
       apiToken: "${ZAMMAD_MHH_API_TOKEN}"
     callbackSecret: "${ZAMMAD_MHH_CALLBACK_SECRET}"
     groupId: 3 # this in Zammad identify the ticket type to which the custom fields are linked
+    negotiatorCredentials:
+      clientId: "${NEGOTIATOR_MHH_CLIENT_ID}"
+      clientSecret: "${NEGOTIATOR_MHH_CLIENT_SECRET}"
 
   - organizationExternalId: "bbmri:NL:AMC"
     type: "zammad"
@@ -576,6 +580,9 @@ organizations:
       apiToken: "${ZAMMAD_AMC_API_TOKEN}"
     callbackSecret: "${ZAMMAD_AMC_CALLBACK_SECRET}"
     groupId: 5
+    negotiatorCredentials:
+      clientId: "${NEGOTIATOR_AMC_CLIENT_ID}"
+      clientSecret: "${NEGOTIATOR_AMC_CLIENT_SECRET}"
 
   - organizationExternalId: "bbmri:CZ:FNOL"
     type: "alvao"
@@ -586,6 +593,9 @@ organizations:
       password: "${ALVAO_FNOL_PASSWORD}"
     callbackSecret: "${ALVAO_FNOL_CALLBACK_SECRET}"
     serviceId: 42 # identifies the service tree node under which tickets are created
+    negotiatorCredentials:
+      clientId: "${NEGOTIATOR_FNOL_CLIENT_ID}"
+      clientSecret: "${NEGOTIATOR_FNOL_CLIENT_SECRET}"
 ```
 
 ### 4.2 Negotiator → Middleware → Help Desk
@@ -708,70 +718,86 @@ process it and return HTTP 200
 
 #### 5.1.2 Middleware → Negotiator (REST API Calls)
 
-The middleware authenticates against Negotiator using the OAuth 2.0 Client Credentials flow. It uses a `clientId` and
-`clientSecret` to obtain a Bearer token from the configured OIDC provider. The access token is cached and automatically
-refreshed before expiration.
+The middleware authenticates against Negotiator using the OAuth 2.0 Client Credentials flow. Each organization that
+opts into the help desk integration is provisioned with its own dedicated OAuth2 client (`clientId` / `clientSecret`)
+in the OIDC provider. The middleware holds one set of credentials per organization in the YAML configuration and
+maintains a separate token cache per organization. All tokens are refreshed automatically before expiration.
 
-Only the `negotiator_helpdesk` scope is requested. Within Negotiator, `CustomJWTAuthConverter` maps this scope to the
-Spring Security authority `ROLE_HELPDESK_INTEGRATION`. This role allows the middleware service account to perform a
-limited set of actions that are otherwise restricted to interactive users.
+Each org's client requests the `negotiator_helpdesk` scope. Within Negotiator, `CustomJWTAuthConverter` maps this scope
+to the Spring Security authority `ROLE_HELPDESK_INTEGRATION`. In addition, `parseJWTAsMachineToken()` is extended to
+check `person.getResources()` and add `ROLE_REPRESENTATIVE` when the `Person` record for the client has representative
+links — mirroring the existing check in `parseJWTAsUserToken()`.
+
+Authorization for all representative actions (reading negotiations, posting messages, triggering state transitions) is
+enforced through the standard `resource_representative_link` relationship. A Negotiator admin must assign each org's
+middleware `Person` account as representative of all of that organization's resources before the integration can
+function. The `ROLE_HELPDESK_INTEGRATION` authority is not used for authorization of representative actions — its sole
+purpose is to gate the population of the `helpdeskActor` field on posts and lifecycle records.
 
 The `clientId`, `clientSecret`, and `NEGOTIATOR_WEBHOOK_SECRET` are injected exclusively via environment variables —
 never hardcoded in configuration files.
 
+##### Per-Organization Isolation
+
+Each org's client credentials authorize the middleware only to act on resources where that org's `Person` account holds
+a `resource_representative_link` entry. Compromising one org's credentials does not grant access to any other
+organization's negotiations, resources, or posts. This is enforced entirely by the existing Negotiator authorization
+model without any changes to the authorization logic.
+
 ##### Posting Messages
 
-`PostServiceImpl.checkAuthorization()` is extended with an additional authorization branch:
+`PostServiceImpl.checkAuthorization()` already permits posting when the caller is a representative of any resource in
+the negotiation via `negotiationService.isAuthorizedForNegotiation()` →
+`personService.isRepresentativeOfAnyResourceOfNegotiation()`. Because the org's middleware `Person` account is linked
+to that org's resources, this check passes without any change.
 
-```java
-||AuthenticatedUserContext.hasRole("ROLE_HELPDESK_INTEGRATION")
-```
-
-A client holding this role may:
-
-- Post **PUBLIC** messages if the negotiation state enables it.
-- Post **PRIVATE** messages to negotiations if the negotiation state enables it.
+No additional authorization branch is needed. The `ROLE_HELPDESK_INTEGRATION` authority is only used in
+`PostServiceImpl.setUpPostEntity()` to gate whether the `helpdeskActor` field supplied in the request body is accepted
+or silently discarded.
 
 ##### Resource Lifecycle Transitions
 
-Support for the help desk integration is added through two changes in Negotiator.
+Authorization for resource state transitions flows through two layers, both of which pass without any Negotiator
+authorization code change:
 
-**1. NegotiationController**
+1. **Controller level** (`NegotiationController.sendEventForNegotiationResource()`, lines 242–244):
+   `personService.isRepresentativeOfAnyResource(userId, List.of(resourceId))` — a direct DB check against
+   `resource_representative_link`. Passes because the org's `Person` account has representative links for the org's
+   resources.
 
-`NegotiationController.sendEventForNegotiationResource()` gains an additional authorization condition alongside the
-existing creator check:
+2. **State machine level** (`ResourceLifecycleServiceImpl.isSecurityRuleMet()` with attribute `"isRepresentative"`):
+   `personService.isRepresentativeOfAnyResource(...)` — the same DB check. Passes for the same reason.
 
-```java
-||AuthenticatedUserContext.hasRole("ROLE_HELPDESK_INTEGRATION")
-```
+The `isHelpdeskIntegration` state machine guard branch and the corresponding `ResourceStateMachineConfig` changes from
+the original plan are **not needed**.
 
-**2. ResourceLifecycleServiceImpl**
+`ROLE_HELPDESK_INTEGRATION` is only used in `NegotiationController.sendEventForNegotiationResource()` and
+`NegotiationController.updateResources()` to gate whether the `X-Helpdesk-Actor` request header is accepted and
+threaded through to the lifecycle record.
 
-`ResourceLifecycleServiceImpl.isSecurityRuleMet()` gains a new security rule branch:
+##### Reading Posts (`GET /v3/posts/{postId}`)
 
-```java
-}else if(securityRule.getAttributes().
+The middleware needs to fetch the full text of a post when a `negotiation.post.added` webhook arrives. The per-org
+machine account can read posts via the standard visibility rules that apply to all representatives:
+`PostServiceImpl.findByNegotiationId()` returns public posts plus private posts scoped to the caller's organization
+(via `addUserAccessiblePosts()` which checks `user.getResources().stream().map(Resource::getOrganization)`). Because
+the middleware account is linked to that org's resources, it naturally sees exactly the posts a human representative
+from that org would see.
 
-contains("isHelpdeskIntegration")){
-        return AuthenticatedUserContext.
-
-hasRole("ROLE_HELPDESK_INTEGRATION");
-}
-```
-
-Additionally, the relevant transitions in `ResourceStateMachineConfig` are updated so that transitions previously
-requiring `isRepresentative` can also be executed by `isHelpdeskIntegration`.
+The `findById()` stub must be implemented (see Change 4 in Milestone 1). The implementation applies the same
+visibility rules as `findByNegotiationId()` — no special bypass for `ROLE_HELPDESK_INTEGRATION` is needed.
 
 ##### Principle of Least Privilege
 
-The `negotiator_helpdesk` scope follows the principle of least privilege and grants only the permissions required by the
-middleware and nothing more.
+The per-org model provides stronger isolation than a global service account. Each org's client:
 
-| Operation                              |
-|----------------------------------------|
-| Read negotiations, resources, posts    |
-| Post PUBLIC/PRIVATE messages           |
-| Trigger resource lifecycle transitions |
+| Operation | Granted via |
+|---|---|
+| Read negotiations involving the org's resources | `resource_representative_link` (existing check) |
+| Read posts visible to the org | `resource_representative_link` → org membership (existing check) |
+| Post PRIVATE messages to negotiations | `resource_representative_link` (existing check) |
+| Trigger resource lifecycle transitions for the org's resources | `resource_representative_link` (existing check) |
+| Populate `helpdeskActor` on posts and lifecycle records | `ROLE_HELPDESK_INTEGRATION` scope (narrow gate) |
 
 ### 5.2 Security Between the Middleware and Help Desks
 
@@ -851,6 +877,7 @@ are:
    seen, return HTTP 200 and discard silently (replay prevention scoped per organization)
 5. Pass the verified callback to `EventRouter` for processing
 
+
 ---
 
 ### Core
@@ -873,20 +900,27 @@ Loads the YAML configuration at startup and exposes two lookups:
 - `findAll() → List<OrganizationConfig>`
 
 `OrganizationConfig` is an immutable value object carrying: `organizationExternalId`, `type`, `ticketStrategy` (
-`PER_RESOURCE` or `PER_NEGOTIATION`), `baseUrl`, `credentials`, `callbackSecret`, and any platform-specific fields (e.g.
+`PER_RESOURCE` or `PER_NEGOTIATION`), `baseUrl`, `credentials`, `callbackSecret`, `negotiatorCredentials` (
+`clientId` and `clientSecret` for the org's dedicated Negotiator OAuth2 client), and any platform-specific fields (e.g.
 `groupId`). Credentials are resolved from environment variables at load time and never written to logs.
 
 #### NegotiatorClient
 
 Encapsulates all outbound REST calls to Negotiator. Handles:
 
-- OAuth 2.0 Client Credentials token acquisition and caching
+- OAuth 2.0 Client Credentials token acquisition and caching, one token cache per organization
 - Token refresh before expiry
 - All GET and PUT calls needed by event handlers
+
+Each call takes an `OrganizationConfig` parameter so the client can select the correct credentials and token cache for
+the calling organization. All calls to Negotiator are made under the identity of the organization's dedicated middleware
+account, which is linked as representative of that org's resources.
 
 Exposes typed methods for example:
 
 ```java
+UserInfoModel getUserInfo(OrganizationConfig config)  // called on startup to bootstrap Person record
+
 NegotiationDTO getNegotiation(String negotiationId)
 
 List<ResourceWithStatusDTO> getResources(String negotiationId)
@@ -927,8 +961,11 @@ Note that `findByTicketIdAndOrganization` returns a `List` rather than an `Optio
 #### EventRouter
 
 The central dispatch component. Receives a verified event (from either direction) and routes it to the correct event
-handler. For Negotiator-side events it resolves the handler by event type. For help-desk-side callbacks it resolve
-handler based on the webhook payload.
+handler. For Negotiator-side events it resolves the handler by event type. For help-desk-side callbacks it resolves
+the handler based on the `HelpdeskCallbackType` in the parsed `HelpdeskCallbackEvent`: `RESOURCE_TRANSITION` →
+`HelpdeskResourceTransitionHandler`; `POST_MESSAGE` → `HelpdeskPostHandler`;
+`RESOURCE_TRANSITION_WITH_POST_MESSAGE` → `HelpdeskResourceTransitionHandler` first, then `HelpdeskPostHandler` in
+that order.
 
 Uses the **Strategy pattern**: each event type has a dedicated handler registered in the router. Adding support for a
 new event type means adding a new handler class - the router itself does not change.
@@ -947,9 +984,15 @@ One class per event type. Each handler receives the parsed event, the resolved `
 - `NegotiationStateUpdatedHandler` — updates `negotiation_state` field on all mapped tickets; for `PER_NEGOTIATION` orgs
   the distinct set of `helpdesk_ticket_id` values for the negotiation is used (multiple rows share the same ticket ID,
   so deduplication is needed before calling the adapter)
-- `NegotiationPostAddedHandler` — fetches post text from Negotiator; for PUBLIC posts fans out to all distinct tickets
-  for the negotiation; for PRIVATE posts fans out only to distinct tickets matching the post's `organizationId` and
-  `negotiationId`; for both cases it excludes the originating ticket identified via `originated_posts` if present
+- `NegotiationPostAddedHandler` — fetches post text from Negotiator; to authenticate the fetch call it resolves an
+  `OrganizationConfig` as follows: for PRIVATE posts it looks up `ticket_mapping` by `organizationId` to find the
+  matching `organization_ext_id` and resolves the config from the registry; for PUBLIC posts (no `organizationId` in
+  the webhook) it looks up `ticket_mapping` by `negotiationId` and uses the first row's `organization_ext_id` to
+  resolve a config (any opted-in org involved in the negotiation can read public posts); fan-out: for PUBLIC posts
+  it fans out to all distinct `helpdesk_ticket_id` values for the negotiation; for PRIVATE posts it fans out only to
+  distinct tickets matching the post's `organizationId` and `negotiationId`; for both cases it excludes the
+  originating ticket identified via `originated_posts` if present; every row in `ticket_mapping` is guaranteed to
+  have a matching config entry because rows are only ever inserted for opted-in organizations
 - `ResourceStateUpdatedHandler` — looks up the `ticket_mapping` row by `negotiationId` and `resourceId`; if the org uses
   `PER_NEGOTIATION`, checks `originated_transitions` by `(negotiationId, ticketId)`: if a matching record is found,
   updates `negotiator_resource_state` and clears `negotiator_resource_transition_event` only on the first webhook (
@@ -984,62 +1027,62 @@ happens in the event handlers in the core, before the adapter is called.
 ```java
 public interface HelpDeskAdapter {
 
-    /**
-     * Returns the help desk type this adapter handles.
-     * Used to resolve the correct adapter from the registry.
-     */
-    HelpDeskType getType();
+  /**
+   * Returns the help desk type this adapter handles.
+   * Used to resolve the correct adapter from the registry.
+   */
+  HelpDeskType getType();
 
-    /**
-     * Verify the authenticity of an inbound callback from the help desk platform.
-     * Return false if verification fails.
-     */
-    boolean verifyCallback(HttpHeaders headers, byte[] body, String callbackSecret);
+  /**
+   * Verify the authenticity of an inbound callback from the help desk platform.
+   * Return false if verification fails.
+   */
+  boolean verifyCallback(HttpHeaders headers, byte[] body, String callbackSecret);
 
-    /**
-     * Create a new ticket for a resource in a negotiation.
-     * Called once per resource (PER_RESOURCE) or once per org (PER_NEGOTIATION) when the
-     * negotiation reaches IN_PROGRESS.
-     * Returns a CreatedTicket carrying the platform ticket ID and any platform-specific
-     * metadata the adapter needs later (e.g. ticket number for Zammad link creation).
-     */
-    CreatedTicket createTicket(CreateTicketRequest request, OrganizationConfig config);
+  /**
+   * Create a new ticket for a resource in a negotiation.
+   * Called once per resource (PER_RESOURCE) or once per org (PER_NEGOTIATION) when the
+   * negotiation reaches IN_PROGRESS.
+   * Returns a CreatedTicket carrying the platform ticket ID and any platform-specific
+   * metadata the adapter needs later (e.g. ticket number for Zammad link creation).
+   */
+  CreatedTicket createTicket(CreateTicketRequest request, OrganizationConfig config);
 
-    /**
-     * Update the negotiation_state display field on an existing ticket.
-     */
-    void updateNegotiationState(String ticketId, String negotiationState, OrganizationConfig config);
+  /**
+   * Update the negotiation_state display field on an existing ticket.
+   */
+  void updateNegotiationState(String ticketId, String negotiationState, OrganizationConfig config);
 
-    /**
-     * Update the negotiator_resource_state display field on an existing ticket.
-     * Also clears negotiator_resource_transition_event back to null.
-     */
-    void updateResourceState(String ticketId, String resourceState, OrganizationConfig config);
+  /**
+   * Update the negotiator_resource_state display field on an existing ticket.
+   * Also clears negotiator_resource_transition_event back to null.
+   */
+  void updateResourceState(String ticketId, String resourceState, OrganizationConfig config);
 
-    /**
-     * Add a comment to a ticket relaying a Negotiator post.
-     */
-    void addComment(String ticketId, String commentText, OrganizationConfig config);
+  /**
+   * Add a comment to a ticket relaying a Negotiator post.
+   */
+  void addComment(String ticketId, String commentText, OrganizationConfig config);
 
-    /**
-     * Post a system notification comment (e.g. illegal transition rejection, post not sent).
-     */
-    void addSystemComment(String ticketId, String message, OrganizationConfig config);
+  /**
+   * Post a system notification comment (e.g. illegal transition rejection, post not sent).
+   */
+  void addSystemComment(String ticketId, String message, OrganizationConfig config);
 
-    /**
-     * Parse a raw help desk callback payload into the middleware's
-     * internal HelpdeskCallbackEvent model.
-     */
-    Optional<HelpdeskCallbackEvent> parseCallback(Map<String, Object> payload);
+  /**
+   * Parse a raw help desk callback payload into the middleware's
+   * internal HelpdeskCallbackEvent model.
+   */
+  Optional<HelpdeskCallbackEvent> parseCallback(Map<String, Object> payload);
 
-    /**
-     * Link a set of tickets as related so representatives can navigate between them.
-     * Called by NegotiationApprovedHandler after all PER_RESOURCE tickets for a
-     * negotiation+org are created, passing the full list of CreatedTicket objects.
-     * Each adapter uses whatever platform-specific data it needs from CreatedTicket
-     * (e.g. ZammadAdapter uses ticketNumber for the links API).
-     */
-    void linkRelatedTickets(List<CreatedTicket> tickets, OrganizationConfig config);
+  /**
+   * Link a set of tickets as related so representatives can navigate between them.
+   * Called by NegotiationApprovedHandler after all PER_RESOURCE tickets for a
+   * negotiation+org are created, passing the full list of CreatedTicket objects.
+   * Each adapter uses whatever platform-specific data it needs from CreatedTicket
+   * (e.g. ZammadAdapter uses ticketNumber for the links API).
+   */
+  void linkRelatedTickets(List<CreatedTicket> tickets, OrganizationConfig config);
 }
 ```
 
@@ -1106,7 +1149,8 @@ record CreatedTicket(
 
 record HelpdeskCallbackEvent(
         String ticketId,
-        HelpdeskCallbackType type,         // RESOURCE_TRANSITION or POST_MESSAGE
+        HelpdeskCallbackType type,         // RESOURCE_TRANSITION, POST_MESSAGE, or RESOURCE_TRANSITION_WITH_POST_MESSAGE
+        String resourceState,
         String resourceTransitionEvent,    // null if type = POST_MESSAGE
         String postText,                   // null if type = RESOURCE_TRANSITION
         String helpdeskActor               // representative's identity from the help desk (name or email)
@@ -1114,7 +1158,8 @@ record HelpdeskCallbackEvent(
 
 enum HelpdeskCallbackType {
     RESOURCE_TRANSITION,
-    POST_MESSAGE
+    POST_MESSAGE,
+    RESOURCE_TRANSITION_WITH_POST_MESSAGE
 }
 ```
 
@@ -1172,47 +1217,41 @@ intentional, because implementation of Milestone 1 could surface details that ar
 **Scope:** Milestone 1 delivers the complete bidirectional integration for the core representative workflows: ticket
 creation when a negotiation is approved, resource state transitions from the help desk, and bidirectional message
 exchange (PUBLIC and PRIVATE posts). Security as described in Section 5 is implemented in full from the start since the
-middleware would not work without introduction of the new authority `ROLE_HELPDESK_INTEGRATION` and new scope. The
-Zammad adapter is the reference implementation. At the end of milestone 1 a representative can manage the full resource
-lifecycle and communicate with researchers entirely from Zammad without opening Negotiator.
+middleware would not work without the new `negotiator_helpdesk` scope and the per-organization representative account
+assignment in Negotiator. The Zammad adapter is the reference implementation. At the end of milestone 1 a representative
+can manage the full resource lifecycle and communicate with researchers entirely from Zammad without opening Negotiator.
 
 ---
 
 #### Required Negotiator Changes
 
-**Change 1: Add `ROLE_HELPDESK_INTEGRATION` Spring Security authority and `negotiator_helpdesk` scope**
+**Change 1: Add `negotiator_helpdesk` scope mapped to `ROLE_HELPDESK_INTEGRATION`
 
-The middleware's service account must be able to read negotiation data, post messages, and trigger resource lifecycle
-transitions. Without this change milestone 1 is architecturally blocked. Five targeted changes are required:
+Two targeted changes to `CustomJWTAuthConverter` are required:
 
-- `CustomJWTAuthConverter` — map the `negotiator_helpdesk` OAuth 2.0 scope to the Spring Security authority
-  `ROLE_HELPDESK_INTEGRATION`
-- `NegotiationAccessManagerImpl.verifyReadAccessForNegotiation()` — add
-  `!AuthenticatedUserContext.isHelpdeskIntegration()` as an additional condition in the existing `if` statement
-  This unblocks `GET /v3/negotiations/{id}` (used by `NegotiationApprovedHandler` to fetch negotiation metadata and
-  payload) and `GET /v3/negotiations/{id}/resources` (used by `NegotiationApprovedHandler` to list resources with their
-  current states and `organizationExternalId` for routing).
-- `NegotiationServiceImpl.isAuthorizedForNegotiation()` — add `AuthenticatedUserContext.isHelpdeskIntegration()` as an
-  additional condition in the existing `return` statement. This method is a separate deprecated access check used by
-  `DBAttachmentService.isAuthorizedForAttachment()` and must be updated independently to unblock
-  `GET /v3/attachments/{id}` (milestone 2).
-- `PostServiceImpl.checkAuthorization()` — add a branch allowing `ROLE_HELPDESK_INTEGRATION` to post messages to any
-  negotiation when the negotiation state allows it
-- `NegotiationController.sendEventForNegotiationResource()` — add `ROLE_HELPDESK_INTEGRATION` as an additional
-  authorized caller alongside the existing `isCreator` check
-- `ResourceLifecycleServiceImpl.isSecurityRuleMet()` — add an `isHelpdeskIntegration` branch; update the relevant
-  transitions in `ResourceStateMachineConfig` (those currently secured with `isRepresentative`) to also accept
-  `isHelpdeskIntegration`
+- `getAuthoritiesFromScope()` — add a mapping for the `negotiator_helpdesk` scope to the Spring Security authority
+  `ROLE_HELPDESK_INTEGRATION`. This is the only authority granted by this scope; it is used exclusively to gate
+  `helpdeskActor` field population, not for general authorization.
+
+No changes to `NegotiationAccessManagerImpl`, `PostServiceImpl.checkAuthorization()`,
+`NegotiationController.sendEventForNegotiationResource()`, `ResourceLifecycleServiceImpl.isSecurityRuleMet()`, or
+`ResourceStateMachineConfig` are required. The per-org representative account passes all existing authorization checks
+via the `resource_representative_link` relationship without any bypass logic.
+
+No changes to `NegotiationAccessManagerImpl`, `PostServiceImpl.checkAuthorization()`,
+`NegotiationController.sendEventForNegotiationResource()`, `ResourceLifecycleServiceImpl.isSecurityRuleMet()`, or
+`ResourceStateMachineConfig` are required. The per-org representative account passes all existing authorization checks
+via the `resource_representative_link` relationship without any bypass logic.
 
 Note: `GET /v3/negotiations/{negotiationId}/resources/{resourceId}/lifecycle` (used by
 `HelpdeskResourceTransitionHandler` to validate a requested transition before applying it) is already accessible to
-`ROLE_HELPDESK_INTEGRATION` without any additional change — `ResourceLifecycleServiceImpl.getPossibleEvents()` routes
-through `isSecurityRuleMet()` which already has an `isRepresentativeOrHelpdeskIntegration` branch.
+any representative of the negotiation's resources — `ResourceLifecycleServiceImpl.getPossibleEvents()` routes through
+`isSecurityRuleMet()` which checks `isRepresentative` via `personService.isRepresentativeOfAnyResource()`.
 
 **Change 2: Populate `helpdeskActor` on posts created via the help desk**
 
 When the middleware posts a message on behalf of a representative, the post must be attributed to that representative in
-the Negotiator UI and API rather than to the middleware service account. Five targeted changes are required:
+the Negotiator UI and API rather than to the middleware's org account. Six targeted changes are required:
 
 - `V36.0__add_helpdesk_actor.sql` (new Flyway migration) —
   `ALTER TABLE post ADD COLUMN helpdesk_actor VARCHAR(255) NULL`
@@ -1221,7 +1260,8 @@ the Negotiator UI and API rather than to the middleware service account. Five ta
 - `PostDTO.java` — add `private String helpdeskActor` so the field is returned in API responses
 - `PostServiceImpl.setUpPostEntity()` — when the caller holds `ROLE_HELPDESK_INTEGRATION` and
   `postRequest.getHelpdeskActor()` is non-null, copy the value onto the entity:
-  `postEntity.setHelpdeskActor(postRequest.getHelpdeskActor())`
+  `postEntity.setHelpdeskActor(postRequest.getHelpdeskActor())`; if the caller does not hold `ROLE_HELPDESK_INTEGRATION`,
+  the field is silently ignored even if supplied, preventing regular representatives from spoofing actor identity
 - `TimelineItem.vue` — update `getAuthorName()` to prefer `helpdeskActor` over `createdBy.name` when present:
   `return item.helpdeskActor || item.createdBy?.name || 'Unknown'`
 
@@ -1248,8 +1288,8 @@ changes are required:
 
 The changes above cover the single-resource path (`PUT …/lifecycle/{event}`). The bulk path (`PATCH /v3/negotiations/{id}/resources`) also needs to carry actor identity. Three additional targeted changes are required:
 
-- `UpdateResourcesDTO.java` — add `private String helpdeskActor`; the field is populated by the middleware in the request body and is accepted only from callers holding `ROLE_HELPDESK_INTEGRATION`
-- `NegotiationController.updateResources()` — add an explicit `ROLE_HELPDESK_INTEGRATION` authorization branch (the endpoint is currently `.authenticated()` only in `HTTPRegistryConfigurer`); strip `helpdeskActor` from the DTO unless the caller holds `ROLE_HELPDESK_INTEGRATION` before delegating to the service
+- `UpdateResourcesDTO.java` — add `private String helpdeskActor`; the field is populated by the middleware in the request body and is silently stripped unless the caller holds `ROLE_HELPDESK_INTEGRATION`, preventing regular callers from spoofing actor identity
+- `NegotiationController.updateResources()` — strip `helpdeskActor` from the DTO unless the caller holds `ROLE_HELPDESK_INTEGRATION` before delegating to the service; no new authorization branch is needed since the per-org middleware account is already a representative of the org's resources and the endpoint's existing `.authenticated()` rule is sufficient
 - `ResourceService` / `ResourceServiceImpl.updateResourcesInANegotiation()` — thread the nullable `helpdeskActor` through `setStatusForUpdatedResources` → `updateResourceStatus` → `negotiation.setStateForResource(resourceId, state, helpdeskActor)`
 
 **Change 4: Implement `GET /v3/posts/{postId}` for middleware post text retrieval**
@@ -1261,10 +1301,45 @@ unimplemented stub returning `null`. Two targeted changes are required:
 
 - `HTTPRegistryConfigurer` — add an explicit `authenticated()` rule for `/v3/posts/{id}` so the path is not caught by
   the catch-all `denyAll()` rule.
-- `PostServiceImpl.findById()` — implement the method body to load the `Post` entity by ID and map it to `PostDTO`,
-  applying the same visibility rules as the existing post-listing endpoint. A caller holding `ROLE_HELPDESK_INTEGRATION`
-  must be permitted to read any post by ID without being subject to the negotiation participant check, since the
-  middleware needs to relay posts to the help desk regardless of which organization the post is addressed to.
+- `PostServiceImpl.findById()` — implement the method body to load the `Post` entity by ID, verify the caller has read
+  access via the same visibility rules as `findByNegotiationId()`: public posts are always readable; private posts are
+  readable only if the caller's `Person` account is linked via `resource_representative_link` to a resource whose
+  organization matches the post's organization (i.e. `user.getResources().stream().map(Resource::getOrganization)`
+  contains the post's organization). Because the per-org middleware account is linked to that org's resources, it
+  naturally sees exactly the private posts a human representative from that org would see. No `ROLE_HELPDESK_INTEGRATION`
+  bypass is needed.
+
+**Change 5: Add `involvedOrganizationExternalIds` to the `negotiation.state.updated` webhook payload**
+
+The middleware uses the `negotiation.state.updated` event (with `event: APPROVE`) as the trigger for ticket creation.
+After receiving this event the middleware must fetch the full negotiation details from Negotiator — including all
+resources and their associated `organizationExternalId` — to determine which organizations need a help desk ticket
+and to build the ticket content. To make these secondary REST calls the middleware authenticates as the per-organization
+middleware account using the `OrganizationConfig` registered in `negotiator-link` for that organization. Without an
+`OrganizationConfig` to resolve, the middleware has no credentials to call Negotiator at all and cannot read the
+negotiation data or its resources.
+
+In the current payload the middleware can only obtain the `negotiationId`, which is not sufficient to identify which
+`OrganizationConfig` entries are relevant. Including the list of involved organization external IDs directly in the
+webhook payload allows the middleware to immediately identify which of its configured organizations are part of the
+negotiation and resolve the corresponding `OrganizationConfig`. If none of the listed IDs appear in its YAML config,
+the event can be silently discarded without any secondary Negotiator API call.
+
+Four targeted changes are required:
+
+- `NegotiationStateChangeEvent.java` — add `Set<String> involvedOrganizationExternalIds` field and update the
+  constructor to accept it.
+- `PersistStateChangeListener.java` — in `publishChangeEvent()`, collect distinct org external IDs from the already-loaded
+  `Negotiation` entity: `negotiation.getResources().stream().map(r -> r.getOrganization().getExternalId()).collect(Collectors.toSet())`;
+  pass the result into the `NegotiationStateChangeEvent` constructor. Guard against `negotiation` being `null` by using
+  an empty set as fallback. The `Negotiation` is already fetched inside `onPersist()` within the `@Transactional` boundary,
+  so the lazy `resourcesLink` collection can be traversed safely. If `Resource.organization` turns out to be lazily loaded,
+  a join fetch must be added to the `findDetailedById` repository method.
+- `NegotiationStateUpdatedWebhookEvent.java` — add `Set<String> involvedOrganizationExternalIds` as a new record component
+  with a `@Schema` annotation.
+- `NegotiationStateChangeWebhookMappingStrategy.java` — pass `event.getInvolvedOrganizationExternalIds()` when
+  constructing `NegotiationStateUpdatedWebhookEvent`. The `NegotiationAddedWebhookEvent` (DRAFT → SUBMITTED special
+  case) is a separate type and is not affected.
 
 ---
 
@@ -1275,16 +1350,23 @@ unimplemented stub returning `null`. Two targeted changes are required:
    to start if any required secret environment variable is absent. The Docker Compose configuration also includes a
    Zammad instance so that end-to-end tests can be run locally against a real help desk without any external dependency.
 
-2. **Configuration loading** — `OrganizationConfigRegistry` loading the YAML config at startup and validating all
-   referenced environment variables are present at startup (fail fast).
+2. **Configuration loading and startup bootstrap** — `OrganizationConfigRegistry` loading the YAML config at startup
+   and validating all referenced environment variables are present (fail fast). After the config is loaded, the
+   middleware calls `GET /v3/users/userinfo` once per configured organization using that org's `negotiatorCredentials`.
+   This bootstraps the `Person` record in Negotiator for any org whose client has not authenticated before, so the
+   Negotiator admin can immediately look up and assign the account as representative without any further manual
+   step.
 
 3. **Inbound layer** — `NegotiatorWebhookController` and `HelpdeskCallbackController` as described in Section 6.
    `WebhookVerificationService` implementing HMAC-SHA256 signature verification, ±5-minute timestamp tolerance check,
    and `Webhook-Id` seen-cache (in-memory TTL, 15-minute window).
 
-4. **Negotiator client** — `NegotiatorClient` with OAuth 2.0 Client Credentials token acquisition and caching via Spring
-   Security's `OAuth2AuthorizedClientManager`. Methods required in milestone 1: `getNegotiation`, `getResources`,
-   `getPossibleResourceEvents`, `sendResourceEvent`, `createPost`, `getPostText`.
+4. **Negotiator client** — `NegotiatorClient` with per-organization OAuth 2.0 Client Credentials token acquisition and
+   caching via Spring Security's `OAuth2AuthorizedClientManager`. Each method accepts an `OrganizationConfig` parameter;
+   the client selects the matching `clientId`/`clientSecret` from `config.negotiatorCredentials()` and maintains a
+   separate token cache per organization so tokens are not shared across orgs. All Negotiator calls are made under the
+   identity of the organization's dedicated middleware account. Methods required in milestone 1: `getNegotiation`,
+   `getResources`, `getPossibleResourceEvents`, `sendResourceEvent`, `createPost`, `getPostText`.
 
 5. **Persistence** — `ticket_mapping` table (`negotiation_id`, `helpdesk_ticket_id`, `resource_id`, `organization_id`,
    `organization_ext_id`), `originated_posts` table (`row_id`, `text_hash`, `organization_id`, `ticket_id`,
@@ -1300,10 +1382,15 @@ unimplemented stub returning `null`. Two targeted changes are required:
   resource all pointing to the same `helpdesk_ticket_id`; for `PER_RESOURCE` creates one ticket per resource, inserts
   one `ticket_mapping` row per resource, collects all `CreatedTicket` results, then calls
   `adapter.linkRelatedTickets(createdTickets, config)` once for that org in that negotiation
-- `NegotiationPostAddedHandler` — fetches post text from Negotiator; for PUBLIC posts fans out to all distinct
-  `helpdesk_ticket_id` values for the negotiation; for PRIVATE posts fans out only to distinct ticket IDs matching the
-  post's `organizationId` and `negotiationId`; for both cases it excludes the originating ticket identified via
-  `originated_posts` if present
+- `NegotiationPostAddedHandler` — fetches post text from Negotiator; to authenticate the fetch call it resolves an
+  `OrganizationConfig` as follows: for PRIVATE posts it looks up `ticket_mapping` by `organizationId` to find the
+  matching `organization_ext_id` and resolves the config from the registry; for PUBLIC posts (no `organizationId` in
+  the webhook) it looks up `ticket_mapping` by `negotiationId` and uses the first row's `organization_ext_id` to
+  resolve a config (any opted-in org involved in the negotiation can read public posts); fan-out: for PUBLIC posts
+  it fans out to all distinct `helpdesk_ticket_id` values for the negotiation; for PRIVATE posts it fans out only to
+  distinct tickets matching the post's `organizationId` and `negotiationId`; for both cases it excludes the
+  originating ticket identified via `originated_posts` if present; every row in `ticket_mapping` is guaranteed to
+  have a matching config entry because rows are only ever inserted for opted-in organizations
 - `ResourceStateUpdatedHandler` — looks up the `ticket_mapping` row by `negotiationId` and `resourceId`; checks
   `originated_transitions` by `(negotiationId, ticketId)`: if a matching record exists, processes the first webhook (
   updates `negotiator_resource_state`, clears `negotiator_resource_transition_event`) and discards the rest; if no
@@ -1356,14 +1443,21 @@ unimplemented stub returning `null`. Two targeted changes are required:
   Negotiator.
 - A PUBLIC post created in Negotiator appears as a comment in all distinct Zammad tickets for that negotiation. A
   PRIVATE post appears only in tickets belonging to the addressed organization.
-- A message sent from a Zammad ticket appears as a PRIVATE post in the Negotiator negotiation. The message does not
-  appear as a duplicate comment in the originating ticket.
+- A message sent from a Zammad ticket appears as a PRIVATE post in the Negotiator negotiation. The post's `helpdeskActor`
+  field contains the representative's identity from the help desk and is displayed in the Negotiator timeline instead of
+  the middleware account's name. The message does not appear as a duplicate comment in the originating ticket.
+- A resource state transition triggered from a Zammad ticket is recorded in the Negotiator timeline under the
+  representative's identity from the help desk (`helpdeskActor`), not under the middleware account's name.
+- A regular representative (non-`ROLE_HELPDESK_INTEGRATION` caller) cannot set `helpdeskActor` via the API — the field
+  is silently ignored even if supplied in the request body.
 - Webhook deliveries from Negotiator with an invalid HMAC signature are rejected with HTTP 401 and not processed.
 - Webhook deliveries from Negotiator with a timestamp outside the ±5-minute window are rejected with HTTP 401 and not
   processed.
 - Duplicate webhook deliveries (same `Webhook-Id`) are acknowledged with HTTP 200 and not reprocessed.
 - Help desk callbacks with an invalid or missing shared secret are rejected with HTTP 401 and not processed.
 - The application refuses to start if any required secret environment variable is absent.
+- The per-org middleware account can only read negotiations and posts belonging to its own organization's resources.
+  Attempting to access a negotiation where the org has no representative link results in HTTP 403.
 
 ### Milestone 2
 
@@ -1553,3 +1647,111 @@ manage them through the Negotiator UI directly.
 
 Note: there is a bug in updateResourcesInANegotiation method. The NewResourcesAddedEvent is published even when no new
 resources are added.
+
+## 9. Onboarding
+
+### 9.1 Onboarding Prerequisites for Negotiator Side (per organization)
+
+Before the middleware can act on behalf of an organization, a Negotiator admin must complete a one-time setup. These
+steps are manual and must be done before the integration is enabled in the YAML config for that organization:
+
+1. **Register an OAuth2 client** in the OIDC provider for the organization. The client must be configured for the
+   Client Credentials grant and granted the `negotiator_helpdesk` scope. Record the generated `clientId` and
+   `clientSecret` — these go into the `negotiatorCredentials` block in the middleware YAML config.
+
+2. **`Person` auto-creation happens automatically on middleware startup.** On startup, the middleware calls
+   `GET /v3/users/userinfo` once per organization defined in the YAML config. This call authenticates using that org's
+   `negotiatorCredentials`, which causes `CustomJWTAuthConverter.parseJWTAsMachineToken()` to run, look up the `Person`
+   by `clientId`, and call `saveNewClientAsPerson()` if it does not yet exist. Because a new org entry requires a
+   middleware restart to be picked up by `OrganizationConfigRegistry` anyway, this bootstrap is free — no separate
+   manual step is needed. If the `Person` already exists the call is a no-op.
+
+3. **Find the middleware account's internal ID.** Once the `Person` record exists, the admin looks it up using
+   `GET /v3/users?subjectId={clientId}` (requires `ROLE_ADMIN` or `ROLE_AUTHORIZATION_MANAGER`). The response contains
+   the internal numeric `id` needed for the next step.
+
+4. **Assign the middleware account as representative of the organization's resources.** For each resource belonging to
+   that organization, call `PATCH /v3/users/{id}/resources` with the resource's internal ID (requires `ROLE_ADMIN` or
+   `ROLE_AUTHORIZATION_MANAGER`). This inserts a row into `resource_representative_link` and is what grants the
+   middleware account access to act on that org's negotiations. Without this step the middleware account is a valid
+   authenticated caller but holds no representative links and will be rejected by all authorization checks.
+
+These four steps must be repeated whenever a new organization opts into the integration or when an organization adds
+new resources that should be covered by the integration.
+
+### 9.2 Onboarding Prerequisites for Help Desk Side (per organization)
+
+Before the middleware can receive callbacks from a help desk or create and update tickets, a help desk administrator
+must complete a one-time configuration. The exact UI steps differ per platform, but the required concepts are always
+the same. The sections below describe what must be configured generically; the platform-specific steps for Zammad are
+documented in the `negotiator-link` repository README.
+
+#### 9.2.1 Create a Dedicated Service Account for the Middleware
+
+The middleware must authenticate to the help desk API using a dedicated bot account rather than a personal user
+account. This account must have sufficient permissions to create and update tickets, post articles/comments, and read
+ticket fields. Using a dedicated account serves two purposes: it provides a stable identity for API authentication
+independent of any individual person's account, and it provides a named actor that trigger conditions can reference to
+exclude middleware-originated actions from callback loops (see Section 9.2.4).
+
+#### 9.2.2 Generate an API Token for the Middleware Account
+
+Most help desk platforms support API token authentication in addition to username/password. Log into the help desk as
+the middleware bot account and generate a long-lived API token. Copy the token value into the middleware YAML config as
+`credentials.apiToken` for the relevant organization (injected from an environment variable — never hardcoded). The
+middleware uses this token on every outbound API call to the help desk.
+
+#### 9.2.3 Create the Three Custom Ticket Fields
+
+The middleware reads and writes three fixed custom fields on every ticket it manages. These fields must be created on
+the ticket object in the help desk before any ticket can be created. The field names are fixed and must match exactly
+what the middleware expects; the display labels shown to representatives are set by the administrator.
+
+| Internal name                          | Type                        | Editable by representative | Purpose                                                        |
+|----------------------------------------|-----------------------------|:--------------------------:|----------------------------------------------------------------|
+| `negotiation_state`                    | Single selection (dropdown) | No (read-only)             | Displays the current state of the negotiation                  |
+| `negotiator_resource_state`            | Single selection (dropdown) | No (read-only)             | Displays the current resource state(s) for this ticket         |
+| `negotiator_resource_transition_event` | Single selection (dropdown) | Yes                        | Representative selects a desired resource state transition     |
+
+The allowed values for `negotiation_state` and `negotiator_resource_state` must cover the full set of states defined
+in Negotiator's lifecycle configuration. The `negotiator_resource_transition_event` field must include all transition
+event names that are valid in the Negotiator resource state machine. The default value for all three fields is empty.
+
+After adding the fields, the `negotiation_state` and `negotiator_resource_state` fields must be locked as read-only for
+representatives. Platforms that support conditional display/editability rules (e.g. Zammad Core Workflows, ServiceNow
+UI Policies) should use them to enforce this — representatives must never be able to set these fields manually.
+
+#### 9.2.4 Configure Webhook Callbacks to the Middleware
+
+The middleware exposes an inbound endpoint `POST /webhooks/helpdesk/{organizationExternalId}` that the help desk calls
+when a representative takes an action. Two webhook triggers must be configured:
+
+**Trigger 1 — New external message (post forwarding):**
+Fires when a new public/external article or comment is added to a ticket. The trigger condition must exclude actions
+performed by the middleware bot account to prevent the middleware's own comment writes from re-triggering the callback.
+It must also exclude internal/private articles, since those are used for intra-organization communication only and must
+not be forwarded to Negotiator.
+
+> **Note:** Some help desk platforms allow a representative to update `negotiator_resource_transition_event` and post
+> an external message in the same ticket save action. In this case a single callback may carry both a new article body
+> and a non-null transition event simultaneously. The adapter must detect this combination and set the
+> `HelpdeskCallbackEvent` type to `RESOURCE_TRANSITION_WITH_POST_MESSAGE`. When `EventRouter` receives an event of
+> this type it calls `HelpdeskResourceTransitionHandler` first and then `HelpdeskPostHandler`, in that order.
+
+**Trigger 2 — Resource state transition request:**
+Fires when the `negotiator_resource_transition_event` field changes to a non-null value. Again, the condition must
+exclude the middleware bot account, because after processing a transition the middleware clears this field back to null
+— without the exclusion, that clearing action would trigger another callback.
+
+> **Note:** As described above, if the platform sends a single callback that covers both a transition event and a new
+> article, the adapter should emit a single `RESOURCE_TRANSITION_WITH_POST_MESSAGE` event rather than two separate
+> events, to avoid double-processing. Therefore the triggers must be configured in the way that only one callback is
+> sent per ticket save action, even if both conditions (new public post and resource transition event set to non-empty)
+> are satisfied.
+
+Both triggers must send a POST request to the middleware's inbound endpoint with the full ticket payload, including the
+`ticketId`, the current value of `negotiator_resource_transition_event`, and any new article body. The endpoint URL
+includes the `organizationExternalId` so the middleware can route the callback to the correct organization config.
+Each organization has its own `callbackSecret` used to sign outbound webhook calls (e.g. HMAC-SHA1 for Zammad); this
+secret must be configured both in the help desk webhook settings and in the middleware YAML config as
+`callbackSecret` (injected from an environment variable).

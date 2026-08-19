@@ -9,7 +9,8 @@ public record OrganizationConfig(
     String baseUrl,
     Map<String, String> credentials,
     String callbackSecret,
-    Map<String, Object> platformConfig) {
+    Map<String, Object> platformConfig,
+    NegotiatorCredentials negotiatorCredentials) {
 
   public OrganizationConfig {
     credentials = Map.copyOf(credentials);

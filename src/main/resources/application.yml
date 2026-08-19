@@ -13,18 +13,6 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
-  security:
-    oauth2:
-      client:
-        registration:
-          negotiator:
-            client-id: ${NEGOTIATOR_CLIENT_ID}
-            client-secret: ${NEGOTIATOR_CLIENT_SECRET}
-            authorization-grant-type: client_credentials
-            scope: negotiator_helpdesk
-        provider:
-          negotiator:
-            issuer-uri: ${NEGOTIATOR_ISSUER_URI}
 
 logging:
   level:
@@ -35,4 +23,5 @@ negotiatorlink:
     secret: ${NEGOTIATOR_WEBHOOK_SECRET}
   negotiator:
     base-url: ${NEGOTIATOR_BASE_URL}
+    issuer-uri: ${NEGOTIATOR_ISSUER_URI}
   organizations: []

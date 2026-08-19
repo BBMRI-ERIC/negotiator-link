@@ -29,5 +29,12 @@ public class OrganizationConfigProperties {
     private Map<String, String> credentials = new HashMap<>();
     private String callbackSecret;
     private Map<String, Object> platformConfig = new HashMap<>();
+    private NegotiatorCredentialsEntry negotiatorCredentials = new NegotiatorCredentialsEntry();
+  }
+
+  @Data
+  public static class NegotiatorCredentialsEntry {
+    private String clientId;
+    private String clientSecret;
   }
 }

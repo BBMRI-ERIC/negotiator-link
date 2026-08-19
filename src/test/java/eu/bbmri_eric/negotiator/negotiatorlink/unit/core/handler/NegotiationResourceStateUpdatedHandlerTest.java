@@ -1,5 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.handler;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -13,9 +14,9 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationResourceStateUpdatedHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.OriginatedTransition;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.OriginatedTransitionRepository;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.ResourceStateUpdatedHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingRepository;
@@ -29,7 +30,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class ResourceStateUpdatedHandlerTest {
+class NegotiationResourceStateUpdatedHandlerTest {
 
   private static final String NEGOTIATION_ID = "neg-1";
   private static final String RESOURCE_ID = "res-1";
@@ -43,12 +44,12 @@ class ResourceStateUpdatedHandlerTest {
   @Mock private HelpDeskAdapter adapter;
 
   private final ObjectMapper objectMapper = new ObjectMapper();
-  private ResourceStateUpdatedHandler handler;
+  private NegotiationResourceStateUpdatedHandler handler;
 
   @BeforeEach
   void setUp() {
     handler =
-        new ResourceStateUpdatedHandler(
+        new NegotiationResourceStateUpdatedHandler(
             ticketMappingRepository,
             originatedTransitionRepository,
             registry,
@@ -58,7 +59,8 @@ class ResourceStateUpdatedHandlerTest {
 
   @Test
   void handle_noMappingForResource_doesNothing() {
-    when(ticketMappingRepository.findByIdNegotiationIdAndIdResourceId(NEGOTIATION_ID, RESOURCE_ID))
+    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
+            NEGOTIATION_ID, RESOURCE_ID))
         .thenReturn(Optional.empty());
 
     handler.handle(eventData(NEW_STATE));
@@ -69,7 +71,8 @@ class ResourceStateUpdatedHandlerTest {
   @Test
   void handle_noOriginatedTransition_updatesDirectly() {
     var config = createConfig(TicketStrategy.PER_NEGOTIATION);
-    when(ticketMappingRepository.findByIdNegotiationIdAndIdResourceId(NEGOTIATION_ID, RESOURCE_ID))
+    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
+            NEGOTIATION_ID, RESOURCE_ID))
         .thenReturn(Optional.of(mapping()));
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
     when(originatedTransitionRepository.findByNegotiationIdAndTicketId(NEGOTIATION_ID, TICKET_ID))
@@ -83,7 +86,8 @@ class ResourceStateUpdatedHandlerTest {
   @Test
   void handle_perResource_updatesDirectly() {
     var config = createConfig(TicketStrategy.PER_RESOURCE);
-    when(ticketMappingRepository.findByIdNegotiationIdAndIdResourceId(NEGOTIATION_ID, RESOURCE_ID))
+    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
+            NEGOTIATION_ID, RESOURCE_ID))
         .thenReturn(Optional.of(mapping()));
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
     when(originatedTransitionRepository.findByNegotiationIdAndTicketId(NEGOTIATION_ID, TICKET_ID))
@@ -100,7 +104,8 @@ class ResourceStateUpdatedHandlerTest {
     var originated = transition(2, 0);
     var afterIncrement = transition(2, 1);
 
-    when(ticketMappingRepository.findByIdNegotiationIdAndIdResourceId(NEGOTIATION_ID, RESOURCE_ID))
+    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
+            NEGOTIATION_ID, RESOURCE_ID))
         .thenReturn(Optional.of(mapping()));
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
     when(originatedTransitionRepository.findByNegotiationIdAndTicketId(NEGOTIATION_ID, TICKET_ID))
@@ -121,7 +126,8 @@ class ResourceStateUpdatedHandlerTest {
     var originated = transition(2, 1);
     var afterIncrement = transition(2, 2);
 
-    when(ticketMappingRepository.findByIdNegotiationIdAndIdResourceId(NEGOTIATION_ID, RESOURCE_ID))
+    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
+            NEGOTIATION_ID, RESOURCE_ID))
         .thenReturn(Optional.of(mapping()));
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
     when(originatedTransitionRepository.findByNegotiationIdAndTicketId(NEGOTIATION_ID, TICKET_ID))
@@ -137,13 +143,63 @@ class ResourceStateUpdatedHandlerTest {
   }
 
   @Test
+  void handle_orgNotInConfig_doesNothing() {
+    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
+            NEGOTIATION_ID, RESOURCE_ID))
+        .thenReturn(Optional.of(mapping()));
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.empty());
+
+    handler.handle(eventData(NEW_STATE));
+
+    verify(adapter, never()).updateResourceState(any(), any(), any());
+  }
+
+  @Test
+  void handle_noAdapterForType_doesNothing() {
+    var config = createConfig(TicketStrategy.PER_RESOURCE);
+    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
+            NEGOTIATION_ID, RESOURCE_ID))
+        .thenReturn(Optional.of(mapping()));
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+
+    var handlerWithNoAdapters =
+        new NegotiationResourceStateUpdatedHandler(
+            ticketMappingRepository,
+            originatedTransitionRepository,
+            registry,
+            Map.of(),
+            objectMapper);
+
+    handlerWithNoAdapters.handle(eventData(NEW_STATE));
+
+    verify(adapter, never()).updateResourceState(any(), any(), any());
+  }
+
+  @Test
+  void handle_adapterThrows_doesNotPropagateException() {
+    var config = createConfig(TicketStrategy.PER_RESOURCE);
+    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
+            NEGOTIATION_ID, RESOURCE_ID))
+        .thenReturn(Optional.of(mapping()));
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+    when(originatedTransitionRepository.findByNegotiationIdAndTicketId(NEGOTIATION_ID, TICKET_ID))
+        .thenReturn(Optional.empty());
+    org.mockito.Mockito.doThrow(new RuntimeException("adapter down"))
+        .when(adapter)
+        .updateResourceState(any(), any(), any());
+
+    assertDoesNotThrow(() -> handler.handle(eventData(NEW_STATE)));
+    verify(adapter).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
+  }
+
+  @Test
   void handle_incompleteEvent_doesNothing() {
     JsonNode data =
         objectMapper.valueToTree(Map.of("negotiationId", NEGOTIATION_ID, "toState", NEW_STATE));
 
     handler.handle(data);
 
-    verify(ticketMappingRepository, never()).findByIdNegotiationIdAndIdResourceId(any(), any());
+    verify(ticketMappingRepository, never()).findByIdNegotiationIdAndResourceSourceId(any(), any());
     verify(adapter, never()).updateResourceState(any(), any(), any());
   }
 

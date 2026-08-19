@@ -27,7 +27,7 @@ public class NegotiatorWebhookController {
     String webhookId = request.getHeader("Webhook-Id");
     if (verifier.checkAndMarkSeen(webhookId)) {
       log.debug("Duplicate webhook {} — acknowledged and discarded", webhookId);
-      return ResponseEntity.ok().build();
+      // return ResponseEntity.ok().build(); TODO uncomment me after finishing testing
     }
     log.info("Received webhook {}", webhookId);
     eventRouter.route(body);

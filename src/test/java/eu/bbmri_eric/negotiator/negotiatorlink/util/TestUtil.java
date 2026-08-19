@@ -2,12 +2,14 @@ package eu.bbmri_eric.negotiator.negotiatorlink.util;
 
 import com.standardwebhooks.Webhook;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorCredentials;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.OrganizationDTO;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.UserResponseModel;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -118,6 +120,23 @@ public final class TestUtil {
     return p;
   }
 
+  public static EntityModelPostDTO post(
+      String id,
+      String text,
+      EntityModelPostDTO.TypeEnum type,
+      String orgId,
+      String createdByName,
+      String createdByEmail) {
+    var p = post(id, text, type, orgId);
+    if (createdByName != null || createdByEmail != null) {
+      var author = new UserResponseModel();
+      author.setName(createdByName);
+      author.setEmail(createdByEmail);
+      p.setCreatedBy(author);
+    }
+    return p;
+  }
+
   public static byte[] utf8(String s) {
     return s.getBytes(StandardCharsets.UTF_8);
   }
@@ -143,6 +162,7 @@ public final class TestUtil {
         "https://zammad.example.com",
         Map.of("apiToken", "tok"),
         "secret",
-        Map.of("group", "3"));
+        Map.of("group", "3"),
+        new NegotiatorCredentials("test-client-id", "test-client-secret"));
   }
 }

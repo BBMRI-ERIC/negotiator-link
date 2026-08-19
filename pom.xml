@@ -119,6 +119,12 @@
             <version>3.13.0</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>mockwebserver</artifactId>
+            <version>5.1.0</version>
+            <scope>test</scope>
+        </dependency>
 
         <!-- openapi-generator runtime deps (restclient library) -->
         <dependency>
@@ -182,7 +188,7 @@
                             </schemaMappings>
                             <configOptions>
                                 <useSpringBoot4>true</useSpringBoot4>
-                                <dateLibrary>java8</dateLibrary>
+                                <dateLibrary>java8-localdatetime</dateLibrary>
                                 <serializationLibrary>jackson</serializationLibrary>
                                 <openApiNullable>false</openApiNullable>
                                 <useBeanValidation>false</useBeanValidation>

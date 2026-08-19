@@ -7,6 +7,8 @@ import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.resource;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.resourceStateUpdatedPayload;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.signedWebhookPayload;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.utf8;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
@@ -16,6 +18,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingRepository;
@@ -64,17 +67,19 @@ class ZammadAdapterE2ETest {
   void negotiationApproved_createsTicketInZammad() throws Exception {
     String negotiationId = "neg-e2e-1";
     var body = negotiationApprovedPayload(negotiationId);
-    var resource = resource(10L, "src-1", "Biobank A", ORG_EXT_ID, ORG_ID);
+    var resource = resource(10L, "src-1", "Resource A", ORG_EXT_ID, ORG_ID);
 
-    when(negotiatorClient.getNegotiation(negotiationId))
-        .thenReturn(negotiation(negotiationId, "NEGO-E2E-1", "IN_PROGRESS"));
-    when(negotiatorClient.getResources(negotiationId)).thenReturn(List.of(resource));
+    when(negotiatorClient.getNegotiation(eq(negotiationId), any(OrganizationConfig.class)))
+        .thenReturn(negotiation(negotiationId, "E2E-1", "IN_PROGRESS"));
+    when(negotiatorClient.getResources(eq(negotiationId), any(OrganizationConfig.class)))
+        .thenReturn(List.of(resource));
 
     zammadServer
         .expect(requestTo(ZAMMAD_BASE + "/api/v1/tickets"))
         .andExpect(method(HttpMethod.POST))
-        .andExpect(jsonPath("$.title").value("[NEGO-E2E-1] Biobank A — Access Request"))
+        .andExpect(jsonPath("$.title").value("[NEGO-E2E-1] Access Request — Resource A"))
         .andExpect(jsonPath("$.group").value("Sales"))
+        .andExpect(jsonPath("$.customer").value("negotiator-link@mhh.de"))
         .andExpect(jsonPath("$.negotiation_state").value("IN_PROGRESS"))
         .andExpect(jsonPath("$.negotiator_resource_state").value("SUBMITTED"))
         .andRespond(withSuccess("{\"id\":1,\"number\":\"1001\"}", MediaType.APPLICATION_JSON));
@@ -87,16 +92,20 @@ class ZammadAdapterE2ETest {
   @Test
   void resourceStateUpdated_updatesTicketInZammad() throws Exception {
     String negotiationId = "neg-e2e-2";
-    String resourceId = "res-e2e-1";
+    String resourceSourceId = "src-e2e-1";
     String ticketId = "t-2";
     var body =
         resourceStateUpdatedPayload(
-            negotiationId, resourceId, "SUBMITTED", "RESOURCE_AVAILABLE", "MARK_AS_AVAILABLE");
+            negotiationId,
+            resourceSourceId,
+            "SUBMITTED",
+            "RESOURCE_AVAILABLE",
+            "MARK_AS_AVAILABLE");
 
     ticketMappingRepository.save(
         new TicketMapping(
-            new TicketMappingId(negotiationId, ticketId, resourceId),
-            "src-e2e-1",
+            new TicketMappingId(negotiationId, ticketId, "res-e2e-1"),
+            resourceSourceId,
             String.valueOf(ORG_ID),
             ORG_EXT_ID));
 
@@ -126,19 +135,22 @@ class ZammadAdapterE2ETest {
             String.valueOf(ORG_ID),
             ORG_EXT_ID));
 
-    when(negotiatorClient.getPostText(postId))
+    when(negotiatorClient.getPostText(eq(postId), any(OrganizationConfig.class)))
         .thenReturn(
             TestUtil.post(
                 postId,
                 "Hello from Negotiator",
                 EntityModelPostDTO.TypeEnum.PRIVATE,
-                String.valueOf(ORG_ID)));
+                String.valueOf(ORG_ID),
+                "Jane Doe",
+                "jane@example.com"));
 
     zammadServer
         .expect(requestTo(ZAMMAD_BASE + "/api/v1/ticket_articles"))
         .andExpect(method(HttpMethod.POST))
         .andExpect(jsonPath("$.ticket_id").value(42))
-        .andExpect(jsonPath("$.body").value("Hello from Negotiator"))
+        .andExpect(
+            jsonPath("$.body").value("From: Jane Doe <jane@example.com>\n\nHello from Negotiator"))
         .andExpect(jsonPath("$.internal").value(false))
         .andRespond(withSuccess());
 

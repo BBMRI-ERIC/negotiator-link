@@ -1,6 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.e2e;
 
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.hmacSha1Hex;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -10,6 +11,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingRepository;
@@ -78,7 +81,8 @@ class ZammadCallbackE2ETest {
                 p ->
                     POST_TEXT.equals(p.getText())
                         && PostCreateDTO.TypeEnum.PRIVATE.equals(p.getType())
-                        && HELPDESK_ACTOR.equals(p.getHelpdeskActor())));
+                        && HELPDESK_ACTOR.equals(p.getHelpdeskActor())),
+            any(OrganizationConfig.class));
     zammadServer.verify();
   }
 
@@ -106,7 +110,8 @@ class ZammadCallbackE2ETest {
                 p ->
                     POST_TEXT.equals(p.getText())
                         && PostCreateDTO.TypeEnum.PRIVATE.equals(p.getType())
-                        && HELPDESK_ACTOR.equals(p.getHelpdeskActor())));
+                        && HELPDESK_ACTOR.equals(p.getHelpdeskActor())),
+            any(OrganizationConfig.class));
     zammadServer.verify();
   }
 
@@ -121,13 +126,19 @@ class ZammadCallbackE2ETest {
             ORGANIZATION_ID,
             PER_RESOURCE_ORG));
 
-    when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID))
+    when(negotiatorClient.getPossibleResourceEvents(
+            eq(NEGOTIATION_ID), eq(RESOURCE_SOURCE_ID), any(OrganizationConfig.class)))
         .thenReturn(Set.of(event));
 
     postCallback(PER_RESOURCE_ORG, PER_RESOURCE_SECRET, resourceTransitionOnlyPayload());
 
     verify(negotiatorClient)
-        .sendResourceEvent(eq(NEGOTIATION_ID), eq(RESOURCE_SOURCE_ID), eq(event), isNull());
+        .sendResourceEvent(
+            eq(NEGOTIATION_ID),
+            eq(RESOURCE_SOURCE_ID),
+            eq(event),
+            isNull(),
+            any(OrganizationConfig.class));
     zammadServer.verify();
   }
 
@@ -152,9 +163,11 @@ class ZammadCallbackE2ETest {
             ORGANIZATION_ID,
             PER_NEGOTIATION_ORG));
 
-    when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, resourceSourceId1))
+    when(negotiatorClient.getPossibleResourceEvents(
+            eq(NEGOTIATION_ID), eq(resourceSourceId1), any(OrganizationConfig.class)))
         .thenReturn(Set.of(event));
-    when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, resourceSourceId2))
+    when(negotiatorClient.getPossibleResourceEvents(
+            eq(NEGOTIATION_ID), eq(resourceSourceId2), any(OrganizationConfig.class)))
         .thenReturn(Set.of(event));
 
     postCallback(PER_NEGOTIATION_ORG, PER_NEGOTIATION_SECRET, resourceTransitionOnlyPayload());
@@ -163,8 +176,9 @@ class ZammadCallbackE2ETest {
         .sendBulkResourceEvent(
             eq(NEGOTIATION_ID),
             argThat(ids -> ids.size() == 2 && ids.containsAll(List.of(resourceId1, resourceId2))),
-            eq(event),
-            isNull());
+            eq(ResourceTransitionEvent.MARK_AS_CHECKING_AVAILABILITY.targetState()),
+            isNull(),
+            any(OrganizationConfig.class));
     zammadServer.verify();
   }
 

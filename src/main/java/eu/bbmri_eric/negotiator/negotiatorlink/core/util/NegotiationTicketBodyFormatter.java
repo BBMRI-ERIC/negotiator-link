@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -21,9 +22,9 @@ public final class NegotiationTicketBodyFormatter {
   private static final String EMPTY_VALUE = "—";
   private static final int WRAP_WIDTH = 55;
   private static final String DOUBLE_RULE =
-      "════════════════════════════════════════════════════════════";
+      "═══════════════════════════════════════════════════════";
   private static final String SECTION_RULE =
-      "────────────────────────────────────────────────────────────";
+      "───────────────────────────────────────────────────────";
   private static final String RESOURCE_RULE = "──────────────────────────────";
 
   private NegotiationTicketBodyFormatter() {}
@@ -47,11 +48,34 @@ public final class NegotiationTicketBodyFormatter {
   }
 
   /** Builds the ticket title. */
-  public static String buildTitle(String negotiationDisplayId, String resourceName) {
-    String prefix = "[" + negotiationDisplayId + "] ";
-    return resourceName != null
-        ? prefix + resourceName + " — Access Request"
-        : prefix + "Resources Access Request";
+  public static String buildTitle(EntityModelNegotiationDTO negotiation, String resourceName) {
+    String prefix = "[NEGO-" + negotiation.getDisplayId() + "] ";
+    Optional<String> title = getTitleIfPresentInPayload(negotiation);
+    return title
+        .map(negTitle -> prefix + negTitle)
+        .orElseGet(
+            () ->
+                resourceName != null
+                    ? prefix + "Access Request — " + resourceName
+                    : prefix + "Resources Access Request");
+  }
+
+  @SuppressWarnings("unchecked")
+  private static Optional<String> getTitleIfPresentInPayload(
+      EntityModelNegotiationDTO negotiation) {
+    if (!(negotiation.getPayload() instanceof Map<?, ?> payload)) {
+      return Optional.empty();
+    }
+    Object project = ((Map<String, Object>) payload).get("project");
+    if (!(project instanceof Map<?, ?> projectMap)) {
+      return Optional.empty();
+    }
+    Object title = ((Map<String, Object>) projectMap).get("title");
+    if (title == null) {
+      return Optional.empty();
+    }
+    String titleStr = title.toString().trim();
+    return titleStr.isEmpty() ? Optional.empty() : Optional.of(titleStr);
   }
 
   // ---------------------------------------------------------------------------
@@ -67,7 +91,7 @@ public final class NegotiationTicketBodyFormatter {
 
   private static void appendTitleBlock(BodyBuilder body, EntityModelNegotiationDTO negotiation) {
     body.line(DOUBLE_RULE);
-    body.line("  NEGOTIATION [" + negotiation.getDisplayId() + "]");
+    body.line("  Negotiator Access Request");
     body.line(DOUBLE_RULE);
     body.blank();
 
@@ -78,6 +102,7 @@ public final class NegotiationTicketBodyFormatter {
       fields.add("Email", author.getEmail());
     }
     fields.add("State", negotiation.getStatus());
+    fields.add("Negotiation ID", negotiation.getDisplayId());
     body.append(fields.render());
   }
 

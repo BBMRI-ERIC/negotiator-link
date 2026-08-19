@@ -107,7 +107,13 @@ Give it a name (e.g. `negotiator-link`) and enable all permissions. Copy the tok
 docker compose restart negotiator-link
 ```
 
-### Step 8 — Configure the Negotiator webhook
+### Step 8 — Assign negotiator link service account to the resources of some organization
+
+In Negotiator: **Admin → Governance → Organizations → "Biobank Väst" → <select a resource>**
+
+- **Add user**: `negotiator-link` (the user was automatically created during bootstrap)
+
+### Step 9 — Configure the Negotiator webhook
 
 Log into Negotiator at `http://localhost:8080` as `admin` / `admin`.
 
@@ -117,7 +123,7 @@ Navigate to **Admin → Webhooks → Create** and fill in:
 - **Secret**: the value of `NEGOTIATOR_WEBHOOK_SECRET` from your `.env`
 - **Events**: select at minimum `negotiation.state.updated`
 
-### Step 9 — Configure Zammad webhook and triggers
+### Step 10 — Configure Zammad webhook and triggers
 
 **Create the webhook endpoint:**
 In Zammad: **Admin → Integrations → Webhooks → New Webhook**
@@ -133,9 +139,9 @@ In Zammad: **Admin → Manage → Triggers → New Trigger**
 
 - **Name**: `negotiator-link: new article`
 - **Action execution**: Selective
-- **Conditions**: `Article → Created by is not → <negotiator-link bot user>` AND `Article → Updated by is not → <negotiator-link bot user>` AND `Article Action → is → created` AND `Article Visibility → is → public`
 - Enable expert mode and ensure the logic is set to match all (AND).
-- **Actions**: `Notify Webhook → negotiator-link`
+- **Conditions**: `Article → Created by is not → <negotiator-link bot user>` AND `Article → Updated by is not → <negotiator-link bot user>` AND `Article Action → is → created` AND `Article Visibility → is → public`
+- **Execute changes on objects**: `Webhook → negotiator-link`
 
 **Create the three custom ticket fields:**
 In Zammad: **Admin → System → Objects → Ticket → New Attribute**
@@ -164,7 +170,7 @@ In Zammad: **Admin → System → Objects → Ticket → New Attribute**
 - **Required**: No
 - **Default**: *(leave empty)*
 - **Options** (click **➕ Add** after each value):
-  `SUBMITTED`, `REPRESENTATIVE_UNREACHABLE`, `REPRESENTATIVE_CONTACTED`, `RETURNED_FOR_RESUBMISSION`,
+  `SUBMITTED`, `REPRESENTATIVE_UNREACHABLE`, `REPRESENTATIVE_CONTACTED`,
   `CHECKING_AVAILABILITY`, `RESOURCE_UNAVAILABLE_WILLING_TO_COLLECT`, `RESOURCE_UNAVAILABLE`,
   `RESOURCE_AVAILABLE`, `ACCESS_CONDITIONS_INDICATED`, `ACCESS_CONDITIONS_MET`,
   `RESOURCE_NOT_MADE_AVAILABLE`, `RESOURCE_MADE_AVAILABLE`
@@ -206,7 +212,7 @@ In Zammad: **Admin → Manage → Triggers → New Trigger**
 - **Conditions**: `Ticket → Request Resource State Transition → has changed` AND
   `Updated by → is not → <negotiator-link bot user>` AND (Article Visibility → is → internal OR Article Action → is not → created)
 - make sure in expert mode under Condition that the logic AND is selected.
-- **Actions**: `Notify Webhook → negotiator-link`
+- **Execute changes on objects**: `Webhook → negotiator-link`
 
 ### Test users
 

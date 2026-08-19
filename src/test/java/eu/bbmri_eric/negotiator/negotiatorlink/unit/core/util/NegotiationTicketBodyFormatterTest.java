@@ -10,23 +10,26 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class NegotiationTicketBodyFormatterTest {
 
   private static final String NEGOTIATION_HEADER =
       """
-          ════════════════════════════════════════════════════════════
-            NEGOTIATION [NEGO-1]
-          ════════════════════════════════════════════════════════════
+          ═══════════════════════════════════════════════════════
+            Negotiator Access Request
+          ═══════════════════════════════════════════════════════
 
-            Requester:  adam.researcher@gmail.com
-            Email:      adam.researcher@gmail.com
-            State:      IN_PROGRESS
+            Requester:       adam.researcher@gmail.com
+            Email:           adam.researcher@gmail.com
+            State:           IN_PROGRESS
+            Negotiation ID:  1
 
 
-          ────────────────────────────────────────────────────────────
+          ───────────────────────────────────────────────────────
             PROJECT
-          ────────────────────────────────────────────────────────────
+          ───────────────────────────────────────────────────────
 
             Title:           HIV Cohort Study
             Disease Code:    B23.0
@@ -42,9 +45,9 @@ class NegotiationTicketBodyFormatterTest {
             Bool Test:       Yes
 
 
-          ────────────────────────────────────────────────────────────
+          ───────────────────────────────────────────────────────
             REQUEST
-          ────────────────────────────────────────────────────────────
+          ───────────────────────────────────────────────────────
 
             Description:  We seek access to HIV cohort samples with documented
                           disease progression markers and comorbidity data
@@ -54,38 +57,47 @@ class NegotiationTicketBodyFormatterTest {
             Specifics:    CD4 count and viral load data required
 
 
-          ────────────────────────────────────────────────────────────
+          ───────────────────────────────────────────────────────
             ETHICS VOTE
-          ────────────────────────────────────────────────────────────
+          ───────────────────────────────────────────────────────
 
             Ethics Vote:             Approved by University Ethics Committee
             Ethics Vote Attachment:  —
 
 
-          ────────────────────────────────────────────────────────────
+          ───────────────────────────────────────────────────────
             SEARCH PARAMETERS
-          ────────────────────────────────────────────────────────────
+          ───────────────────────────────────────────────────────
 
             (diagnosis EQUALS B23.0)
 
 
           """;
 
-  @Test
-  void buildTitle_withResourceName_includesResourceNameInTitle() {
-    assertThat(NegotiationTicketBodyFormatter.buildTitle("NEGO-1", "Dummy Collection"))
-        .isEqualTo("[NEGO-1] Dummy Collection — Access Request");
+  @ParameterizedTest
+  @CsvSource({
+    "true, [NEGO-1] HIV Cohort Study",
+    "false, [NEGO-1] Access Request — Dummy Collection"
+  })
+  void buildTitle_withResourceName_includesResourceNameInTitle(
+      boolean payloadHasTitle, String expectedTitle) {
+    assertThat(
+            NegotiationTicketBodyFormatter.buildTitle(
+                createNegotiation(payloadHasTitle), "Dummy Collection"))
+        .isEqualTo(expectedTitle);
   }
 
-  @Test
-  void buildTitle_withNullResourceName_usesAggregateTitle() {
-    assertThat(NegotiationTicketBodyFormatter.buildTitle("NEGO-1", null))
-        .isEqualTo("[NEGO-1] Resources Access Request");
+  @ParameterizedTest
+  @CsvSource({"true, [NEGO-1] HIV Cohort Study", "false, [NEGO-1] Resources Access Request"})
+  void buildTitle_withNullResourceName_usesAggregateTitle(
+      boolean payloadHasTitle, String expectedTitle) {
+    assertThat(NegotiationTicketBodyFormatter.buildTitle(createNegotiation(payloadHasTitle), null))
+        .isEqualTo(expectedTitle);
   }
 
   @Test
   void getTicketBodyWithSingleResource_withValidInputs_rendersFullBodyWithResourceBlock() {
-    var negotiation = createNegotiation();
+    var negotiation = createNegotiation(true);
     var resource =
         createResource("Dummy test collection", "bbmri-eric:ID:SE_890:collection:dummy_collection");
 
@@ -95,9 +107,9 @@ class NegotiationTicketBodyFormatterTest {
     String expected =
         NEGOTIATION_HEADER
             + """
-            ────────────────────────────────────────────────────────────
+            ───────────────────────────────────────────────────────
               RESOURCE
-            ────────────────────────────────────────────────────────────
+            ───────────────────────────────────────────────────────
 
               Name:   Dummy test collection
               ID:     bbmri-eric:ID:SE_890:collection:dummy_collection
@@ -110,7 +122,7 @@ class NegotiationTicketBodyFormatterTest {
   @Test
   void
       getTicketBodyWithMultipleResources_withTwoResources_rendersAllResourcesWithSharedStateLine() {
-    var negotiation = createNegotiation();
+    var negotiation = createNegotiation(true);
     var resource1 =
         createResource("Dummy test collection", "bbmri-eric:ID:SE_890:collection:dummy_collection");
     var resource2 =
@@ -124,9 +136,9 @@ class NegotiationTicketBodyFormatterTest {
     String expected =
         NEGOTIATION_HEADER
             + """
-            ────────────────────────────────────────────────────────────
+            ───────────────────────────────────────────────────────
               RESOURCES
-            ────────────────────────────────────────────────────────────
+            ───────────────────────────────────────────────────────
 
               • Dummy test collection
                 ID: bbmri-eric:ID:SE_890:collection:dummy_collection
@@ -141,13 +153,15 @@ class NegotiationTicketBodyFormatterTest {
     assertThat(body).isEqualTo(expected);
   }
 
-  private EntityModelNegotiationDTO createNegotiation() {
+  private EntityModelNegotiationDTO createNegotiation(boolean hasTitle) {
     var author = new UserResponseModel();
     author.setName("adam.researcher@gmail.com");
     author.setEmail("adam.researcher@gmail.com");
 
     Map<String, Object> project = new LinkedHashMap<>();
-    project.put("title", "HIV Cohort Study");
+    if (hasTitle) {
+      project.put("title", "HIV Cohort Study");
+    }
     project.put("disease-code", "B23.0");
     project.put(
         "objective",
@@ -178,7 +192,7 @@ class NegotiationTicketBodyFormatterTest {
     payload.put("ethics-vote", ethicsVote);
 
     var negotiation = new EntityModelNegotiationDTO();
-    negotiation.setDisplayId("NEGO-1");
+    negotiation.setDisplayId("1");
     negotiation.setStatus("IN_PROGRESS");
     negotiation.setAuthor(author);
     negotiation.setHumanReadable("(diagnosis EQUALS B23.0)");

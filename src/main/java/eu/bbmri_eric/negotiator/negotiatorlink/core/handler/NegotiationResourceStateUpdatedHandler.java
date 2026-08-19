@@ -19,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Component
-public class ResourceStateUpdatedHandler implements NegotiatorEventHandler {
+public class NegotiationResourceStateUpdatedHandler implements NegotiatorEventHandler {
 
   private static final String EVENT_TYPE = "negotiation.resource.state.updated";
 
@@ -29,7 +29,7 @@ public class ResourceStateUpdatedHandler implements NegotiatorEventHandler {
   private final Map<HelpDeskType, HelpDeskAdapter> adapters;
   private final ObjectMapper objectMapper;
 
-  public ResourceStateUpdatedHandler(
+  public NegotiationResourceStateUpdatedHandler(
       TicketMappingRepository ticketMappingRepository,
       OriginatedTransitionRepository originatedTransitionRepository,
       OrganizationConfigRegistry registry,
@@ -85,7 +85,7 @@ public class ResourceStateUpdatedHandler implements NegotiatorEventHandler {
    */
   private DispatchContext resolveDispatchContext(ResourceStateUpdate update) {
     Optional<TicketMapping> mappingOpt =
-        ticketMappingRepository.findByIdNegotiationIdAndIdResourceId(
+        ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
             update.negotiationId(), update.resourceId());
     if (mappingOpt.isEmpty()) {
       log.debug(

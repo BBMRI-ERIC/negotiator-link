@@ -28,6 +28,8 @@ public class WebSecurityConfig {
                     .permitAll()
                     .requestMatchers(HttpMethod.POST, "/webhooks/helpdesk/**")
                     .permitAll()
+                    .requestMatchers(HttpMethod.GET, "/actuator/health")
+                    .permitAll()
                     .anyRequest()
                     .authenticated())
         .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS));

@@ -59,6 +59,12 @@ services:
     depends_on:
       negotiator-postgresql:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8081/api/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      start_period: 120s
+      retries: 5
     environment:
       SPRING_PROFILES_ACTIVE: dev
       SPRING_DATASOURCE_URL: jdbc:postgresql://negotiator-postgresql:5432/negotiator
@@ -141,11 +147,19 @@ services:
         ARTIFACT_VERSION: dev
     ports:
       - "8090:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
     depends_on:
       negotiator-link-postgresql:
         condition: service_healthy
       oidc-server-mock:
         condition: service_started
+      negotiator:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://negotiator-link-postgresql:5432/negotiator_link
       SPRING_DATASOURCE_USERNAME: negotiator_link
@@ -153,7 +167,7 @@ services:
       # Negotiator OAuth2 client credentials
       NEGOTIATOR_CLIENT_ID: negotiator-link
       NEGOTIATOR_CLIENT_SECRET: negotiator-link-secret
-      NEGOTIATOR_BASE_URL: http://negotiator:8081
+      NEGOTIATOR_BASE_URL: http://negotiator:8081/api
       NEGOTIATOR_ISSUER_URI: http://oidc-server-mock:8080
       # Webhook signing secret — must match what is configured in Negotiator webhook entity
       NEGOTIATOR_WEBHOOK_SECRET: ${NEGOTIATOR_WEBHOOK_SECRET:-local-dev-webhook-secret}

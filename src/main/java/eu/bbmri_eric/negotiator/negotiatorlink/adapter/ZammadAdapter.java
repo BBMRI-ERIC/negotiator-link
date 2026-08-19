@@ -164,6 +164,7 @@ public class ZammadAdapter implements HelpDeskAdapter {
 
     String ticketId = parsed.ticket().id();
     String transitionEvent = normalize(parsed.ticket().transitionEvent());
+    String resourceState = normalize(parsed.ticket().resourceState());
     boolean hasArticle = hasArticle(parsed.article());
 
     if (transitionEvent == null && !hasArticle) {
@@ -178,6 +179,7 @@ public class ZammadAdapter implements HelpDeskAdapter {
         new HelpdeskCallbackEvent(
             ticketId,
             resolveType(transitionEvent != null, hasArticle),
+            resourceState,
             transitionEvent,
             postText,
             helpdeskActor));
@@ -194,6 +196,7 @@ public class ZammadAdapter implements HelpDeskAdapter {
     Map<String, Object> body = new HashMap<>();
     body.put("title", request.title());
     body.put("group", config.platformConfig().get("group"));
+    body.put("customer", config.platformConfig().get("botEmail"));
     body.put(FIELD_NEGOTIATION_STATE, request.negotiationState());
     body.put(FIELD_RESOURCE_STATE, request.resourceState());
     body.put(FIELD_TRANSITION_EVENT, null);
@@ -288,7 +291,10 @@ public class ZammadAdapter implements HelpDeskAdapter {
   @JsonIgnoreProperties(ignoreUnknown = true)
   private record ZammadCallbackPayload(Ticket ticket, Article article) {
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record Ticket(String id, @JsonProperty(FIELD_TRANSITION_EVENT) String transitionEvent) {}
+    record Ticket(
+        String id,
+        @JsonProperty(FIELD_RESOURCE_STATE) String resourceState,
+        @JsonProperty(FIELD_TRANSITION_EVENT) String transitionEvent) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record Article(String body, String from) {}
