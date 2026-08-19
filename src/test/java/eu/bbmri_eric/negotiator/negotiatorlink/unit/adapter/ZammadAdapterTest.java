@@ -346,18 +346,14 @@ class ZammadAdapterTest {
 
   @Test
   void parseCallback_resourceTransitionOnly_returnsResourceTransitionEvent() {
-    Map<String, Object> payload =
-        Map.of(
-            "ticket",
-            Map.of(
-                "id", 1, "negotiator_resource_transition_event", "MARK_AS_CHECKING_AVAILABILITY"),
-            "article",
-            Map.of());
+    var payload =
+        zammadCallbackPayload("1", "MARK_AS_CHECKING_AVAILABILITY", "IN_PROGRESS", null, null);
 
     var expected =
         new HelpdeskCallbackEvent(
             "1",
             HelpdeskCallbackType.RESOURCE_TRANSITION,
+            "IN_PROGRESS",
             "MARK_AS_CHECKING_AVAILABILITY",
             null,
             null);
@@ -366,36 +362,30 @@ class ZammadAdapterTest {
 
   @Test
   void parseCallback_publicArticleOnly_returnsPostMessage() {
-    Map<String, Object> payload =
-        Map.of(
-            "ticket",
-            Map.of("id", 2, "negotiator_resource_transition_event", ""),
-            "article",
-            Map.of(
-                "body", "Hello from help desk",
-                "from", "John Rep"));
+    var payload = zammadCallbackPayload("2", "", "IN_PROGRESS", "Hello from help desk", "John Rep");
 
     var expected =
         new HelpdeskCallbackEvent(
-            "2", HelpdeskCallbackType.POST_MESSAGE, null, "Hello from help desk", "John Rep");
+            "2",
+            HelpdeskCallbackType.POST_MESSAGE,
+            "IN_PROGRESS",
+            null,
+            "Hello from help desk",
+            "John Rep");
     assertThat(adapter.parseCallback(payload)).contains(expected);
   }
 
   @Test
   void parseCallback_bothArticleAndTransition_returnsCombinedType() {
-    Map<String, Object> payload =
-        Map.of(
-            "ticket",
-            Map.of("id", 3, "negotiator_resource_transition_event", "MARK_AS_AVAILABLE"),
-            "article",
-            Map.of(
-                "body", "Granting access",
-                "from", "Jane Rep"));
+    var payload =
+        zammadCallbackPayload(
+            "3", "MARK_AS_AVAILABLE", "IN_PROGRESS", "Granting access", "Jane Rep");
 
     var expected =
         new HelpdeskCallbackEvent(
             "3",
             HelpdeskCallbackType.RESOURCE_TRANSITION_WITH_POST_MESSAGE,
+            "IN_PROGRESS",
             "MARK_AS_AVAILABLE",
             "Granting access",
             "Jane Rep");
@@ -409,14 +399,29 @@ class ZammadAdapterTest {
 
   @Test
   void parseCallback_bothEmptyArticleAndNoTransitionEvent_returnsEmpty() {
-    Map<String, Object> payload =
-        Map.of(
-            "ticket",
-            Map.of("id", 4, "negotiator_resource_transition_event", ""),
-            "article",
-            Map.of());
+    var payload = zammadCallbackPayload("4", "", null, null, null);
 
     assertThat(adapter.parseCallback(payload)).isEmpty();
+  }
+
+  private static Map<String, Object> zammadCallbackPayload(
+      String ticketId,
+      String transitionEvent,
+      String resourceState,
+      String articleBody,
+      String articleFrom) {
+    Map<String, Object> ticket = new java.util.HashMap<>();
+    ticket.put("id", ticketId);
+    ticket.put("negotiator_resource_transition_event", transitionEvent);
+    ticket.put("negotiator_resource_state", resourceState);
+    Map<String, Object> article = new java.util.HashMap<>();
+    if (articleBody != null) {
+      article.put("body", articleBody);
+    }
+    if (articleFrom != null) {
+      article.put("from", articleFrom);
+    }
+    return Map.of("ticket", ticket, "article", article);
   }
 
   @Test

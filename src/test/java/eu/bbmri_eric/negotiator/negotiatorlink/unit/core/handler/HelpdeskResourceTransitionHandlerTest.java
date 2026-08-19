@@ -41,6 +41,7 @@ class HelpdeskResourceTransitionHandlerTest {
   private static final String RESOURCE_SOURCE_ID = "biobank:DE:MHH:collection1";
   private static final String RESOURCE_SOURCE_ID_2 = "biobank:DE:MHH:collection2";
   private static final String REQUESTED_EVENT = "MARK_AS_CHECKING_AVAILABILITY";
+  private static final String RESOURCE_STATE = "IN_PROGRESS";
   private static final String HELPDESK_ACTOR = "Jane Rep";
 
   @Mock private TicketMappingRepository ticketMappingRepository;
@@ -93,7 +94,7 @@ class HelpdeskResourceTransitionHandlerTest {
 
     handler.handle(callbackEvent(), config);
 
-    verify(adapter).updateResourceState(eq(TICKET_ID), eq(null), eq(config));
+    verify(adapter).updateResourceState(eq(TICKET_ID), eq(RESOURCE_STATE), eq(config));
     verify(adapter).addSystemComment(eq(TICKET_ID), any(String.class), eq(config));
     verify(negotiatorClient, never()).sendResourceEvent(any(), any(), any(), any(), any());
   }
@@ -164,7 +165,7 @@ class HelpdeskResourceTransitionHandlerTest {
 
     handler.handle(callbackEvent(), config);
 
-    verify(adapter).updateResourceState(eq(TICKET_ID), eq(null), eq(config));
+    verify(adapter).updateResourceState(eq(TICKET_ID), eq(RESOURCE_STATE), eq(config));
     verify(adapter).addSystemComment(eq(TICKET_ID), any(String.class), eq(config));
     verify(negotiatorClient, never()).sendBulkResourceEvent(any(), any(), any(), any(), any());
     verify(originatedTransitionRepository, never()).save(any());
@@ -190,6 +191,7 @@ class HelpdeskResourceTransitionHandlerTest {
         new HelpdeskCallbackEvent(
             TICKET_ID,
             HelpdeskCallbackType.RESOURCE_TRANSITION,
+            RESOURCE_STATE,
             unknownEvent,
             null,
             HELPDESK_ACTOR),
@@ -210,6 +212,11 @@ class HelpdeskResourceTransitionHandlerTest {
 
   private HelpdeskCallbackEvent callbackEvent() {
     return new HelpdeskCallbackEvent(
-        TICKET_ID, HelpdeskCallbackType.RESOURCE_TRANSITION, REQUESTED_EVENT, null, HELPDESK_ACTOR);
+        TICKET_ID,
+        HelpdeskCallbackType.RESOURCE_TRANSITION,
+        RESOURCE_STATE,
+        REQUESTED_EVENT,
+        null,
+        HELPDESK_ACTOR);
   }
 }

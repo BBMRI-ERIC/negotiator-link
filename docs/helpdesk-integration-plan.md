@@ -1150,6 +1150,7 @@ record CreatedTicket(
 record HelpdeskCallbackEvent(
         String ticketId,
         HelpdeskCallbackType type,         // RESOURCE_TRANSITION, POST_MESSAGE, or RESOURCE_TRANSITION_WITH_POST_MESSAGE
+        String resourceState,
         String resourceTransitionEvent,    // null if type = POST_MESSAGE
         String postText,                   // null if type = RESOURCE_TRANSITION
         String helpdeskActor               // representative's identity from the help desk (name or email)

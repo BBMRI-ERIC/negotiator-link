@@ -98,6 +98,11 @@ class HelpdeskPostHandlerTest {
 
   private HelpdeskCallbackEvent callbackEvent() {
     return new HelpdeskCallbackEvent(
-        TICKET_ID, HelpdeskCallbackType.POST_MESSAGE, null, POST_TEXT, HELPDESK_ACTOR);
+        TICKET_ID,
+        HelpdeskCallbackType.POST_MESSAGE,
+        "IN_PROGRESS",
+        null,
+        POST_TEXT,
+        HELPDESK_ACTOR);
   }
 }

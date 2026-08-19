@@ -66,9 +66,16 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
     HelpDeskAdapter adapter = adapters.get(config.type());
 
     if (mappings.size() == 1) {
-      handlePerResource(mappings.getFirst(), requestedEvent, helpdeskActor, adapter, config);
+      handlePerResource(
+          mappings.getFirst(),
+          requestedEvent,
+          helpdeskActor,
+          event.resourceState(),
+          adapter,
+          config);
     } else {
-      handlePerNegotiation(mappings, requestedEvent, helpdeskActor, adapter, config);
+      handlePerNegotiation(
+          mappings, requestedEvent, helpdeskActor, event.resourceState(), adapter, config);
     }
   }
 
@@ -76,6 +83,7 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
       TicketMapping mapping,
       String requestedEvent,
       String helpdeskActor,
+      String resourceState,
       HelpDeskAdapter adapter,
       OrganizationConfig config) {
 
@@ -101,7 +109,7 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
           resourceSourceId,
           negotiationId,
           allowedEvents);
-      adapter.updateResourceState(ticketId, null, config);
+      adapter.updateResourceState(ticketId, resourceState, config);
       adapter.addSystemComment(
           ticketId, buildRejectionMessage(requestedEvent, allowedEvents), config);
     }
@@ -111,6 +119,7 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
       List<TicketMapping> mappings,
       String requestedEvent,
       String helpdeskActor,
+      String resourceState,
       HelpDeskAdapter adapter,
       OrganizationConfig config) {
 
@@ -133,7 +142,7 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
           requestedEvent,
           negotiationId,
           invalidResources.size());
-      adapter.updateResourceState(ticketId, null, config);
+      adapter.updateResourceState(ticketId, resourceState, config);
       adapter.addSystemComment(
           ticketId, buildBulkRejectionMessage(requestedEvent, invalidResources), config);
       return;
