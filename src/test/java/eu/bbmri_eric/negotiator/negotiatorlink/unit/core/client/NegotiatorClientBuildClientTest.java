@@ -57,8 +57,8 @@ class NegotiatorClientBuildClientTest {
             .setHeader("Content-Type", "application/json")
             .setBody(
                 """
-                                {"id":"neg-1","displayId":"NEGO-1","status":"IN_PROGRESS"}
-                                """));
+                {"id":"neg-1","displayId":"NEGO-1","status":"IN_PROGRESS"}
+                """));
 
     EntityModelNegotiationDTO result = client.getNegotiation("neg-1", config);
 
@@ -104,16 +104,16 @@ class NegotiatorClientBuildClientTest {
         .setHeader("Content-Type", "application/json")
         .setBody(
             """
-                        {
-                          "issuer": "%s",
-                          "token_endpoint": "%s/token",
-                          "authorization_endpoint": "%s/authorize",
-                          "jwks_uri": "%s/jwks",
-                          "response_types_supported": ["code"],
-                          "subject_types_supported": ["public"],
-                          "id_token_signing_alg_values_supported": ["RS256"]
-                        }
-                        """
+            {
+              "issuer": "%s",
+              "token_endpoint": "%s/token",
+              "authorization_endpoint": "%s/authorize",
+              "jwks_uri": "%s/jwks",
+              "response_types_supported": ["code"],
+              "subject_types_supported": ["public"],
+              "id_token_signing_alg_values_supported": ["RS256"]
+            }
+            """
                 .formatted(issuerUri, issuerUri, issuerUri, issuerUri));
   }
 
@@ -122,12 +122,12 @@ class NegotiatorClientBuildClientTest {
         .setHeader("Content-Type", "application/json")
         .setBody(
             """
-                        {
-                          "access_token": "issued-token-123",
-                          "token_type": "Bearer",
-                          "expires_in": 3600
-                        }
-                        """);
+            {
+              "access_token": "issued-token-123",
+              "token_type": "Bearer",
+              "expires_in": 3600
+            }
+            """);
   }
 
   private static MockResponse jsonNegotiation() {
