@@ -1,5 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.handler;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -139,6 +140,56 @@ class NegotiationResourceStateUpdatedHandlerTest {
     verify(originatedTransitionRepository).incrementReceivedCount(eq(originated.getRowId()));
     verify(adapter, never()).updateResourceState(any(), any(), any());
     verify(originatedTransitionRepository).delete(eq(afterIncrement));
+  }
+
+  @Test
+  void handle_orgNotInConfig_doesNothing() {
+    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
+            NEGOTIATION_ID, RESOURCE_ID))
+        .thenReturn(Optional.of(mapping()));
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.empty());
+
+    handler.handle(eventData(NEW_STATE));
+
+    verify(adapter, never()).updateResourceState(any(), any(), any());
+  }
+
+  @Test
+  void handle_noAdapterForType_doesNothing() {
+    var config = createConfig(TicketStrategy.PER_RESOURCE);
+    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
+            NEGOTIATION_ID, RESOURCE_ID))
+        .thenReturn(Optional.of(mapping()));
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+
+    var handlerWithNoAdapters =
+        new NegotiationResourceStateUpdatedHandler(
+            ticketMappingRepository,
+            originatedTransitionRepository,
+            registry,
+            Map.of(),
+            objectMapper);
+
+    handlerWithNoAdapters.handle(eventData(NEW_STATE));
+
+    verify(adapter, never()).updateResourceState(any(), any(), any());
+  }
+
+  @Test
+  void handle_adapterThrows_doesNotPropagateException() {
+    var config = createConfig(TicketStrategy.PER_RESOURCE);
+    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
+            NEGOTIATION_ID, RESOURCE_ID))
+        .thenReturn(Optional.of(mapping()));
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+    when(originatedTransitionRepository.findByNegotiationIdAndTicketId(NEGOTIATION_ID, TICKET_ID))
+        .thenReturn(Optional.empty());
+    org.mockito.Mockito.doThrow(new RuntimeException("adapter down"))
+        .when(adapter)
+        .updateResourceState(any(), any(), any());
+
+    assertDoesNotThrow(() -> handler.handle(eventData(NEW_STATE)));
+    verify(adapter).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
   }
 
   @Test

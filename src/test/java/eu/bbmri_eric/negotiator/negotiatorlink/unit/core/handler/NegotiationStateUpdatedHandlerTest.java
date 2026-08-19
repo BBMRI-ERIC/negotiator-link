@@ -1,5 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.handler;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -158,10 +159,59 @@ class NegotiationStateUpdatedHandlerTest {
       EntityModelNegotiationDTO negotiation,
       OrganizationConfig config,
       List<EntityModelResourceWithStatusDTO> resources) {
-    // handleApprove calls registry.findAll() to get fetchConfig, then uses it for client calls
     when(registry.findAll()).thenReturn(List.of(config));
     when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config)).thenReturn(negotiation);
     when(negotiatorClient.getResources(NEGOTIATION_ID, config)).thenReturn(resources);
+  }
+
+  @Test
+  void handleApprove_noOrgsConfigured_doesNothing() {
+    when(registry.findAll()).thenReturn(List.of());
+
+    handler.handle(approveEventData());
+
+    verify(negotiatorClient, never()).getNegotiation(any(), any());
+    verify(adapter, never()).createTicket(any(), any());
+  }
+
+  @Test
+  void handleApprove_noResources_doesNothing() {
+    var config = createConfig(TicketStrategy.PER_RESOURCE);
+    when(registry.findAll()).thenReturn(List.of(config));
+    when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config)).thenReturn(createNegotiation());
+    when(negotiatorClient.getResources(NEGOTIATION_ID, config)).thenReturn(List.of());
+
+    handler.handle(approveEventData());
+
+    verify(adapter, never()).createTicket(any(), any());
+  }
+
+  @Test
+  void handleApprove_noAdapterForType_skipsOrg() {
+    var config = createConfig(TicketStrategy.PER_RESOURCE);
+    when(registry.findAll()).thenReturn(List.of(config));
+    when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config)).thenReturn(createNegotiation());
+    when(negotiatorClient.getResources(NEGOTIATION_ID, config))
+        .thenReturn(List.of(createResource("r-1", 1L)));
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+
+    var handlerWithNoAdapters =
+        new NegotiationStateUpdatedHandler(
+            negotiatorClient, registry, Map.of(), ticketMappingRepository, objectMapper);
+
+    handlerWithNoAdapters.handle(approveEventData());
+
+    verify(ticketMappingRepository, never()).save(any());
+  }
+
+  @Test
+  void handleApprove_adapterThrows_doesNotPropagateException() {
+    var config = createConfig(TicketStrategy.PER_RESOURCE);
+    var resource = createResource("r-1", 1L);
+    stubHappyPath(createNegotiation(), config, List.of(resource));
+    when(adapter.createTicket(any(), any())).thenThrow(new RuntimeException("adapter down"));
+
+    assertDoesNotThrow(() -> handler.handle(approveEventData()));
   }
 
   private CreateTicketRequest perResourceRequest(
