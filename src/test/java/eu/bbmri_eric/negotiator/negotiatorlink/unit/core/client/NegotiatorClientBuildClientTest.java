@@ -79,7 +79,6 @@ class NegotiatorClientBuildClientTest {
 
     client.getNegotiation("neg-2", config); // same org -> cached PerOrgClient
 
-    // No further discovery call for the cached org (token may refresh, but discovery won't repeat)
     assertThat(authServer.getRequestCount()).isEqualTo(authRequestsAfterFirst);
   }
 
