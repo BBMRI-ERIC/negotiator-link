@@ -232,50 +232,7 @@ Limitations:
 - Representatives who need to post a public message can do so from the Negotiator UI, where the visibility of the
   message relative to all participants is explicit and visible in context.
 
-#### Decision 6: Actor Identity for Posts Created via the Help Desk
-
-**Decision:** When the middleware posts a message to Negotiator on behalf of a representative, it passes the
-representative's identity from the help desk as an `X-Helpdesk-Actor` request header. Negotiator stores this value in a
-new nullable `helpdesk_actor VARCHAR` column on the `Post` entity and returns it in `PostDTO`. The `Post.createdBy` FK
-continues to reference the per-organization middleware account. `helpdeskActor` will be a display-only supplement, not a
-reference to a Negotiator user.
-
-**Justification:**
-
-- The middleware authenticates to Negotiator using the OAuth 2.0 Client Credentials flow with a per-organization
-  account. Without this mechanism, all posts would be attributed to the middleware's org account in the Negotiator UI
-  and API, making it impossible to distinguish which representative sent a given message.
-- An alternative would be to prepend the representative's identity to the post body text (e.g.
-  `[Via help desk: John Smith <john.smith@mhh.de>]`). This requires no schema changes but embeds identity in free-form
-  text, making it fragile. A dedicated `helpdeskActor` column is explicit, queryable, and renders cleanly alongside the
-  `createdBy` org account without polluting the post content.
-- Requiring the representative to have a Negotiator account is not acceptable. The integration is deliberately designed
-  so that representatives never need to interact with Negotiator directly. Maintaining a mirrored user registry across
-  both systems would introduce operational burden with no security benefit, since authorization is already enforced by
-  the help desk: only users with access to the help desk ticket can trigger the resource state transition.
-- The actor identity is therefore treated as a free-form display string (typically the representative's email or full
-  name as exposed by the help desk platform), not a foreign key. The `X-Helpdesk-Actor` header is only accepted from
-  callers holding `ROLE_HELPDESK_INTEGRATION` (regular API users cannot set it).
-
-#### Decision 7: Actor Identity for Resource State Transitions Triggered via the Help Desk
-
-**Decision:** When the middleware triggers a resource state transition on behalf of a representative, it passes the
-representative's identity as an `X-Helpdesk-Actor` request header. Negotiator stores this value in a new nullable
-`helpdesk_actor VARCHAR` column on `NegotiationResourceLifecycleRecord` and uses it as the display name in the
-negotiation timeline when present, falling back to `createdBy.getName()` for transitions triggered by interactive users.
-
-**Justification:**
-
-- Resource state transitions are recorded in `NegotiationResourceLifecycleRecord`, which extends `AuditEntity`. The
-  `createdBy` field is populated automatically by Spring JPA Auditing (`@CreatedBy`) from the currently authenticated
-  subject (the per-organization middleware account). Without this mechanism, all help-desk-triggered transitions would
-  appear in the timeline as performed by the org account, not the actual representative.
-- The same reasoning as Decision 6 applies: requiring representatives to hold Negotiator accounts is not acceptable, and
-  the help desk is the correct authorization boundary.
-- Because `NegotiationResourceLifecycleRecord` is created inside the state machine persistence listener (
-  `ResourcePersistStateChangeListener`), the actor value must be threaded through the state machine message.
-
-#### Decision 8: Implementation Language — Python vs. Java and Spring Boot
+#### Decision 6: Implementation Language — Python vs. Java and Spring Boot
 
 **Decision:** The middleware will be implemented in Java using the Spring Boot framework.
 
@@ -418,9 +375,7 @@ if it is permitted for **all** resources.
 Note: the endpoint `POST /v3/negotiations/{negotiationId}/resources/{resourceId}/lifecycle/{event}` expects as a
 resourceId a sourceId of the resource which can be obtained from ticket_mapping table as resource_source_id.
 
-The middleware includes the representative's identity from the help desk as the `X-Helpdesk-Actor` request header on all
-Negotiator calls, so transitions are recorded in the negotiation timeline under the representative's name rather than
-the middleware service account (see Decision 7).
+The middleware calls Negotiator using the per-organization service account. Transitions are recorded in the negotiation timeline under that account's name. Actor identity propagation to Negotiator is out of scope — see Section 8.1.
 
 #### 3.4.1 Deduplication of Resource State Update Webhooks for PER_NEGOTIATION Tickets
 
@@ -470,8 +425,8 @@ posts (IN_PROGRESS, PAUSED, CONCLUDED). If the negotiation state does not permit
 forward the message and instead adds a system comment to the ticket explaining the reason.
 
 If the state permits posting, the middleware calls `POST /v3/negotiations/{negotiationId}/posts` on Negotiator with
-visibility type `PRIVATE`. The representative's identity from the help desk is passed as the `X-Helpdesk-Actor` request
-header so the post is attributed to the representative rather than the middleware service account (see Decision 6).
+visibility type `PRIVATE`. The post text is prefixed with the sender's identity (`From: <name> <email>`) extracted from
+the help desk article's `created_by` field. Actor identity propagation as a dedicated Negotiator field is out of scope — see Section 8.1.
 
 **OPEN QUESTION:** Does we want to allow post messages also for CONCLUDED negotiation state? Currently negotiator
 disable posts when state changed IN_PROGRESS → ABANDONED, however not for PAUSED → ABANDONED which is probably the
@@ -723,16 +678,10 @@ opts into the help desk integration is provisioned with its own dedicated OAuth2
 in the OIDC provider. The middleware holds one set of credentials per organization in the YAML configuration and
 maintains a separate token cache per organization. All tokens are refreshed automatically before expiration.
 
-Each org's client requests the `negotiator_helpdesk` scope. Within Negotiator, `CustomJWTAuthConverter` maps this scope
-to the Spring Security authority `ROLE_HELPDESK_INTEGRATION`. In addition, `parseJWTAsMachineToken()` is extended to
-check `person.getResources()` and add `ROLE_REPRESENTATIVE` when the `Person` record for the client has representative
-links — mirroring the existing check in `parseJWTAsUserToken()`.
-
 Authorization for all representative actions (reading negotiations, posting messages, triggering state transitions) is
 enforced through the standard `resource_representative_link` relationship. A Negotiator admin must assign each org's
 middleware `Person` account as representative of all of that organization's resources before the integration can
-function. The `ROLE_HELPDESK_INTEGRATION` authority is not used for authorization of representative actions — its sole
-purpose is to gate the population of the `helpdeskActor` field on posts and lifecycle records.
+function. 
 
 The `clientId`, `clientSecret`, and `NEGOTIATOR_WEBHOOK_SECRET` are injected exclusively via environment variables —
 never hardcoded in configuration files.
@@ -751,10 +700,6 @@ the negotiation via `negotiationService.isAuthorizedForNegotiation()` →
 `personService.isRepresentativeOfAnyResourceOfNegotiation()`. Because the org's middleware `Person` account is linked
 to that org's resources, this check passes without any change.
 
-No additional authorization branch is needed. The `ROLE_HELPDESK_INTEGRATION` authority is only used in
-`PostServiceImpl.setUpPostEntity()` to gate whether the `helpdeskActor` field supplied in the request body is accepted
-or silently discarded.
-
 ##### Resource Lifecycle Transitions
 
 Authorization for resource state transitions flows through two layers, both of which pass without any Negotiator
@@ -771,10 +716,6 @@ authorization code change:
 The `isHelpdeskIntegration` state machine guard branch and the corresponding `ResourceStateMachineConfig` changes from
 the original plan are **not needed**.
 
-`ROLE_HELPDESK_INTEGRATION` is only used in `NegotiationController.sendEventForNegotiationResource()` and
-`NegotiationController.updateResources()` to gate whether the `X-Helpdesk-Actor` request header is accepted and
-threaded through to the lifecycle record.
-
 ##### Reading Posts (`GET /v3/posts/{postId}`)
 
 The middleware needs to fetch the full text of a post when a `negotiation.post.added` webhook arrives. The per-org
@@ -785,7 +726,7 @@ the middleware account is linked to that org's resources, it naturally sees exac
 from that org would see.
 
 The `findById()` stub must be implemented (see Change 4 in Milestone 1). The implementation applies the same
-visibility rules as `findByNegotiationId()` — no special bypass for `ROLE_HELPDESK_INTEGRATION` is needed.
+visibility rules as `findByNegotiationId()`.
 
 ##### Principle of Least Privilege
 
@@ -797,7 +738,6 @@ The per-org model provides stronger isolation than a global service account. Eac
 | Read posts visible to the org | `resource_representative_link` → org membership (existing check) |
 | Post PRIVATE messages to negotiations | `resource_representative_link` (existing check) |
 | Trigger resource lifecycle transitions for the org's resources | `resource_representative_link` (existing check) |
-| Populate `helpdeskActor` on posts and lifecycle records | `ROLE_HELPDESK_INTEGRATION` scope (narrow gate) |
 
 ### 5.2 Security Between the Middleware and Help Desks
 
@@ -1153,7 +1093,12 @@ record HelpdeskCallbackEvent(
         String resourceState,
         String resourceTransitionEvent,    // null if type = POST_MESSAGE
         String postText,                   // null if type = RESOURCE_TRANSITION
-        String helpdeskActor               // representative's identity from the help desk (name or email)
+        Sender sender                      // sender parsed from the help desk article (null if type = RESOURCE_TRANSITION)
+)
+
+record Sender(
+        String name,   // full name of the sender as provided by the help desk platform
+        String email   // email of the sender as provided by the help desk platform
 )
 
 enum HelpdeskCallbackType {
@@ -1223,76 +1168,9 @@ can manage the full resource lifecycle and communicate with researchers entirely
 
 ---
 
-#### Required Negotiator Changes
+#### Required Negotiator Change
 
-**Change 1: Add `negotiator_helpdesk` scope mapped to `ROLE_HELPDESK_INTEGRATION`
-
-Two targeted changes to `CustomJWTAuthConverter` are required:
-
-- `getAuthoritiesFromScope()` — add a mapping for the `negotiator_helpdesk` scope to the Spring Security authority
-  `ROLE_HELPDESK_INTEGRATION`. This is the only authority granted by this scope; it is used exclusively to gate
-  `helpdeskActor` field population, not for general authorization.
-
-No changes to `NegotiationAccessManagerImpl`, `PostServiceImpl.checkAuthorization()`,
-`NegotiationController.sendEventForNegotiationResource()`, `ResourceLifecycleServiceImpl.isSecurityRuleMet()`, or
-`ResourceStateMachineConfig` are required. The per-org representative account passes all existing authorization checks
-via the `resource_representative_link` relationship without any bypass logic.
-
-No changes to `NegotiationAccessManagerImpl`, `PostServiceImpl.checkAuthorization()`,
-`NegotiationController.sendEventForNegotiationResource()`, `ResourceLifecycleServiceImpl.isSecurityRuleMet()`, or
-`ResourceStateMachineConfig` are required. The per-org representative account passes all existing authorization checks
-via the `resource_representative_link` relationship without any bypass logic.
-
-Note: `GET /v3/negotiations/{negotiationId}/resources/{resourceId}/lifecycle` (used by
-`HelpdeskResourceTransitionHandler` to validate a requested transition before applying it) is already accessible to
-any representative of the negotiation's resources — `ResourceLifecycleServiceImpl.getPossibleEvents()` routes through
-`isSecurityRuleMet()` which checks `isRepresentative` via `personService.isRepresentativeOfAnyResource()`.
-
-**Change 2: Populate `helpdeskActor` on posts created via the help desk**
-
-When the middleware posts a message on behalf of a representative, the post must be attributed to that representative in
-the Negotiator UI and API rather than to the middleware's org account. Six targeted changes are required:
-
-- `V36.0__add_helpdesk_actor.sql` (new Flyway migration) —
-  `ALTER TABLE post ADD COLUMN helpdesk_actor VARCHAR(255) NULL`
-- `Post.java` — add `@Column(name = "helpdesk_actor") private String helpdeskActor`
-- `PostCreateDTO.java` — add `private String helpdeskActor` so the middleware can pass the value in the request body
-- `PostDTO.java` — add `private String helpdeskActor` so the field is returned in API responses
-- `PostServiceImpl.setUpPostEntity()` — when the caller holds `ROLE_HELPDESK_INTEGRATION` and
-  `postRequest.getHelpdeskActor()` is non-null, copy the value onto the entity:
-  `postEntity.setHelpdeskActor(postRequest.getHelpdeskActor())`; if the caller does not hold `ROLE_HELPDESK_INTEGRATION`,
-  the field is silently ignored even if supplied, preventing regular representatives from spoofing actor identity
-- `TimelineItem.vue` — update `getAuthorName()` to prefer `helpdeskActor` over `createdBy.name` when present:
-  `return item.helpdeskActor || item.createdBy?.name || 'Unknown'`
-
-**Change 3: Populate `helpdeskActor` on resource state transitions triggered via the help desk**
-
-When the middleware triggers a resource state transition on behalf of a representative, the transition must appear in
-the negotiation timeline under that representative's name rather than the middleware service account. Six targeted
-changes are required:
-
-- `V36.0__add_helpdesk_actor.sql` (same migration as Change 2) —
-  `ALTER TABLE negotiation_resource_lifecycle_record ADD COLUMN helpdesk_actor VARCHAR(255) NULL`
-- `NegotiationResourceLifecycleRecord.java` — add `@Column(name = "helpdesk_actor") private String helpdeskActor`;
-  update `getTriggeredBy()` to return `helpdeskActor != null ? helpdeskActor : getCreatedBy().getName()`
-- `NegotiationController.sendEventForNegotiationResource()` — accept an optional
-  `@RequestHeader(value = "X-Helpdesk-Actor", required = false) String helpdeskActor` parameter and pass it down to the
-  service layer
-- `ResourceLifecycleService` / `ResourceLifecycleServiceImpl` — add `helpdeskActor` parameter to the send-event method
-  and place it into the state machine message headers: `message.getHeaders().put("helpdeskActor", helpdeskActor)`
-- `ResourcePersistStateChangeListener.onPersist()` — read the header value:
-  `String helpdeskActor = (String) message.getMessageHeaders().get("helpdeskActor")` and pass it to
-  `negotiation.setStateForResource()`
-- `Negotiation.buildResourceStateChangeRecord()` — accept the nullable `helpdeskActor` string and set it on the
-  `NegotiationResourceLifecycleRecord` before it is added to the cascade
-
-The changes above cover the single-resource path (`PUT …/lifecycle/{event}`). The bulk path (`PATCH /v3/negotiations/{id}/resources`) also needs to carry actor identity. Three additional targeted changes are required:
-
-- `UpdateResourcesDTO.java` — add `private String helpdeskActor`; the field is populated by the middleware in the request body and is silently stripped unless the caller holds `ROLE_HELPDESK_INTEGRATION`, preventing regular callers from spoofing actor identity
-- `NegotiationController.updateResources()` — strip `helpdeskActor` from the DTO unless the caller holds `ROLE_HELPDESK_INTEGRATION` before delegating to the service; no new authorization branch is needed since the per-org middleware account is already a representative of the org's resources and the endpoint's existing `.authenticated()` rule is sufficient
-- `ResourceService` / `ResourceServiceImpl.updateResourcesInANegotiation()` — thread the nullable `helpdeskActor` through `setStatusForUpdatedResources` → `updateResourceStatus` → `negotiation.setStateForResource(resourceId, state, helpdeskActor)`
-
-**Change 4: Implement `GET /v3/posts/{postId}` for middleware post text retrieval**
+Implement `GET /v3/posts/{postId}` for middleware post text retrieval**
 
 The middleware needs to fetch the full text of a post when a `negotiation.post.added` webhook arrives — the webhook
 payload carries only a `postId`, not the post body. This endpoint currently cannot be used by anyone: the path falls
@@ -1306,40 +1184,7 @@ unimplemented stub returning `null`. Two targeted changes are required:
   readable only if the caller's `Person` account is linked via `resource_representative_link` to a resource whose
   organization matches the post's organization (i.e. `user.getResources().stream().map(Resource::getOrganization)`
   contains the post's organization). Because the per-org middleware account is linked to that org's resources, it
-  naturally sees exactly the private posts a human representative from that org would see. No `ROLE_HELPDESK_INTEGRATION`
-  bypass is needed.
-
-**Change 5: Add `involvedOrganizationExternalIds` to the `negotiation.state.updated` webhook payload**
-
-The middleware uses the `negotiation.state.updated` event (with `event: APPROVE`) as the trigger for ticket creation.
-After receiving this event the middleware must fetch the full negotiation details from Negotiator — including all
-resources and their associated `organizationExternalId` — to determine which organizations need a help desk ticket
-and to build the ticket content. To make these secondary REST calls the middleware authenticates as the per-organization
-middleware account using the `OrganizationConfig` registered in `negotiator-link` for that organization. Without an
-`OrganizationConfig` to resolve, the middleware has no credentials to call Negotiator at all and cannot read the
-negotiation data or its resources.
-
-In the current payload the middleware can only obtain the `negotiationId`, which is not sufficient to identify which
-`OrganizationConfig` entries are relevant. Including the list of involved organization external IDs directly in the
-webhook payload allows the middleware to immediately identify which of its configured organizations are part of the
-negotiation and resolve the corresponding `OrganizationConfig`. If none of the listed IDs appear in its YAML config,
-the event can be silently discarded without any secondary Negotiator API call.
-
-Four targeted changes are required:
-
-- `NegotiationStateChangeEvent.java` — add `Set<String> involvedOrganizationExternalIds` field and update the
-  constructor to accept it.
-- `PersistStateChangeListener.java` — in `publishChangeEvent()`, collect distinct org external IDs from the already-loaded
-  `Negotiation` entity: `negotiation.getResources().stream().map(r -> r.getOrganization().getExternalId()).collect(Collectors.toSet())`;
-  pass the result into the `NegotiationStateChangeEvent` constructor. Guard against `negotiation` being `null` by using
-  an empty set as fallback. The `Negotiation` is already fetched inside `onPersist()` within the `@Transactional` boundary,
-  so the lazy `resourcesLink` collection can be traversed safely. If `Resource.organization` turns out to be lazily loaded,
-  a join fetch must be added to the `findDetailedById` repository method.
-- `NegotiationStateUpdatedWebhookEvent.java` — add `Set<String> involvedOrganizationExternalIds` as a new record component
-  with a `@Schema` annotation.
-- `NegotiationStateChangeWebhookMappingStrategy.java` — pass `event.getInvolvedOrganizationExternalIds()` when
-  constructing `NegotiationStateUpdatedWebhookEvent`. The `NegotiationAddedWebhookEvent` (DRAFT → SUBMITTED special
-  case) is a separate type and is not affected.
+  naturally sees exactly the private posts a human representative from that org would see.
 
 ---
 
@@ -1443,13 +1288,8 @@ Four targeted changes are required:
   Negotiator.
 - A PUBLIC post created in Negotiator appears as a comment in all distinct Zammad tickets for that negotiation. A
   PRIVATE post appears only in tickets belonging to the addressed organization.
-- A message sent from a Zammad ticket appears as a PRIVATE post in the Negotiator negotiation. The post's `helpdeskActor`
-  field contains the representative's identity from the help desk and is displayed in the Negotiator timeline instead of
-  the middleware account's name. The message does not appear as a duplicate comment in the originating ticket.
-- A resource state transition triggered from a Zammad ticket is recorded in the Negotiator timeline under the
-  representative's identity from the help desk (`helpdeskActor`), not under the middleware account's name.
-- A regular representative (non-`ROLE_HELPDESK_INTEGRATION` caller) cannot set `helpdeskActor` via the API — the field
-  is silently ignored even if supplied in the request body.
+- A message sent from a Zammad ticket appears as a PRIVATE post in the Negotiator negotiation. The post text is prefixed with the sender's identity (`From: <name> <email>`) extracted from the help desk article's `created_by` field. The message does not appear as a duplicate comment in the originating ticket.
+- A resource state transition triggered from a Zammad ticket is recorded in the Negotiator timeline under the middleware account's name (actor identity propagation to Negotiator is out of scope — see Section 8).
 - Webhook deliveries from Negotiator with an invalid HMAC signature are rejected with HTTP 401 and not processed.
 - Webhook deliveries from Negotiator with a timestamp outside the ±5-minute window are rejected with HTTP 401 and not
   processed.
@@ -1619,7 +1459,21 @@ expectations.
 
 ## 8. Out of Scope
 
-### 8.1 Information Requirements and Submissions
+### 8.1 Actor Identity Propagation to Negotiator
+
+When the middleware posts a message or triggers a resource state transition on behalf of a representative, the action is
+attributed in Negotiator to the per-organization middleware service account, not to the actual representative. The
+representative's identity (name and email) is extracted from the help desk webhook payload and used only to sign the
+post text (`From: <name> <email>\n\n<text>`) before forwarding it to Negotiator. No changes to the Negotiator schema or
+API are required.
+
+Propagating the actor identity natively — so that posts and lifecycle records in Negotiator display the representative's
+name rather than the middleware account — was originally planned via a dedicated `helpdesk_actor` column on `Post` and
+`NegotiationResourceLifecycleRecord`, gated by a `ROLE_HELPDESK_INTEGRATION` scope and an `X-Helpdesk-Actor` request
+header. This approach is deferred. The post-text prefix is a simpler interim solution that communicates sender identity
+without requiring Negotiator schema or API changes.
+
+### 8.2 Information Requirements and Submissions
 
 Negotiator supports a feature called **Information Requirements**: a Negotiator administrator can configure that a
 representative must fill out an additional access form before a specific resource state transition is permitted. This is
