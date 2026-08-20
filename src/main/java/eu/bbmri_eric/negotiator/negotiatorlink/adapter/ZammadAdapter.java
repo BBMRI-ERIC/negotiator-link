@@ -173,6 +173,12 @@ public class ZammadAdapter implements HelpDeskAdapter {
       return Optional.empty();
     }
 
+    HelpdeskCallbackType callbackType = resolveType(transitionEvent != null, hasArticle);
+    if (callbackType.equals(HelpdeskCallbackType.POST_MESSAGE) && parsed.article().internal()) {
+      log.warn("Zammad callback for ticket '{}' is an internal comment — discarding", ticketId);
+      return Optional.empty();
+    }
+
     String postText = hasArticle ? parsed.article().body() : null;
     Sender sender = hasArticle ? parseSender(parsed.article().createdBy()) : null;
 
@@ -298,7 +304,8 @@ public class ZammadAdapter implements HelpDeskAdapter {
         @JsonProperty(FIELD_TRANSITION_EVENT) String transitionEvent) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record Article(String body, String from, @JsonProperty("created_by") ArticleUser createdBy) {}
+    record Article(
+        String body, boolean internal, @JsonProperty("created_by") ArticleUser createdBy) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record ArticleUser(String firstname, String lastname, String email) {}
