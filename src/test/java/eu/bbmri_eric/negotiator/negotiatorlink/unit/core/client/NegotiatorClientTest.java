@@ -136,15 +136,14 @@ class NegotiatorClientTest {
   }
 
   @Test
-  void sendResourceEvent_sendsCorrectRequestWithHelpdeskActorHeader() {
+  void sendResourceEvent_sendsCorrectRequest() {
     server
         .expect(requestTo(BASE_URL + "/v3/negotiations/neg-1/resources/res-1/lifecycle/APPROVE"))
         .andExpect(method(HttpMethod.PUT))
         .andExpect(header("Authorization", "Bearer " + BEARER_TOKEN))
-        .andExpect(header("X-Helpdesk-Actor", "john.doe@example.com"))
         .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
 
-    client.sendResourceEvent("neg-1", "res-1", "APPROVE", "john.doe@example.com", config);
+    client.sendResourceEvent("neg-1", "res-1", "APPROVE", config);
 
     server.verify();
   }
@@ -157,8 +156,7 @@ class NegotiatorClientTest {
         .andExpect(header("Authorization", "Bearer " + BEARER_TOKEN))
         .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
 
-    client.sendBulkResourceEvent(
-        "neg-1", List.of(10L, 11L), "CHECKING_AVAILABILITY", "jane@example.com", config);
+    client.sendBulkResourceEvent("neg-1", List.of(10L, 11L), "CHECKING_AVAILABILITY", config);
 
     server.verify();
   }
@@ -172,19 +170,17 @@ class NegotiatorClientTest {
         .andRespond(
             withSuccess(
                 """
-                {"id":"post-1","text":"hello","type":"PRIVATE","helpdeskActor":"jane@example.com"}
+                {"id":"post-1","text":"hello","type":"PRIVATE"}
                 """,
                 MediaType.APPLICATION_JSON));
 
     var dto = new PostCreateDTO();
     dto.setText("hello");
     dto.setType(PostCreateDTO.TypeEnum.PRIVATE);
-    dto.setHelpdeskActor("jane@example.com");
 
     EntityModelPostDTO result = client.createPost("neg-1", dto, config);
 
     assertThat(result.getId()).isEqualTo("post-1");
-    assertThat(result.getHelpdeskActor()).isEqualTo("jane@example.com");
   }
 
   @Test

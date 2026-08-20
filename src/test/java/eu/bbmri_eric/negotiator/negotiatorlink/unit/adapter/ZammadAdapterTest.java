@@ -22,6 +22,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreatedTicket;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -346,8 +347,7 @@ class ZammadAdapterTest {
 
   @Test
   void parseCallback_resourceTransitionOnly_returnsResourceTransitionEvent() {
-    var payload =
-        zammadCallbackPayload("1", "MARK_AS_CHECKING_AVAILABILITY", "IN_PROGRESS", null, null);
+    var payload = zammadCallbackPayload("1", "MARK_AS_CHECKING_AVAILABILITY", "IN_PROGRESS");
 
     var expected =
         new HelpdeskCallbackEvent(
@@ -362,7 +362,9 @@ class ZammadAdapterTest {
 
   @Test
   void parseCallback_publicArticleOnly_returnsPostMessage() {
-    var payload = zammadCallbackPayload("2", "", "IN_PROGRESS", "Hello from help desk", "John Rep");
+    var payload =
+        zammadCallbackPayload(
+            "2", "", "IN_PROGRESS", "Hello from help desk", "John", "Rep", "john.rep@example.com");
 
     var expected =
         new HelpdeskCallbackEvent(
@@ -371,7 +373,7 @@ class ZammadAdapterTest {
             "IN_PROGRESS",
             null,
             "Hello from help desk",
-            "John Rep");
+            new Sender("John Rep", "john.rep@example.com"));
     assertThat(adapter.parseCallback(payload)).contains(expected);
   }
 
@@ -379,7 +381,13 @@ class ZammadAdapterTest {
   void parseCallback_bothArticleAndTransition_returnsCombinedType() {
     var payload =
         zammadCallbackPayload(
-            "3", "MARK_AS_AVAILABLE", "IN_PROGRESS", "Granting access", "Jane Rep");
+            "3",
+            "MARK_AS_AVAILABLE",
+            "IN_PROGRESS",
+            "Granting access",
+            "Jane",
+            "Rep",
+            "jane.rep@example.com");
 
     var expected =
         new HelpdeskCallbackEvent(
@@ -388,7 +396,7 @@ class ZammadAdapterTest {
             "IN_PROGRESS",
             "MARK_AS_AVAILABLE",
             "Granting access",
-            "Jane Rep");
+            new Sender("Jane Rep", "jane.rep@example.com"));
     assertThat(adapter.parseCallback(payload)).contains(expected);
   }
 
@@ -399,7 +407,7 @@ class ZammadAdapterTest {
 
   @Test
   void parseCallback_bothEmptyArticleAndNoTransitionEvent_returnsEmpty() {
-    var payload = zammadCallbackPayload("4", "", null, null, null);
+    var payload = zammadCallbackPayload("4", "", null);
 
     assertThat(adapter.parseCallback(payload)).isEmpty();
   }
@@ -409,7 +417,9 @@ class ZammadAdapterTest {
       String transitionEvent,
       String resourceState,
       String articleBody,
-      String articleFrom) {
+      String firstName,
+      String lastName,
+      String email) {
     Map<String, Object> ticket = new java.util.HashMap<>();
     ticket.put("id", ticketId);
     ticket.put("negotiator_resource_transition_event", transitionEvent);
@@ -417,11 +427,18 @@ class ZammadAdapterTest {
     Map<String, Object> article = new java.util.HashMap<>();
     if (articleBody != null) {
       article.put("body", articleBody);
-    }
-    if (articleFrom != null) {
-      article.put("from", articleFrom);
+      Map<String, Object> createdBy = new java.util.HashMap<>();
+      createdBy.put("firstname", firstName);
+      createdBy.put("lastname", lastName);
+      createdBy.put("email", email);
+      article.put("created_by", createdBy);
     }
     return Map.of("ticket", ticket, "article", article);
+  }
+
+  private static Map<String, Object> zammadCallbackPayload(
+      String ticketId, String transitionEvent, String resourceState) {
+    return zammadCallbackPayload(ticketId, transitionEvent, resourceState, null, null, null, null);
   }
 
   @Test
