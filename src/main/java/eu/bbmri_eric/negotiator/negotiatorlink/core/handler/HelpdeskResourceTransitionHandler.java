@@ -49,7 +49,6 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
   public void handle(HelpdeskCallbackEvent event, OrganizationConfig config) {
     String ticketId = event.ticketId();
     String requestedEvent = event.resourceTransitionEvent();
-    String helpdeskActor = event.helpdeskActor();
 
     List<TicketMapping> mappings =
         ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
@@ -67,22 +66,15 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
 
     if (mappings.size() == 1) {
       handlePerResource(
-          mappings.getFirst(),
-          requestedEvent,
-          helpdeskActor,
-          event.resourceState(),
-          adapter,
-          config);
+          mappings.getFirst(), requestedEvent, event.resourceState(), adapter, config);
     } else {
-      handlePerNegotiation(
-          mappings, requestedEvent, helpdeskActor, event.resourceState(), adapter, config);
+      handlePerNegotiation(mappings, requestedEvent, event.resourceState(), adapter, config);
     }
   }
 
   private void handlePerResource(
       TicketMapping mapping,
       String requestedEvent,
-      String helpdeskActor,
       String resourceState,
       HelpDeskAdapter adapter,
       OrganizationConfig config) {
@@ -100,8 +92,7 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
           requestedEvent,
           resourceSourceId,
           negotiationId);
-      negotiatorClient.sendResourceEvent(
-          negotiationId, resourceSourceId, requestedEvent, helpdeskActor, config);
+      negotiatorClient.sendResourceEvent(negotiationId, resourceSourceId, requestedEvent, config);
     } else {
       log.info(
           "Transition '{}' rejected for resource '{}' in negotiation '{}' — allowed: {}",
@@ -118,7 +109,6 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
   private void handlePerNegotiation(
       List<TicketMapping> mappings,
       String requestedEvent,
-      String helpdeskActor,
       String resourceState,
       HelpDeskAdapter adapter,
       OrganizationConfig config) {
@@ -166,8 +156,7 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
         requestedEvent,
         resourceIds.size(),
         negotiationId);
-    negotiatorClient.sendBulkResourceEvent(
-        negotiationId, resourceIds, targetState, helpdeskActor, config);
+    negotiatorClient.sendBulkResourceEvent(negotiationId, resourceIds, targetState, config);
   }
 
   private static String buildRejectionMessage(String requested, Set<String> allowed) {

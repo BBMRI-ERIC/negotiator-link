@@ -1,6 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
 import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.HashUtil.sha256Hex;
+import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil.signPost;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
@@ -58,15 +59,15 @@ public class HelpdeskPostHandler implements HelpdeskCallbackHandler {
 
     String postText = event.postText();
     String textHash = sha256Hex(postText);
+    String signedText = signPost(postText, event.sender());
 
     originatedPostRepository.save(new OriginatedPost(textHash, organizationId, ticketId));
 
     var post =
         new PostCreateDTO()
-            .text(postText)
+            .text(signedText)
             .organizationId(anyMapping.getOrganizationExtId())
-            .type(PostCreateDTO.TypeEnum.PRIVATE)
-            .helpdeskActor(event.helpdeskActor());
+            .type(PostCreateDTO.TypeEnum.PRIVATE);
 
     negotiatorClient.createPost(negotiationId, post, config);
     log.info(
