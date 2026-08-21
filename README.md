@@ -189,7 +189,7 @@ In Zammad: **Admin → System → Objects → Ticket → New Attribute**
   `MARK_AS_CHECKING_AVAILABILITY`,
   `MARK_AS_AVAILABLE`, `MARK_AS_UNAVAILABLE`, `MARK_AS_CURRENTLY_UNAVAILABLE_BUT_WILLING_TO_COLLECT`,
   `STEP_AWAY`, `INDICATE_ACCESS_CONDITIONS`,
-  `GRANT_ACCESS_TO_RESOURCE`
+  `GRANT_ACCESS_TO_RESOURCE`, `RESOURCE_MADE_AVAILABLE`
 - **Permissions → ticket.agent → edit**: Shown ✓, Required ✗
 - All other permission rows: Shown ✗, Required ✗
 - **Position**: 1200

@@ -148,6 +148,7 @@ class ZammadAdapterTest {
                       "article": {
                         "subject": "[NEGO-1] Access Request — Dummy Collection",
                         "body": "Ticket body",
+                        "content_type" : "text/html",
                         "type": "note",
                         "internal": false
                       }
@@ -190,6 +191,7 @@ class ZammadAdapterTest {
                       "article": {
                         "subject": "[NEGO-2] Resources Access Request",
                         "body": "Body text",
+                        "content_type" : "text/html",
                         "type": "note",
                         "internal": false
                       }

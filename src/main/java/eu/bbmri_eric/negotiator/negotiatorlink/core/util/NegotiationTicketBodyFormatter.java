@@ -1,8 +1,26 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.util;
 
+import static j2html.TagCreator.br;
+import static j2html.TagCreator.div;
+import static j2html.TagCreator.each;
+import static j2html.TagCreator.h2;
+import static j2html.TagCreator.h3;
+import static j2html.TagCreator.li;
+import static j2html.TagCreator.p;
+import static j2html.TagCreator.span;
+import static j2html.TagCreator.strong;
+import static j2html.TagCreator.table;
+import static j2html.TagCreator.tbody;
+import static j2html.TagCreator.td;
+import static j2html.TagCreator.text;
+import static j2html.TagCreator.tr;
+import static j2html.TagCreator.ul;
+
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.UserResponseModel;
+import j2html.tags.DomContent;
+import j2html.tags.specialized.TableTag;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -10,49 +28,54 @@ import java.util.Objects;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * Renders a negotiation into a plain-text help desk ticket body.
- *
- * <p>The output is intended to be displayed in a monospace / preformatted view, so column alignment
- * and box-drawing dividers are used to create a readable hierarchy without relying on rich text.
- */
 @Slf4j
 public final class NegotiationTicketBodyFormatter {
 
-  private static final String EMPTY_VALUE = "—";
-  private static final int WRAP_WIDTH = 55;
-  private static final String DOUBLE_RULE =
-      "═══════════════════════════════════════════════════════";
-  private static final String SECTION_RULE =
-      "───────────────────────────────────────────────────────";
-  private static final String RESOURCE_RULE = "──────────────────────────────";
+  private static final String EMPTY_VALUE = "\u2014";
+
+  private static final String WRAPPER_STYLE =
+      "font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;"
+          + "color:#1f2933;line-height:1.5;";
+  private static final String TITLE_STYLE =
+      "margin:0 0 16px;padding:12px 16px;background:#0b5394;color:#ffffff;"
+          + "border-radius:6px;font-size:18px;";
+  private static final String SECTION_HEADER_STYLE =
+      "margin:24px 0 8px;padding-bottom:4px;border-bottom:2px solid #c9d2dc;"
+          + "font-size:14px;text-transform:uppercase;letter-spacing:.5px;color:#334e68;";
+  private static final String TABLE_STYLE = "border-collapse:collapse;width:100%;";
+  private static final String LABEL_CELL_STYLE =
+      "padding:4px 12px 4px 0;vertical-align:top;font-weight:600;color:#486581;"
+          + "white-space:nowrap;width:1%;";
+  private static final String VALUE_CELL_STYLE = "padding:4px 0;vertical-align:top;";
+  private static final String MUTED_STYLE = "color:#9aa5b1;";
 
   private NegotiationTicketBodyFormatter() {}
 
-  /** Builds the ticket body for a single-resource (PER_RESOURCE) ticket. */
+  // ------------
+  // Public API
+  // ------------
+
   public static String getTicketBodyWithSingleResource(
       EntityModelNegotiationDTO negotiation, EntityModelResourceWithStatusDTO resource) {
-    var body = new BodyBuilder();
-    appendCommonSections(body, negotiation);
-    appendSingleResourceSection(body, resource);
-    return body.build();
+    return wrapper(
+            commonSections(negotiation), sectionHeader("RESOURCE"), singleResourceTable(resource))
+        .render();
   }
 
-  /** Builds the ticket body for a multi-resource (PER_NEGOTIATION) ticket. */
   public static String getTicketBodyWithMultipleResources(
       EntityModelNegotiationDTO negotiation, List<EntityModelResourceWithStatusDTO> resources) {
-    var body = new BodyBuilder();
-    appendCommonSections(body, negotiation);
-    appendMultipleResourcesSection(body, resources);
-    return body.build();
+    return wrapper(
+            commonSections(negotiation),
+            sectionHeader("RESOURCES"),
+            resourcesList(resources),
+            fieldsTable(List.of(Field.scalar("State (all resources)", sharedState(resources)))))
+        .render();
   }
 
-  /** Builds the ticket title. */
   public static String buildTitle(EntityModelNegotiationDTO negotiation, String resourceName) {
     String prefix = "[NEGO-" + negotiation.getDisplayId() + "] ";
-    Optional<String> title = getTitleIfPresentInPayload(negotiation, resourceName);
-    return title
-        .map(negTitle -> prefix + negTitle)
+    return getTitleIfPresentInPayload(negotiation, resourceName)
+        .map(t -> prefix + t)
         .orElseGet(
             () ->
                 resourceName != null
@@ -60,116 +83,112 @@ public final class NegotiationTicketBodyFormatter {
                     : prefix + "Resources Access Request");
   }
 
-  @SuppressWarnings("unchecked")
-  private static Optional<String> getTitleIfPresentInPayload(
-      EntityModelNegotiationDTO negotiation, String resourceName) {
-    if (!(negotiation.getPayload() instanceof Map<?, ?> payload)) {
-      return Optional.empty();
-    }
-    Object project = ((Map<String, Object>) payload).get("project");
-    if (!(project instanceof Map<?, ?> projectMap)) {
-      return Optional.empty();
-    }
-    Object title = ((Map<String, Object>) projectMap).get("title");
-    if (title == null) {
-      return Optional.empty();
-    }
-    String titleStr = title.toString().trim();
-    if (!titleStr.isBlank() && resourceName != null) {
-      titleStr = titleStr + " — " + resourceName;
-    }
-    return titleStr.isEmpty() ? Optional.empty() : Optional.of(titleStr);
+  // -----------------
+  // Section builders
+  // -----------------
+
+  private static DomContent wrapper(DomContent... content) {
+    return div().withStyle(WRAPPER_STYLE).with(content);
   }
 
-  // ---------------------------------------------------------------------------
-  // Section assembly
-  // ---------------------------------------------------------------------------
-
-  private static void appendCommonSections(
-      BodyBuilder body, EntityModelNegotiationDTO negotiation) {
-    appendTitleBlock(body, negotiation);
-    appendPayloadSections(body, negotiation);
-    appendSearchParameters(body, negotiation);
+  private static DomContent commonSections(EntityModelNegotiationDTO negotiation) {
+    return each(
+        titleBlock(negotiation),
+        payloadSections(negotiation),
+        sectionHeader("SEARCH PARAMETERS"),
+        p(text(safe(negotiation.getHumanReadable()))).withStyle("margin:0;"));
   }
 
-  private static void appendTitleBlock(BodyBuilder body, EntityModelNegotiationDTO negotiation) {
-    body.line(DOUBLE_RULE);
-    body.line("  Negotiator Access Request");
-    body.line(DOUBLE_RULE);
-    body.blank();
-
-    var fields = new Fields();
+  private static DomContent titleBlock(EntityModelNegotiationDTO negotiation) {
+    var fields = new ArrayList<Field>();
     UserResponseModel author = negotiation.getAuthor();
     if (author != null) {
-      fields.add("Requester", author.getName());
-      fields.add("Email", author.getEmail());
+      fields.add(Field.scalar("Requester", author.getName()));
+      fields.add(Field.scalar("Email", author.getEmail()));
     }
-    fields.add("State", negotiation.getStatus());
-    fields.add("Negotiation ID", negotiation.getDisplayId());
-    body.append(fields.render());
+    fields.add(Field.scalar("State", negotiation.getStatus()));
+    fields.add(Field.scalar("Negotiation ID", negotiation.getDisplayId()));
+
+    return each(h2("Negotiator Access Request").withStyle(TITLE_STYLE), fieldsTable(fields));
   }
 
   @SuppressWarnings("unchecked")
-  private static void appendPayloadSections(
-      BodyBuilder body, EntityModelNegotiationDTO negotiation) {
+  private static DomContent payloadSections(EntityModelNegotiationDTO negotiation) {
     if (!(negotiation.getPayload() instanceof Map<?, ?> payload)) {
-      return;
+      return each();
     }
+    var sections = new ArrayList<DomContent>();
     for (Map.Entry<String, Object> section : ((Map<String, Object>) payload).entrySet()) {
       if (section.getValue() instanceof Map<?, ?> sectionFields) {
-        appendPayloadSection(body, section.getKey(), (Map<String, Object>) sectionFields);
+        sections.add(sectionHeader(toTitle(section.getKey()).toUpperCase()));
+        sections.add(payloadSection((Map<String, Object>) sectionFields));
       }
     }
+    return each(sections.toArray(new DomContent[0]));
   }
 
-  private static void appendPayloadSection(
-      BodyBuilder body, String sectionKey, Map<String, Object> sectionFields) {
-    body.sectionHeader(toTitle(sectionKey).toUpperCase());
-
-    var fields = new Fields();
-    for (Map.Entry<String, Object> field : sectionFields.entrySet()) {
-      fields.add(toTitle(field.getKey()), field.getValue());
+  private static DomContent payloadSection(Map<String, Object> sectionFields) {
+    var fields = new ArrayList<Field>();
+    for (Map.Entry<String, Object> f : sectionFields.entrySet()) {
+      fields.add(Field.of(toTitle(f.getKey()), f.getValue()));
     }
-    body.append(fields.render());
+    return fieldsTable(fields);
   }
 
-  private static void appendSearchParameters(
-      BodyBuilder body, EntityModelNegotiationDTO negotiation) {
-    body.sectionHeader("SEARCH PARAMETERS");
-    body.line("  " + negotiation.getHumanReadable());
+  private static DomContent singleResourceTable(EntityModelResourceWithStatusDTO resource) {
+    return fieldsTable(
+        List.of(
+            Field.scalar("Name", resource.getName()),
+            Field.scalar("ID", resource.getSourceId()),
+            Field.scalar("State", stateOf(resource))));
   }
 
-  private static void appendSingleResourceSection(
-      BodyBuilder body, EntityModelResourceWithStatusDTO resource) {
-    body.sectionHeader("RESOURCE");
-
-    var fields = new Fields();
-    fields.add("Name", resource.getName());
-    fields.add("ID", resource.getSourceId());
-    fields.add("State", stateOf(resource));
-    body.append(fields.render());
+  private static DomContent resourcesList(List<EntityModelResourceWithStatusDTO> resources) {
+    return ul().withStyle("margin:0;padding-left:20px;")
+        .with(
+            resources.stream()
+                .map(
+                    r ->
+                        li(
+                                strong(text(safe(r.getName()))),
+                                br(),
+                                span("ID: " + safe(r.getSourceId())).withStyle(MUTED_STYLE))
+                            .withStyle("margin-bottom:8px;")));
   }
 
-  private static void appendMultipleResourcesSection(
-      BodyBuilder body, List<EntityModelResourceWithStatusDTO> resources) {
-    body.sectionHeader("RESOURCES");
+  private static TableTag fieldsTable(List<Field> fields) {
+    return table()
+        .withStyle(TABLE_STYLE)
+        .with(
+            tbody(
+                each(
+                    fields,
+                    field ->
+                        tr(
+                            td(field.label()).withStyle(LABEL_CELL_STYLE),
+                            td(renderValue(field)).withStyle(VALUE_CELL_STYLE)))));
+  }
 
-    for (EntityModelResourceWithStatusDTO resource : resources) {
-      body.line("  • " + resource.getName());
-      body.line("    ID: " + resource.getSourceId());
-      body.blank();
+  private static DomContent renderValue(Field field) {
+    if (field.isList()) {
+      if (field.bullets().isEmpty()) {
+        return span(EMPTY_VALUE).withStyle(MUTED_STYLE);
+      }
+      return ul().withStyle("margin:0;padding-left:18px;")
+          .with(field.bullets().stream().map(b -> li(text(b)))); // text() = escaped
     }
-
-    body.line("  " + RESOURCE_RULE);
-    body.line("  State (all resources):  " + sharedState(resources));
+    if (field.value() == null) {
+      return span(EMPTY_VALUE).withStyle(MUTED_STYLE);
+    }
+    return text(field.value()); // text() = escaped
   }
 
-  // ---------------------------------------------------------------------------
-  // Value helpers
-  // ---------------------------------------------------------------------------
+  private static DomContent sectionHeader(String title) {
+    return h3(title).withStyle(SECTION_HEADER_STYLE);
+  }
 
   private static String stateOf(EntityModelResourceWithStatusDTO resource) {
-    return resource.getCurrentState() != null ? resource.getCurrentState().getValue() : EMPTY_VALUE;
+    return resource.getCurrentState() != null ? resource.getCurrentState().getValue() : null;
   }
 
   private static String sharedState(List<EntityModelResourceWithStatusDTO> resources) {
@@ -178,177 +197,62 @@ public final class NegotiationTicketBodyFormatter {
         .filter(Objects::nonNull)
         .map(EntityModelResourceWithStatusDTO.CurrentStateEnum::getValue)
         .findFirst()
-        .orElse(EMPTY_VALUE);
+        .orElse(null);
   }
 
-  /**
-   * Converts a payload key such as {@code disease-code} into a display label {@code Disease Code}.
-   */
+  private static String safe(String s) {
+    return s == null ? "" : s;
+  }
+
   private static String toTitle(String key) {
     String[] words = key.replace("-", " ").split(" ");
     var sb = new StringBuilder();
     for (String word : words) {
-      if (word.isEmpty()) {
-        continue;
-      }
-      if (sb.length() > 0) {
-        sb.append(' ');
-      }
+      if (word.isEmpty()) continue;
+      if (sb.length() > 0) sb.append(' ');
       sb.append(Character.toUpperCase(word.charAt(0))).append(word.substring(1));
     }
     return sb.toString();
   }
 
-  // ---------------------------------------------------------------------------
-  // Field rendering (aligned columns + wrapping + bulleted lists)
-  // ---------------------------------------------------------------------------
+  @SuppressWarnings("unchecked")
+  private static Optional<String> getTitleIfPresentInPayload(
+      EntityModelNegotiationDTO negotiation, String resourceName) {
+    if (!(negotiation.getPayload() instanceof Map<?, ?> payload)) return Optional.empty();
+    Object project = ((Map<String, Object>) payload).get("project");
+    if (!(project instanceof Map<?, ?> projectMap)) return Optional.empty();
+    Object title = ((Map<String, Object>) projectMap).get("title");
+    if (title == null) return Optional.empty();
+    String titleStr = title.toString().trim();
+    if (!titleStr.isBlank() && resourceName != null) titleStr = titleStr + " — " + resourceName;
+    return titleStr.isEmpty() ? Optional.empty() : Optional.of(titleStr);
+  }
 
-  /** A field is either a scalar value (aligned in a column) or a bulleted list. */
+  // -----------
+  // Field model
+  // -----------
+
   private record Field(String label, List<String> bullets, String value) {
-    static Field scalar(String label, String value) {
-      return new Field(label, null, value);
+    static Field scalar(String label, String rawValue) {
+      String v = rawValue == null ? null : rawValue.trim();
+      return new Field(label, null, (v == null || v.isEmpty()) ? null : v);
     }
 
     static Field list(String label, List<String> bullets) {
       return new Field(label, bullets, null);
     }
 
+    static Field of(String label, Object raw) {
+      if (raw instanceof List<?> list) {
+        var bullets = new ArrayList<String>(list.size());
+        for (Object item : list) bullets.add(String.valueOf(item));
+        return list(label, bullets);
+      }
+      return scalar(label, raw == null ? null : raw.toString());
+    }
+
     boolean isList() {
       return bullets != null;
-    }
-  }
-
-  /** Accumulates fields for one section, then renders them with a shared column width. */
-  private static final class Fields {
-    private final List<Field> fields = new ArrayList<>();
-
-    void add(String label, Object rawValue) {
-      if (rawValue instanceof List<?> list) {
-        var bullets = new ArrayList<String>(list.size());
-        for (Object item : list) {
-          bullets.add(String.valueOf(item));
-        }
-        fields.add(Field.list(label, bullets));
-      } else {
-        fields.add(Field.scalar(label, normalize(rawValue)));
-      }
-    }
-
-    /** Renders every field, aligning scalar values under a common column. */
-    String render() {
-      int labelColumn = scalarLabelWidth();
-      var sb = new StringBuilder();
-      for (Field field : fields) {
-        if (field.isList()) {
-          renderList(sb, field);
-        } else {
-          renderScalar(sb, field, labelColumn);
-        }
-      }
-      return sb.toString();
-    }
-
-    /** The value column starts after the longest {@code "Label: "} among scalar fields. */
-    private int scalarLabelWidth() {
-      int max = 0;
-      for (Field field : fields) {
-        if (!field.isList()) {
-          max = Math.max(max, field.label().length() + 1); // + 1 for the colon
-        }
-      }
-      return max;
-    }
-
-    private void renderList(StringBuilder sb, Field field) {
-      sb.append("  ").append(field.label()).append(":\n");
-      for (String bullet : field.bullets()) {
-        sb.append("    • ").append(bullet).append('\n');
-      }
-    }
-
-    private void renderScalar(StringBuilder sb, Field field, int labelColumn) {
-      String labelPart = field.label() + ":";
-      String indent = "  ";
-      String valueIndent = indent + " ".repeat(labelColumn + 2); // colon width + 2 spaces gap
-
-      List<String> lines = wrap(field.value(), WRAP_WIDTH);
-      for (int i = 0; i < lines.size(); i++) {
-        if (i == 0) {
-          sb.append(indent)
-              .append(padRight(labelPart, labelColumn + 2))
-              .append(lines.get(i))
-              .append('\n');
-        } else {
-          sb.append(valueIndent).append(lines.get(i)).append('\n');
-        }
-      }
-    }
-
-    private static String normalize(Object value) {
-      if (value == null) {
-        return EMPTY_VALUE;
-      }
-      String str = value.toString().trim();
-      return str.isEmpty() ? EMPTY_VALUE : str;
-    }
-
-    private static String padRight(String text, int width) {
-      return text.length() >= width ? text : text + " ".repeat(width - text.length());
-    }
-
-    /** Word-wraps text to the given width, never breaking a single word. */
-    private static List<String> wrap(String text, int width) {
-      var lines = new ArrayList<String>();
-      var current = new StringBuilder();
-      for (String word : text.split(" ")) {
-        if (current.length() == 0) {
-          current.append(word);
-        } else if (current.length() + 1 + word.length() <= width) {
-          current.append(' ').append(word);
-        } else {
-          lines.add(current.toString());
-          current.setLength(0);
-          current.append(word);
-        }
-      }
-      if (current.length() > 0 || lines.isEmpty()) {
-        lines.add(current.toString());
-      }
-      return lines;
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Low-level line accumulation
-  // ---------------------------------------------------------------------------
-
-  /** Thin wrapper over {@link StringBuilder} that guarantees consistent newline handling. */
-  private static final class BodyBuilder {
-    private final StringBuilder sb = new StringBuilder();
-
-    void line(String text) {
-      sb.append(text).append('\n');
-    }
-
-    void blank() {
-      sb.append('\n');
-    }
-
-    void append(String block) {
-      sb.append(block);
-    }
-
-    void sectionHeader(String title) {
-      blank();
-      blank();
-      line(SECTION_RULE);
-      line("  " + title);
-      line(SECTION_RULE);
-      blank();
-    }
-
-    String build() {
-      return sb.toString();
     }
   }
 }

@@ -197,6 +197,7 @@ public class ZammadAdapter implements HelpDeskAdapter {
     Map<String, Object> article = new HashMap<>();
     article.put("subject", request.title());
     article.put("body", request.ticketBody());
+    article.put("content_type", "text/html");
     article.put("type", ARTICLE_TYPE_NOTE);
     article.put("internal", false);
 
