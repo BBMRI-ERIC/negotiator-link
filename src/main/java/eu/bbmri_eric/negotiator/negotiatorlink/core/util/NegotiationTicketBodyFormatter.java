@@ -50,7 +50,7 @@ public final class NegotiationTicketBodyFormatter {
   /** Builds the ticket title. */
   public static String buildTitle(EntityModelNegotiationDTO negotiation, String resourceName) {
     String prefix = "[NEGO-" + negotiation.getDisplayId() + "] ";
-    Optional<String> title = getTitleIfPresentInPayload(negotiation);
+    Optional<String> title = getTitleIfPresentInPayload(negotiation, resourceName);
     return title
         .map(negTitle -> prefix + negTitle)
         .orElseGet(
@@ -62,7 +62,7 @@ public final class NegotiationTicketBodyFormatter {
 
   @SuppressWarnings("unchecked")
   private static Optional<String> getTitleIfPresentInPayload(
-      EntityModelNegotiationDTO negotiation) {
+      EntityModelNegotiationDTO negotiation, String resourceName) {
     if (!(negotiation.getPayload() instanceof Map<?, ?> payload)) {
       return Optional.empty();
     }
@@ -75,6 +75,9 @@ public final class NegotiationTicketBodyFormatter {
       return Optional.empty();
     }
     String titleStr = title.toString().trim();
+    if (!titleStr.isBlank() && resourceName != null) {
+      titleStr = titleStr + " — " + resourceName;
+    }
     return titleStr.isEmpty() ? Optional.empty() : Optional.of(titleStr);
   }
 
