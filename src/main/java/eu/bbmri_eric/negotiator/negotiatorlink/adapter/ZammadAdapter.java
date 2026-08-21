@@ -9,6 +9,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreatedTicket;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
@@ -172,8 +173,14 @@ public class ZammadAdapter implements HelpDeskAdapter {
       return Optional.empty();
     }
 
+    HelpdeskCallbackType callbackType = resolveType(transitionEvent != null, hasArticle);
+    if (callbackType.equals(HelpdeskCallbackType.POST_MESSAGE) && parsed.article().internal()) {
+      log.warn("Zammad callback for ticket '{}' is an internal comment — discarding", ticketId);
+      return Optional.empty();
+    }
+
     String postText = hasArticle ? parsed.article().body() : null;
-    String helpdeskActor = hasArticle ? parsed.article().from() : null;
+    Sender sender = hasArticle ? parseSender(parsed.article().createdBy()) : null;
 
     return Optional.of(
         new HelpdeskCallbackEvent(
@@ -182,7 +189,7 @@ public class ZammadAdapter implements HelpDeskAdapter {
             resourceState,
             transitionEvent,
             postText,
-            helpdeskActor));
+            sender));
   }
 
   private Map<String, Object> buildCreateTicketBody(
@@ -190,6 +197,7 @@ public class ZammadAdapter implements HelpDeskAdapter {
     Map<String, Object> article = new HashMap<>();
     article.put("subject", request.title());
     article.put("body", request.ticketBody());
+    article.put("content_type", "text/html");
     article.put("type", ARTICLE_TYPE_NOTE);
     article.put("internal", false);
 
@@ -297,6 +305,25 @@ public class ZammadAdapter implements HelpDeskAdapter {
         @JsonProperty(FIELD_TRANSITION_EVENT) String transitionEvent) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record Article(String body, String from) {}
+    record Article(
+        String body, boolean internal, @JsonProperty("created_by") ArticleUser createdBy) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record ArticleUser(String firstname, String lastname, String email) {}
+  }
+
+  private static Sender parseSender(ZammadCallbackPayload.ArticleUser user) {
+    if (user == null) {
+      return null;
+    }
+    String name = buildFullName(user.firstname(), user.lastname());
+    return new Sender(name, user.email());
+  }
+
+  private static String buildFullName(String firstName, String lastName) {
+    if (firstName == null && lastName == null) return null;
+    if (firstName == null) return lastName;
+    if (lastName == null) return firstName;
+    return firstName + " " + lastName;
   }
 }

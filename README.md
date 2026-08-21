@@ -189,7 +189,7 @@ In Zammad: **Admin → System → Objects → Ticket → New Attribute**
   `MARK_AS_CHECKING_AVAILABILITY`,
   `MARK_AS_AVAILABLE`, `MARK_AS_UNAVAILABLE`, `MARK_AS_CURRENTLY_UNAVAILABLE_BUT_WILLING_TO_COLLECT`,
   `STEP_AWAY`, `INDICATE_ACCESS_CONDITIONS`,
-  `GRANT_ACCESS_TO_RESOURCE`
+  `GRANT_ACCESS_TO_RESOURCE`, `RESOURCE_MADE_AVAILABLE`
 - **Permissions → ticket.agent → edit**: Shown ✓, Required ✗
 - All other permission rows: Shown ✗, Required ✗
 - **Position**: 1200
@@ -203,6 +203,17 @@ In Zammad: **Admin → System → Core Workflows → New Workflow**
 - **Actions**:
   - `negotiation_state` → **Set fixed to** *(read-only)*
   - `negotiator_resource_state` → **Set fixed to** *(read-only)*
+
+**Lock the resource transition state field as read-only via Core Workflow:**
+In Zammad: **Admin → System → Core Workflows → New Workflow**
+Set for each of the following resource states: SUBMITTED, REPRESENTATIVE_UNREACHABLE, ACCESS_CONDITIONS_INDICATED
+
+- **Name**: `negotiator-link: lock resource transition when state is <state>`
+- **Object**: Ticket
+- **Conditions**: Resource State → is → <state>
+- **Actions**:
+  - `negotiator_resource_transition_event` → **Set fixed to** *(read-only)*
+- Priority: 510 (then 520, 530 for the other two workflows)
 
 **Create trigger for resource state transitions:**
 In Zammad: **Admin → Manage → Triggers → New Trigger**

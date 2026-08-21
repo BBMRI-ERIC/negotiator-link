@@ -42,7 +42,6 @@ class HelpdeskResourceTransitionHandlerTest {
   private static final String RESOURCE_SOURCE_ID_2 = "biobank:DE:MHH:collection2";
   private static final String REQUESTED_EVENT = "MARK_AS_CHECKING_AVAILABILITY";
   private static final String RESOURCE_STATE = "IN_PROGRESS";
-  private static final String HELPDESK_ACTOR = "Jane Rep";
 
   @Mock private TicketMappingRepository ticketMappingRepository;
   @Mock private OriginatedTransitionRepository originatedTransitionRepository;
@@ -75,11 +74,7 @@ class HelpdeskResourceTransitionHandlerTest {
 
     verify(negotiatorClient)
         .sendResourceEvent(
-            eq(NEGOTIATION_ID),
-            eq(RESOURCE_SOURCE_ID),
-            eq(REQUESTED_EVENT),
-            eq(HELPDESK_ACTOR),
-            eq(config));
+            eq(NEGOTIATION_ID), eq(RESOURCE_SOURCE_ID), eq(REQUESTED_EVENT), eq(config));
     verify(adapter, never()).updateResourceState(any(), any(), any());
     verify(adapter, never()).addSystemComment(any(), any(), any());
   }
@@ -96,7 +91,7 @@ class HelpdeskResourceTransitionHandlerTest {
 
     verify(adapter).updateResourceState(eq(TICKET_ID), eq(RESOURCE_STATE), eq(config));
     verify(adapter).addSystemComment(eq(TICKET_ID), any(String.class), eq(config));
-    verify(negotiatorClient, never()).sendResourceEvent(any(), any(), any(), any(), any());
+    verify(negotiatorClient, never()).sendResourceEvent(any(), any(), any(), any());
   }
 
   @Test
@@ -107,7 +102,7 @@ class HelpdeskResourceTransitionHandlerTest {
 
     handler.handle(callbackEvent(), config);
 
-    verify(negotiatorClient, never()).sendResourceEvent(any(), any(), any(), any(), any());
+    verify(negotiatorClient, never()).sendResourceEvent(any(), any(), any(), any());
     verify(adapter, never()).updateResourceState(any(), any(), any());
     verify(adapter, never()).addSystemComment(any(), any(), any());
   }
@@ -142,7 +137,6 @@ class HelpdeskResourceTransitionHandlerTest {
             eq(NEGOTIATION_ID),
             eq(List.of(101L, 102L)),
             eq(ResourceTransitionEvent.MARK_AS_CHECKING_AVAILABILITY.targetState()),
-            eq(HELPDESK_ACTOR),
             eq(config));
     verify(adapter, never()).updateResourceState(any(), any(), any());
     verify(adapter, never()).addSystemComment(any(), any(), any());
@@ -167,7 +161,7 @@ class HelpdeskResourceTransitionHandlerTest {
 
     verify(adapter).updateResourceState(eq(TICKET_ID), eq(RESOURCE_STATE), eq(config));
     verify(adapter).addSystemComment(eq(TICKET_ID), any(String.class), eq(config));
-    verify(negotiatorClient, never()).sendBulkResourceEvent(any(), any(), any(), any(), any());
+    verify(negotiatorClient, never()).sendBulkResourceEvent(any(), any(), any(), any());
     verify(originatedTransitionRepository, never()).save(any());
   }
 
@@ -194,12 +188,11 @@ class HelpdeskResourceTransitionHandlerTest {
             RESOURCE_STATE,
             unknownEvent,
             null,
-            HELPDESK_ACTOR),
+            null),
         config);
 
     verify(negotiatorClient)
-        .sendBulkResourceEvent(
-            eq(NEGOTIATION_ID), any(), eq(unknownEvent), eq(HELPDESK_ACTOR), eq(config));
+        .sendBulkResourceEvent(eq(NEGOTIATION_ID), any(), eq(unknownEvent), eq(config));
   }
 
   private TicketMapping mapping(String resourceId, String resourceSourceId) {
@@ -217,6 +210,6 @@ class HelpdeskResourceTransitionHandlerTest {
         RESOURCE_STATE,
         REQUESTED_EVENT,
         null,
-        HELPDESK_ACTOR);
+        null);
   }
 }

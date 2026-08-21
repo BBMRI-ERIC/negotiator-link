@@ -1,6 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
 import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.HashUtil.sha256Hex;
+import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil.signPost;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -9,6 +10,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.NegotiatorEventHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingRepository;
@@ -101,24 +103,11 @@ public class NegotiationPostAddedHandler implements NegotiatorEventHandler {
       return null;
     }
 
-    String postText = getPostText(post);
-    return new PostContent(postText, isPublic, sha256Hex(post.getText()));
-  }
-
-  private String getPostText(EntityModelPostDTO post) {
     UserResponseModel createdBy = post.getCreatedBy();
-    if (createdBy == null) {
-      return post.getText();
-    }
-
-    String name = createdBy.getName();
-    String email = createdBy.getEmail();
-    if (name == null && email == null) {
-      return post.getText();
-    }
-
-    String sender = name != null ? name + (email != null ? " <" + email + ">" : "") : email;
-    return "From: " + sender + "\n\n" + post.getText();
+    Sender sender =
+        createdBy != null ? new Sender(createdBy.getName(), createdBy.getEmail()) : null;
+    String postText = signPost(post.getText(), sender);
+    return new PostContent(postText, isPublic, sha256Hex(post.getText()));
   }
 
   private OrganizationConfig resolveFetchConfig(String negotiationId, Long organizationId) {

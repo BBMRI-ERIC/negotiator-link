@@ -188,6 +188,7 @@ public class NegotiationStateUpdatedHandler implements NegotiatorEventHandler {
     for (EntityModelResourceWithStatusDTO resource : resources) {
       String body =
           NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(negotiation, resource);
+
       String title = NegotiationTicketBodyFormatter.buildTitle(negotiation, resource.getName());
       CreateTicketRequest request =
           new CreateTicketRequest(

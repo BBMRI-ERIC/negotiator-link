@@ -104,18 +104,13 @@ public class NegotiatorClient {
    * @param resourceSourceId reference the source ID of the resource and determines which resource
    *     to change
    * @param event representing the transition action
-   * @param helpdeskActor gives the identity of the actor who is performing the action
    * @param config organization configuration to use for this request
    */
   public void sendResourceEvent(
-      String negotiationId,
-      String resourceSourceId,
-      String event,
-      String helpdeskActor,
-      OrganizationConfig config) {
+      String negotiationId, String resourceSourceId, String event, OrganizationConfig config) {
     getOrCreateClient(config)
         .negotiations()
-        .sendEventForNegotiationResource(negotiationId, resourceSourceId, event, helpdeskActor);
+        .sendEventForNegotiationResource(negotiationId, resourceSourceId, event);
   }
 
   /**
@@ -124,19 +119,13 @@ public class NegotiatorClient {
    * @param negotiationId in which the resources are involved
    * @param resourceIds reference the resource ID and determines which resources to change
    * @param targetState the state to which the resources should be transitioned
-   * @param helpdeskActor gives the identity of the actor who is performing the action
    * @param config organization configuration to use for this request
    */
   public void sendBulkResourceEvent(
-      String negotiationId,
-      List<Long> resourceIds,
-      String targetState,
-      String helpdeskActor,
-      OrganizationConfig config) {
+      String negotiationId, List<Long> resourceIds, String targetState, OrganizationConfig config) {
     var dto = new UpdateResourcesDTO();
     dto.setResourceIds(resourceIds);
     dto.setState(UpdateResourcesDTO.StateEnum.fromValue(targetState));
-    dto.setHelpdeskActor(helpdeskActor);
     getOrCreateClient(config).negotiations().updateResources(negotiationId, dto);
   }
 
@@ -145,9 +134,8 @@ public class NegotiatorClient {
    *
    * @param negotiationId the ID of the negotiation to which the post refers
    * @param post the Post DTO containing request information - text: the content of the post,
-   *     organizationId: the ID of the organization that is creating this post, user for PRIVATE
-   *     posts, type: the type of the post (e.g., PRIVATE, PUBLIC), helpdeskActor: the display name
-   *     of the help desk actor who created this post
+   *     organizationId: the ID of the organization that is creating this post, used for PRIVATE
+   *     posts, type: the type of the post (e.g., PRIVATE, PUBLIC)
    * @param config organization configuration to use for this request
    * @return the response PostDTO object
    */

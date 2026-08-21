@@ -16,6 +16,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.OriginatedPost;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.OriginatedPostRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingRepository;
@@ -36,7 +37,7 @@ class HelpdeskPostHandlerTest {
   private static final String ORG_EXT_ID = "bbmri:DE:MHH";
   private static final String ORG_ID = "42";
   private static final String POST_TEXT = "Please grant access to our collection.";
-  private static final String HELPDESK_ACTOR = "Jane Rep <jane@mhh.de>";
+  private static final Sender SENDER = new Sender("Jane Rep", "jane@mhh.de");
 
   @Mock private TicketMappingRepository ticketMappingRepository;
   @Mock private OriginatedPostRepository originatedPostRepository;
@@ -71,9 +72,8 @@ class HelpdeskPostHandlerTest {
     var dtoCaptor = ArgumentCaptor.forClass(PostCreateDTO.class);
     verify(negotiatorClient).createPost(eq(NEGOTIATION_ID), dtoCaptor.capture(), eq(config));
     var dto = dtoCaptor.getValue();
-    assertThat(dto.getText()).isEqualTo(POST_TEXT);
+    assertThat(dto.getText()).isEqualTo("From: Jane Rep <jane@mhh.de>\n\n" + POST_TEXT);
     assertThat(dto.getType()).isEqualTo(PostCreateDTO.TypeEnum.PRIVATE);
-    assertThat(dto.getHelpdeskActor()).isEqualTo(HELPDESK_ACTOR);
   }
 
   @Test
@@ -98,11 +98,6 @@ class HelpdeskPostHandlerTest {
 
   private HelpdeskCallbackEvent callbackEvent() {
     return new HelpdeskCallbackEvent(
-        TICKET_ID,
-        HelpdeskCallbackType.POST_MESSAGE,
-        "IN_PROGRESS",
-        null,
-        POST_TEXT,
-        HELPDESK_ACTOR);
+        TICKET_ID, HelpdeskCallbackType.POST_MESSAGE, "IN_PROGRESS", null, POST_TEXT, SENDER);
   }
 }

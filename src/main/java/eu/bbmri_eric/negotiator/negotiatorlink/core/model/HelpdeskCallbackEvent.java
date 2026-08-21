@@ -6,4 +6,4 @@ public record HelpdeskCallbackEvent(
     String resourceState,
     String resourceTransitionEvent,
     String postText,
-    String helpdeskActor) {}
+    Sender sender) {}

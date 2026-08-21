@@ -4,7 +4,6 @@ import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.hmacSha1Hex;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -41,7 +40,11 @@ class ZammadCallbackE2ETest {
   private static final String RESOURCE_ID = "100";
   private static final String ORGANIZATION_ID = "42";
   private static final String POST_TEXT = "Internal Message";
-  private static final String HELPDESK_ACTOR = "John Smith";
+  private static final String SENDER_FIRST_NAME = "John";
+  private static final String SENDER_LAST_NAME = "Smith";
+  private static final String SENDER_EMAIL = "john.smith@example.com";
+  private static final String SIGNED_POST_TEXT =
+      "From: John Smith <john.smith@example.com>\n\n" + POST_TEXT;
 
   private static final String PER_RESOURCE_ORG = "bbmri:DE:MHH";
   private static final String PER_RESOURCE_SECRET = "test-callback-secret";
@@ -79,9 +82,8 @@ class ZammadCallbackE2ETest {
             eq(NEGOTIATION_ID),
             argThat(
                 p ->
-                    POST_TEXT.equals(p.getText())
-                        && PostCreateDTO.TypeEnum.PRIVATE.equals(p.getType())
-                        && HELPDESK_ACTOR.equals(p.getHelpdeskActor())),
+                    SIGNED_POST_TEXT.equals(p.getText())
+                        && PostCreateDTO.TypeEnum.PRIVATE.equals(p.getType())),
             any(OrganizationConfig.class));
     zammadServer.verify();
   }
@@ -108,9 +110,8 @@ class ZammadCallbackE2ETest {
             eq(NEGOTIATION_ID),
             argThat(
                 p ->
-                    POST_TEXT.equals(p.getText())
-                        && PostCreateDTO.TypeEnum.PRIVATE.equals(p.getType())
-                        && HELPDESK_ACTOR.equals(p.getHelpdeskActor())),
+                    SIGNED_POST_TEXT.equals(p.getText())
+                        && PostCreateDTO.TypeEnum.PRIVATE.equals(p.getType())),
             any(OrganizationConfig.class));
     zammadServer.verify();
   }
@@ -134,11 +135,7 @@ class ZammadCallbackE2ETest {
 
     verify(negotiatorClient)
         .sendResourceEvent(
-            eq(NEGOTIATION_ID),
-            eq(RESOURCE_SOURCE_ID),
-            eq(event),
-            isNull(),
-            any(OrganizationConfig.class));
+            eq(NEGOTIATION_ID), eq(RESOURCE_SOURCE_ID), eq(event), any(OrganizationConfig.class));
     zammadServer.verify();
   }
 
@@ -177,7 +174,6 @@ class ZammadCallbackE2ETest {
             eq(NEGOTIATION_ID),
             argThat(ids -> ids.size() == 2 && ids.containsAll(List.of(resourceId1, resourceId2))),
             eq(ResourceTransitionEvent.MARK_AS_CHECKING_AVAILABILITY.targetState()),
-            isNull(),
             any(OrganizationConfig.class));
     zammadServer.verify();
   }
@@ -205,12 +201,16 @@ class ZammadCallbackE2ETest {
           },
           "article": {
             "body": "%s",
-            "from": "%s",
-            "internal": false
+            "internal": false,
+            "created_by": {
+              "firstname": "%s",
+              "lastname": "%s",
+              "email": "%s"
+            }
           }
         }
         """
-        .formatted(POST_TEXT, HELPDESK_ACTOR);
+        .formatted(POST_TEXT, SENDER_FIRST_NAME, SENDER_LAST_NAME, SENDER_EMAIL);
   }
 
   private static String resourceTransitionOnlyPayload() {
