@@ -3,9 +3,9 @@ package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.routing;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.OriginatedPostRepository;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.OriginatedTransitionRepository;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.DeduplicationCleanupJob;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.job.DeduplicationCleanupJob;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

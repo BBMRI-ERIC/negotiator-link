@@ -6,8 +6,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.EventRouter;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.NegotiatorEventHandler;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationEventHandler;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.NegotiatorEventRouter;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,18 +17,18 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class EventRouterTest {
+class NegotiatorEventRouterTest {
 
-  @Mock private NegotiatorEventHandler handlerA;
-  @Mock private NegotiatorEventHandler handlerB;
+  @Mock private NegotiationEventHandler handlerA;
+  @Mock private NegotiationEventHandler handlerB;
 
-  private EventRouter router;
+  private NegotiatorEventRouter router;
 
   @BeforeEach
   void setUp() {
     when(handlerA.getSupportedEventType()).thenReturn("negotiation.state.updated");
     when(handlerB.getSupportedEventType()).thenReturn("negotiation.post.added");
-    router = new EventRouter(new ObjectMapper(), List.of(handlerA, handlerB));
+    router = new NegotiatorEventRouter(new ObjectMapper(), List.of(handlerA, handlerB));
   }
 
   @Test

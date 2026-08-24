@@ -1,4 +1,4 @@
-package eu.bbmri_eric.negotiator.negotiatorlink.core.routing;
+package eu.bbmri_eric.negotiator.negotiatorlink.core.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.EmbeddedId;

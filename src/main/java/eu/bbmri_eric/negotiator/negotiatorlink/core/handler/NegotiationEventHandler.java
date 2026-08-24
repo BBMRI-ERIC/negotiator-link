@@ -1,6 +1,7 @@
-package eu.bbmri_eric.negotiator.negotiatorlink.core.routing;
+package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.NegotiatorEventRouter;
 
 /**
  * Strategy interface for handling a single Negotiator webhook event type.
@@ -8,9 +9,9 @@ import com.fasterxml.jackson.databind.JsonNode;
  * <p>Each implementation is responsible for exactly one event type (returned by {@link
  * #getSupportedEventType()}) and performs all domain logic for that event inside {@link
  * #handle(JsonNode)}. Routing logic must never live inside an implementation — the {@link
- * EventRouter} resolves the correct handler before invoking it.
+ * NegotiatorEventRouter} resolves the correct handler before invoking it.
  */
-public interface NegotiatorEventHandler {
+public interface NegotiationEventHandler {
 
   /**
    * Returns the Negotiator webhook event type this handler supports, e.g. {@code
