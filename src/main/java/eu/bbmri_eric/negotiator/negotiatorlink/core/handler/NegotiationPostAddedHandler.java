@@ -11,9 +11,9 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.NegotiatorEventHandler;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMapping;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketMapping;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.NegotiationPostAddedWebhookEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.UserResponseModel;
@@ -25,7 +25,7 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
-public class NegotiationPostAddedHandler implements NegotiatorEventHandler {
+public class NegotiationPostAddedHandler implements NegotiationEventHandler {
 
   private static final String EVENT_TYPE = "negotiation.post.added";
 

@@ -86,8 +86,6 @@ public class HelpdeskCallbackController {
 
     log.debug("Received verified helpdesk callback for organization '{}'", organizationExternalId);
 
-    log.debug("Callback payload: {}", new String(body)); // TODO: Remove me after testing
-
     Map<String, Object> payload;
     try {
       payload = objectMapper.readValue(body, new TypeReference<>() {});

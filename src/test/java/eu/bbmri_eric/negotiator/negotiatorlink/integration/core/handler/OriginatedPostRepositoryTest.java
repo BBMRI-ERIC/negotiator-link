@@ -2,8 +2,8 @@ package eu.bbmri_eric.negotiator.negotiatorlink.integration.core.handler;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.OriginatedPost;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.OriginatedPostRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.OriginatedPost;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import org.junit.jupiter.api.Test;

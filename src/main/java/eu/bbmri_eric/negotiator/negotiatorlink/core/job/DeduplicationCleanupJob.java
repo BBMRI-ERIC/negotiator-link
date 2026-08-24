@@ -1,7 +1,7 @@
-package eu.bbmri_eric.negotiator.negotiatorlink.core.routing;
+package eu.bbmri_eric.negotiator.negotiatorlink.core.job;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.OriginatedPostRepository;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.OriginatedTransitionRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import lombok.RequiredArgsConstructor;

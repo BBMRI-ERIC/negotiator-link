@@ -2,9 +2,9 @@ package eu.bbmri_eric.negotiator.negotiatorlink.integration.core.routing;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMapping;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingId;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketMapping;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketMappingId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;

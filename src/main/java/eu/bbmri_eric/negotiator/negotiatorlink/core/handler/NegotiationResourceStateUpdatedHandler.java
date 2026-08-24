@@ -7,9 +7,10 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.NegotiatorEventHandler;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMapping;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.OriginatedTransition;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketMapping;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.NegotiationResourceStateUpdatedWebhookEvent;
 import java.util.Map;
 import java.util.Optional;
@@ -19,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Component
-public class NegotiationResourceStateUpdatedHandler implements NegotiatorEventHandler {
+public class NegotiationResourceStateUpdatedHandler implements NegotiationEventHandler {
 
   private static final String EVENT_TYPE = "negotiation.resource.state.updated";
 

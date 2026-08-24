@@ -11,10 +11,9 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreatedTicket;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.NegotiatorEventHandler;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMapping;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingId;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketMapping;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketMappingId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFormatter;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
@@ -34,7 +33,7 @@ import org.springframework.web.client.RestClientResponseException;
 
 @Slf4j
 @Component
-public class NegotiationStateUpdatedHandler implements NegotiatorEventHandler {
+public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
 
   private static final String EVENT_TYPE = "negotiation.state.updated";
   private static final String APPROVE_EVENT = "APPROVE";

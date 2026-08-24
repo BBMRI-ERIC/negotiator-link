@@ -18,14 +18,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpDeskAdapter;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.OriginatedPost;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.OriginatedPostRepository;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.OriginatedTransition;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.OriginatedTransitionRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.OriginatedPost;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.OriginatedTransition;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionEvent;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMapping;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingId;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketMapping;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketMappingId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.time.Instant;

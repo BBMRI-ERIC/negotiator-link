@@ -2,6 +2,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.routing;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationEventHandler;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -12,18 +13,18 @@ import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
-public class EventRouter {
+public class NegotiatorEventRouter {
 
   private final ObjectMapper objectMapper;
-  private final Map<String, NegotiatorEventHandler> handlers;
+  private final Map<String, NegotiationEventHandler> handlers;
 
-  public EventRouter(ObjectMapper objectMapper, List<NegotiatorEventHandler> handlers) {
+  public NegotiatorEventRouter(ObjectMapper objectMapper, List<NegotiationEventHandler> handlers) {
     this.objectMapper = objectMapper;
     this.handlers =
         handlers.stream()
             .collect(
                 Collectors.toMap(
-                    NegotiatorEventHandler::getSupportedEventType, Function.identity()));
+                    NegotiationEventHandler::getSupportedEventType, Function.identity()));
   }
 
   public void route(byte[] body) {
@@ -42,7 +43,7 @@ public class EventRouter {
     }
 
     String type = typeNode.asText();
-    NegotiatorEventHandler handler = handlers.get(type);
+    NegotiationEventHandler handler = handlers.get(type);
     if (handler == null) {
       log.debug("No handler registered for event type '{}' — ignoring", type);
       return;
