@@ -10,15 +10,20 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigReg
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreatedTicket;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.NegotiatorEventHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFormatter;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.NegotiationStateUpdatedWebhookEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.UserResponseModel;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -97,9 +102,6 @@ public class NegotiationStateUpdatedHandler implements NegotiatorEventHandler {
 
     groupByOrg(resources)
         .forEach((orgExtId, orgResources) -> ticketOrg(negotiation, orgExtId, orgResources));
-
-    // TODO: fetch the comment already present in the negotiation and add it to the ticket(s) as an
-    // external comment
   }
 
   /** Creates tickets for a single organization's resources, skipping/logging on any failure. */
@@ -170,8 +172,8 @@ public class NegotiationStateUpdatedHandler implements NegotiatorEventHandler {
         created.ticketId(),
         context.orgExtId(),
         context.negotiationId());
-
     resources.forEach(resource -> saveMapping(created, resource, context));
+    postNegotiationCommentsToTicket(created.ticketId(), context);
   }
 
   private void handlePerResource(
@@ -196,14 +198,42 @@ public class NegotiationStateUpdatedHandler implements NegotiatorEventHandler {
           created.ticketId(),
           resource.getId(),
           context.negotiationId());
-
       saveMapping(created, resource, context);
       createdTickets.add(created);
+
+      postNegotiationCommentsToTicket(created.ticketId(), context);
     }
 
     if (createdTickets.size() > 1) {
       context.adapter().linkRelatedTickets(createdTickets, context.config());
     }
+  }
+
+  private void postNegotiationCommentsToTicket(String ticketId, OrgTicketContext context) {
+    OrganizationConfig config = context.config();
+    List<EntityModelPostDTO> posts = negotiatorClient.getPosts(context.negotiationId(), config);
+    if (posts.isEmpty()) {
+      return;
+    }
+    posts.stream()
+        .filter(post -> post.getText() != null)
+        .sorted(
+            Comparator.comparing(
+                EntityModelPostDTO::getCreationDate,
+                Comparator.nullsLast(Comparator.naturalOrder())))
+        .forEach(
+            post -> {
+              UserResponseModel createdBy = post.getCreatedBy();
+              Sender sender =
+                  createdBy != null ? new Sender(createdBy.getName(), createdBy.getEmail()) : null;
+              String signedText = PostUtil.signPost(post.getText(), sender);
+              try {
+                context.adapter().addComment(ticketId, signedText, config);
+                log.info("Posted comment '{}' to ticket '{}'", post.getId(), ticketId);
+              } catch (Exception e) {
+                log.error("Failed to post comment '{}' to ticket '{}'", post.getId(), ticketId, e);
+              }
+            });
   }
 
   /** Persists the mapping between a created ticket and a resource. */

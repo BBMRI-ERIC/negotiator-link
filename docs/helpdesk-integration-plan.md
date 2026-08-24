@@ -1287,9 +1287,8 @@ unimplemented stub returning `null`. Two targeted changes are required:
   accept the transition. The `negotiator_resource_transition_event` field is cleared to null. No change is made in
   Negotiator.
 - A PUBLIC post created in Negotiator appears as a comment in all distinct Zammad tickets for that negotiation. A
-  PRIVATE post appears only in tickets belonging to the addressed organization.
+  PRIVATE post appears only in tickets belonging to the addressed organization. The post text is prefixed with the sender's identity (`From: <name> <email>`).
 - A message sent from a Zammad ticket appears as a PRIVATE post in the Negotiator negotiation. The post text is prefixed with the sender's identity (`From: <name> <email>`) extracted from the help desk article's `created_by` field. The message does not appear as a duplicate comment in the originating ticket.
-- A resource state transition triggered from a Zammad ticket is recorded in the Negotiator timeline under the middleware account's name (actor identity propagation to Negotiator is out of scope — see Section 8).
 - Webhook deliveries from Negotiator with an invalid HMAC signature are rejected with HTTP 401 and not processed.
 - Webhook deliveries from Negotiator with a timestamp outside the ±5-minute window are rejected with HTTP 401 and not
   processed.

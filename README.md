@@ -109,7 +109,7 @@ docker compose restart negotiator-link
 
 ### Step 8 — Assign negotiator link service account to the resources of some organization
 
-In Negotiator: **Admin → Governance → Organizations → "Biobank Väst" → <select a resource>**
+In Negotiator: **Admin → Governance → Organizations → "Biobank Väst" → <select_a_resource>**
 
 - **Add user**: `negotiator-link` (the user was automatically created during bootstrap)
 
@@ -193,6 +193,17 @@ In Zammad: **Admin → System → Objects → Ticket → New Attribute**
 - **Permissions → ticket.agent → edit**: Shown ✓, Required ✗
 - All other permission rows: Shown ✗, Required ✗
 - **Position**: 1200
+
+**Hide the custom fields when not negotiator-link group via Core Workflow:**
+In Zammad: **Admin → System → Core Workflows → New Workflow**
+
+- **Name**: `negotiator-link: hide custom fields when different group than negotiator-link`
+- **Object**: Ticket
+- **Saved Conditions**: `group` → **is not** → *negotiator-link*
+- **Actions**:
+  - `negotiation_state` → **Set to** *(hide)*
+  - `negotiator_resource_state` → **Set to** *(hide)*
+  - `negotiator_resource_transition_event` → **Set to** *(hide)*
 
 **Lock the two display-only fields as read-only via Core Workflow:**
 In Zammad: **Admin → System → Core Workflows → New Workflow**

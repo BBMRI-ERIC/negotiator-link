@@ -158,6 +158,21 @@ public class NegotiatorClient {
   }
 
   /**
+   * Get all posts for a negotiation.
+   *
+   * @param negotiationId the ID of the negotiation
+   * @param config organization configuration to use for this request
+   * @return list of posts, empty if none
+   */
+  public List<EntityModelPostDTO> getPosts(String negotiationId, OrganizationConfig config) {
+    var result = getOrCreateClient(config).comments().getAllMessagesByNegotiation(negotiationId);
+    if (result == null || result.getEmbedded() == null) {
+      return List.of();
+    }
+    return Objects.requireNonNullElse(result.getEmbedded().getPosts(), List.of());
+  }
+
+  /**
    * Get the user info for the current client.
    *
    * @param config organization configuration to use for this request

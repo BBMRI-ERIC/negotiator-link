@@ -3,6 +3,9 @@ package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.handler;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.startsWith;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -24,8 +27,10 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFormatter;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -146,24 +151,6 @@ class NegotiationStateUpdatedHandlerTest {
     verify(adapter, never()).createTicket(any(), any());
   }
 
-  /** Stubs the full happy path: negotiation, resources, and matching org config. */
-  private void stubHappyPath(
-      EntityModelNegotiationDTO negotiation,
-      OrganizationConfig config,
-      List<EntityModelResourceWithStatusDTO> resources) {
-    stubResources(negotiation, config, resources);
-    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
-  }
-
-  private void stubResources(
-      EntityModelNegotiationDTO negotiation,
-      OrganizationConfig config,
-      List<EntityModelResourceWithStatusDTO> resources) {
-    when(registry.findAll()).thenReturn(List.of(config));
-    when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config)).thenReturn(negotiation);
-    when(negotiatorClient.getResources(NEGOTIATION_ID, config)).thenReturn(resources);
-  }
-
   @Test
   void handleApprove_noOrgsConfigured_doesNothing() {
     when(registry.findAll()).thenReturn(List.of());
@@ -214,6 +201,183 @@ class NegotiationStateUpdatedHandlerTest {
     assertDoesNotThrow(() -> handler.handle(approveEventData()));
   }
 
+  @Test
+  void postNegotiationCommentsToTicket_perNegotiation_postsSignedComment() {
+    var negotiation = createNegotiation();
+    var resource = createResource("r-1", 1L);
+    var config = createConfig(TicketStrategy.PER_NEGOTIATION);
+    var ticket = new CreatedTicket(TICKET_ID, "42");
+    var post =
+        TestUtil.post(
+            "p-1",
+            "Hello world",
+            EntityModelPostDTO.TypeEnum.PUBLIC,
+            null,
+            "Alice",
+            "alice@example.com");
+
+    stubHappyPath(negotiation, config, List.of(resource));
+    when(adapter.createTicket(any(), eq(config))).thenReturn(ticket);
+    stubPosts(config, List.of(post));
+
+    handler.handle(approveEventData());
+
+    verify(adapter)
+        .addComment(eq(TICKET_ID), startsWith("From: Alice <alice@example.com>"), eq(config));
+  }
+
+  @Test
+  void postNegotiationCommentsToTicket_perNegotiation_postsInChronologicalOrder() {
+    var negotiation = createNegotiation();
+    var resource = createResource("r-1", 1L);
+    var config = createConfig(TicketStrategy.PER_NEGOTIATION);
+    var ticket = new CreatedTicket(TICKET_ID, "42");
+
+    var older = TestUtil.post("p-1", "first", EntityModelPostDTO.TypeEnum.PUBLIC, null);
+    older.setCreationDate(LocalDateTime.of(2024, 1, 1, 10, 0));
+    var newer = TestUtil.post("p-2", "second", EntityModelPostDTO.TypeEnum.PUBLIC, null);
+    newer.setCreationDate(LocalDateTime.of(2024, 1, 2, 10, 0));
+
+    stubHappyPath(negotiation, config, List.of(resource));
+    when(adapter.createTicket(any(), eq(config))).thenReturn(ticket);
+    stubPosts(config, List.of(newer, older)); // reversed intentionally
+
+    handler.handle(approveEventData());
+
+    var order = inOrder(adapter);
+    order.verify(adapter).addComment(eq(TICKET_ID), startsWith("first"), eq(config));
+    order.verify(adapter).addComment(eq(TICKET_ID), startsWith("second"), eq(config));
+  }
+
+  @Test
+  void postNegotiationCommentsToTicket_perResource_postsCommentToEachTicket() {
+    var negotiation = createNegotiation();
+    var resource1 = createResource("r-1", 1L);
+    var resource2 = createResource("r-2", 2L);
+    var config = createConfig(TicketStrategy.PER_RESOURCE);
+    var ticket1 = new CreatedTicket("ticket-1", "1");
+    var ticket2 = new CreatedTicket("ticket-2", "2");
+    var post = TestUtil.post("p-1", "Hello", EntityModelPostDTO.TypeEnum.PUBLIC, null);
+
+    stubHappyPath(negotiation, config, List.of(resource1, resource2));
+    when(adapter.createTicket(any(), eq(config))).thenReturn(ticket1).thenReturn(ticket2);
+    stubPosts(config, List.of(post));
+
+    handler.handle(approveEventData());
+
+    verify(adapter).addComment(eq("ticket-1"), any(), eq(config));
+    verify(adapter).addComment(eq("ticket-2"), any(), eq(config));
+  }
+
+  @Test
+  void postNegotiationCommentsToTicket_noPosts_doesNotCallAddComment() {
+    var negotiation = createNegotiation();
+    var resource = createResource("r-1", 1L);
+    var config = createConfig(TicketStrategy.PER_NEGOTIATION);
+    var ticket = new CreatedTicket(TICKET_ID, "42");
+
+    stubHappyPath(negotiation, config, List.of(resource));
+    when(adapter.createTicket(any(), eq(config))).thenReturn(ticket);
+    stubPosts(config, List.of());
+
+    handler.handle(approveEventData());
+
+    verify(adapter, never()).addComment(any(), any(), any());
+  }
+
+  @Test
+  void postNegotiationCommentsToTicket_postWithNullAuthor_textPostedWithoutFromPrefix() {
+    var negotiation = createNegotiation();
+    var resource = createResource("r-1", 1L);
+    var config = createConfig(TicketStrategy.PER_NEGOTIATION);
+    var ticket = new CreatedTicket(TICKET_ID, "42");
+    var post = TestUtil.post("p-1", "Anonymous text", EntityModelPostDTO.TypeEnum.PUBLIC, null);
+
+    stubHappyPath(negotiation, config, List.of(resource));
+    when(adapter.createTicket(any(), eq(config))).thenReturn(ticket);
+    stubPosts(config, List.of(post));
+
+    handler.handle(approveEventData());
+
+    verify(adapter).addComment(eq(TICKET_ID), eq("Anonymous text"), eq(config));
+  }
+
+  @Test
+  void postNegotiationCommentsToTicket_postWithNullText_skipped() {
+    var negotiation = createNegotiation();
+    var resource = createResource("r-1", 1L);
+    var config = createConfig(TicketStrategy.PER_NEGOTIATION);
+    var ticket = new CreatedTicket(TICKET_ID, "42");
+    var post = TestUtil.post("p-1", null, EntityModelPostDTO.TypeEnum.PUBLIC, null);
+
+    stubHappyPath(negotiation, config, List.of(resource));
+    when(adapter.createTicket(any(), eq(config))).thenReturn(ticket);
+    stubPosts(config, List.of(post));
+
+    handler.handle(approveEventData());
+
+    verify(adapter, never()).addComment(any(), any(), any());
+  }
+
+  @Test
+  void postNegotiationCommentsToTicket_addCommentThrows_remainingPostsStillPosted() {
+    var negotiation = createNegotiation();
+    var resource = createResource("r-1", 1L);
+    var config = createConfig(TicketStrategy.PER_NEGOTIATION);
+    var ticket = new CreatedTicket(TICKET_ID, "42");
+
+    var post1 = TestUtil.post("p-1", "first", EntityModelPostDTO.TypeEnum.PUBLIC, null);
+    post1.setCreationDate(LocalDateTime.of(2024, 1, 1, 10, 0));
+    var post2 = TestUtil.post("p-2", "second", EntityModelPostDTO.TypeEnum.PUBLIC, null);
+    post2.setCreationDate(LocalDateTime.of(2024, 1, 2, 10, 0));
+
+    stubHappyPath(negotiation, config, List.of(resource));
+    when(adapter.createTicket(any(), eq(config))).thenReturn(ticket);
+    stubPosts(config, List.of(post1, post2));
+    doThrow(new RuntimeException("adapter down"))
+        .when(adapter)
+        .addComment(eq(TICKET_ID), startsWith("first"), eq(config));
+
+    assertDoesNotThrow(() -> handler.handle(approveEventData()));
+    verify(adapter).addComment(eq(TICKET_ID), startsWith("second"), eq(config));
+  }
+
+  @Test
+  void postNegotiationCommentsToTicket_addCommentThrows_ticketMappingAlreadySaved() {
+    var negotiation = createNegotiation();
+    var resource = createResource("r-1", 1L);
+    var config = createConfig(TicketStrategy.PER_NEGOTIATION);
+    var ticket = new CreatedTicket(TICKET_ID, "42");
+    var post = TestUtil.post("p-1", "text", EntityModelPostDTO.TypeEnum.PUBLIC, null);
+
+    stubHappyPath(negotiation, config, List.of(resource));
+    when(adapter.createTicket(any(), eq(config))).thenReturn(ticket);
+    stubPosts(config, List.of(post));
+    doThrow(new RuntimeException("adapter down")).when(adapter).addComment(any(), any(), any());
+
+    handler.handle(approveEventData());
+
+    verify(ticketMappingRepository).save(eq(mappingFor(ticket, "1", resource)));
+  }
+
+  /** Stubs the full happy path: negotiation, resources, and matching org config. */
+  private void stubHappyPath(
+      EntityModelNegotiationDTO negotiation,
+      OrganizationConfig config,
+      List<EntityModelResourceWithStatusDTO> resources) {
+    stubResources(negotiation, config, resources);
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+  }
+
+  private void stubResources(
+      EntityModelNegotiationDTO negotiation,
+      OrganizationConfig config,
+      List<EntityModelResourceWithStatusDTO> resources) {
+    when(registry.findAll()).thenReturn(List.of(config));
+    when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config)).thenReturn(negotiation);
+    when(negotiatorClient.getResources(NEGOTIATION_ID, config)).thenReturn(resources);
+  }
+
   private CreateTicketRequest perResourceRequest(
       EntityModelNegotiationDTO negotiation, EntityModelResourceWithStatusDTO resource) {
     return new CreateTicketRequest(
@@ -260,6 +424,10 @@ class NegotiationStateUpdatedHandlerTest {
 
   private EntityModelResourceWithStatusDTO createResource(String sourceId, Long id) {
     return TestUtil.resource(id, sourceId, "Resource " + sourceId, ORG_EXT_ID, ORG_INTERNAL_ID);
+  }
+
+  private void stubPosts(OrganizationConfig config, List<EntityModelPostDTO> posts) {
+    when(negotiatorClient.getPosts(eq(NEGOTIATION_ID), eq(config))).thenReturn(posts);
   }
 
   private OrganizationConfig createConfig(TicketStrategy strategy) {
