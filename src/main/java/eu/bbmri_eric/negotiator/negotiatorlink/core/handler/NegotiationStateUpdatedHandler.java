@@ -23,7 +23,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClientResponseException;
 
 @Slf4j
 @Component
@@ -78,21 +80,15 @@ public class NegotiationStateUpdatedHandler implements NegotiatorEventHandler {
     String negotiationId = event.getNegotiationId();
     log.info("Handling APPROVE for negotiation '{}'", negotiationId);
 
-    // TODO: this need to be change to obtain the config from organization which is allowed to read
-    // the negotiation
-    //        and it is in registry. For now, we just take the first one since webhook does not
-    // provide the
-    //        organization externalId.
-    OrganizationConfig fetchConfig = registry.findAll().stream().findFirst().orElse(null);
-    if (fetchConfig == null) {
-      log.warn("No organizations configured — cannot fetch negotiation '{}'", negotiationId);
+    NegotiationWithConfig result = fetchNegotiationFromAuthorizedOrg(negotiationId);
+    if (result == null) {
+      log.warn("No authorized organization found for negotiation '{}' — skipping", negotiationId);
       return;
     }
 
-    EntityModelNegotiationDTO negotiation =
-        negotiatorClient.getNegotiation(negotiationId, fetchConfig);
+    EntityModelNegotiationDTO negotiation = result.negotiation();
     List<EntityModelResourceWithStatusDTO> resources =
-        negotiatorClient.getResources(negotiationId, fetchConfig);
+        negotiatorClient.getResources(negotiationId, result.config());
 
     if (resources.isEmpty()) {
       log.warn("No resources found for negotiation '{}' — nothing to ticket", negotiationId);
@@ -244,6 +240,33 @@ public class NegotiationStateUpdatedHandler implements NegotiatorEventHandler {
     }
     return result;
   }
+
+  private NegotiationWithConfig fetchNegotiationFromAuthorizedOrg(String negotiationId) {
+    for (OrganizationConfig config : registry.findAll()) {
+      try {
+        EntityModelNegotiationDTO negotiation =
+            negotiatorClient.getNegotiation(negotiationId, config);
+        log.debug(
+            "Fetched negotiation '{}' using org '{}'",
+            negotiationId,
+            config.organizationExternalId());
+        return new NegotiationWithConfig(negotiation, config);
+      } catch (RestClientResponseException e) {
+        if (e.getStatusCode() == HttpStatus.FORBIDDEN) {
+          log.debug(
+              "Org '{}' not authorized for negotiation '{}' — trying next",
+              config.organizationExternalId(),
+              negotiationId);
+        } else {
+          throw e;
+        }
+      }
+    }
+    return null;
+  }
+
+  private record NegotiationWithConfig(
+      EntityModelNegotiationDTO negotiation, OrganizationConfig config) {}
 
   /** The resolved per-organization context for creating tickets during an APPROVE. */
   private record OrgTicketContext(

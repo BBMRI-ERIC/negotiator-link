@@ -57,9 +57,8 @@ public class HelpdeskPostHandler implements HelpdeskCallbackHandler {
     String negotiationId = anyMapping.getId().getNegotiationId();
     String organizationId = anyMapping.getOrganizationId();
 
-    String postText = event.postText();
-    String textHash = sha256Hex(postText);
-    String signedText = signPost(postText, event.sender());
+    String signedText = signPost(event.postText(), event.sender());
+    String textHash = sha256Hex(signedText);
 
     originatedPostRepository.save(new OriginatedPost(textHash, organizationId, ticketId));
 

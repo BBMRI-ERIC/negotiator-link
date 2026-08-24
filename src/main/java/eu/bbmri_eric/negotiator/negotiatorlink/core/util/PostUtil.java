@@ -7,7 +7,7 @@ public final class PostUtil {
   private PostUtil() {}
 
   public static String signPost(String text, Sender sender) {
-    if (sender == null) {
+    if (sender == null || isAlreadySigned(text)) {
       return text;
     }
     String name = sender.name();
@@ -17,5 +17,9 @@ public final class PostUtil {
     }
     String from = name != null ? name + (email != null ? " <" + email + ">" : "") : email;
     return "From: " + from + "\n\n" + text;
+  }
+
+  private static boolean isAlreadySigned(String text) {
+    return text.startsWith("From: ");
   }
 }

@@ -1,7 +1,10 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.handler;
 
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.organizationConfig;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -24,9 +27,13 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.TicketMappingReposit
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -127,10 +134,10 @@ class HelpdeskResourceTransitionHandlerTest {
     var captor = ArgumentCaptor.forClass(OriginatedTransition.class);
     verify(originatedTransitionRepository).save(captor.capture());
     var saved = captor.getValue();
-    assert saved.getNegotiationId().equals(NEGOTIATION_ID);
-    assert saved.getTicketId().equals(TICKET_ID);
-    assert saved.getExpectedCount() == 2;
-    assert saved.getNewState().equals(REQUESTED_EVENT);
+    assertThat(saved.getNegotiationId()).isEqualTo(NEGOTIATION_ID);
+    assertThat(saved.getTicketId()).isEqualTo(TICKET_ID);
+    assertThat(saved.getExpectedCount()).isEqualTo(2);
+    assertThat(saved.getNewState()).isEqualTo("CHECKING_AVAILABILITY");
 
     verify(negotiatorClient)
         .sendBulkResourceEvent(
@@ -142,8 +149,13 @@ class HelpdeskResourceTransitionHandlerTest {
     verify(adapter, never()).addSystemComment(any(), any(), any());
   }
 
-  @Test
-  void handle_perNegotiation_oneResourceInvalid_clearsFieldAndPostsSystemComment() {
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("perNegotiationRejectionCases")
+  void handle_perNegotiation_invalidTransition_clearsFieldAndPostsSystemComment(
+      String caseName,
+      Set<String> resource1Events,
+      Set<String> resource2Events,
+      boolean commentShouldMentionResource2) {
     config = organizationConfig(ORG_EXT_ID, TicketStrategy.PER_NEGOTIATION);
 
     var mapping1 = mapping("101", RESOURCE_SOURCE_ID);
@@ -153,46 +165,35 @@ class HelpdeskResourceTransitionHandlerTest {
             TICKET_ID, ORG_EXT_ID))
         .thenReturn(List.of(mapping1, mapping2));
     when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID, config))
-        .thenReturn(Set.of(REQUESTED_EVENT));
+        .thenReturn(resource1Events);
     when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID_2, config))
-        .thenReturn(Set.of("STEP_AWAY"));
+        .thenReturn(resource2Events);
 
     handler.handle(callbackEvent(), config);
 
     verify(adapter).updateResourceState(eq(TICKET_ID), eq(RESOURCE_STATE), eq(config));
-    verify(adapter).addSystemComment(eq(TICKET_ID), any(String.class), eq(config));
+    verify(adapter)
+        .addSystemComment(
+            eq(TICKET_ID),
+            argThat(s -> s.contains(RESOURCE_SOURCE_ID_2) == commentShouldMentionResource2),
+            eq(config));
     verify(negotiatorClient, never()).sendBulkResourceEvent(any(), any(), any(), any());
     verify(originatedTransitionRepository, never()).save(any());
   }
 
-  @Test
-  void handle_perNegotiation_unknownEvent_passesThroughRawAsState() {
-    config = organizationConfig(ORG_EXT_ID, TicketStrategy.PER_NEGOTIATION);
-    String unknownEvent = "SOME_UNKNOWN_EVENT";
-
-    var mapping1 = mapping("101", RESOURCE_SOURCE_ID);
-    var mapping2 = mapping("102", RESOURCE_SOURCE_ID_2);
-
-    when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
-            TICKET_ID, ORG_EXT_ID))
-        .thenReturn(List.of(mapping1, mapping2));
-    when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID, config))
-        .thenReturn(Set.of(unknownEvent));
-    when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID_2, config))
-        .thenReturn(Set.of(unknownEvent));
-
-    handler.handle(
-        new HelpdeskCallbackEvent(
-            TICKET_ID,
-            HelpdeskCallbackType.RESOURCE_TRANSITION,
-            RESOURCE_STATE,
-            unknownEvent,
-            null,
-            null),
-        config);
-
-    verify(negotiatorClient)
-        .sendBulkResourceEvent(eq(NEGOTIATION_ID), any(), eq(unknownEvent), eq(config));
+  private static Stream<Arguments> perNegotiationRejectionCases() {
+    return Stream.of(
+        arguments("one resource invalid", Set.of(REQUESTED_EVENT), Set.of("STEP_AWAY"), true),
+        arguments(
+            "all resources invalid with different allowed events",
+            Set.of("MARK_AS_AVAILABLE"),
+            Set.of("STEP_AWAY"),
+            true),
+        arguments(
+            "all resources invalid with same allowed events",
+            Set.of("STEP_AWAY"),
+            Set.of("STEP_AWAY"),
+            false));
   }
 
   private TicketMapping mapping(String resourceId, String resourceSourceId) {

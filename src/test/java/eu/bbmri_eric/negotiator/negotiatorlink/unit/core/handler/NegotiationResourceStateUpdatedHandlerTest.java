@@ -75,7 +75,8 @@ class NegotiationResourceStateUpdatedHandlerTest {
             NEGOTIATION_ID, RESOURCE_ID))
         .thenReturn(Optional.of(mapping()));
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
-    when(originatedTransitionRepository.findByNegotiationIdAndTicketId(NEGOTIATION_ID, TICKET_ID))
+    when(originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
+            NEGOTIATION_ID, TICKET_ID, NEW_STATE))
         .thenReturn(Optional.empty());
 
     handler.handle(eventData(NEW_STATE));
@@ -90,7 +91,8 @@ class NegotiationResourceStateUpdatedHandlerTest {
             NEGOTIATION_ID, RESOURCE_ID))
         .thenReturn(Optional.of(mapping()));
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
-    when(originatedTransitionRepository.findByNegotiationIdAndTicketId(NEGOTIATION_ID, TICKET_ID))
+    when(originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
+            NEGOTIATION_ID, TICKET_ID, NEW_STATE))
         .thenReturn(Optional.empty());
 
     handler.handle(eventData(NEW_STATE));
@@ -108,7 +110,8 @@ class NegotiationResourceStateUpdatedHandlerTest {
             NEGOTIATION_ID, RESOURCE_ID))
         .thenReturn(Optional.of(mapping()));
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
-    when(originatedTransitionRepository.findByNegotiationIdAndTicketId(NEGOTIATION_ID, TICKET_ID))
+    when(originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
+            NEGOTIATION_ID, TICKET_ID, NEW_STATE))
         .thenReturn(Optional.of(originated));
     when(originatedTransitionRepository.findById(originated.getRowId()))
         .thenReturn(Optional.of(afterIncrement));
@@ -117,7 +120,8 @@ class NegotiationResourceStateUpdatedHandlerTest {
 
     verify(originatedTransitionRepository).incrementReceivedCount(eq(originated.getRowId()));
     verify(adapter).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
-    verify(originatedTransitionRepository, never()).delete(any());
+    verify(originatedTransitionRepository, never())
+        .deleteByNegotiationIdAndTicketIdAndNewState(any(), any(), any());
   }
 
   @Test
@@ -130,7 +134,8 @@ class NegotiationResourceStateUpdatedHandlerTest {
             NEGOTIATION_ID, RESOURCE_ID))
         .thenReturn(Optional.of(mapping()));
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
-    when(originatedTransitionRepository.findByNegotiationIdAndTicketId(NEGOTIATION_ID, TICKET_ID))
+    when(originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
+            NEGOTIATION_ID, TICKET_ID, NEW_STATE))
         .thenReturn(Optional.of(originated));
     when(originatedTransitionRepository.findById(originated.getRowId()))
         .thenReturn(Optional.of(afterIncrement));
@@ -139,7 +144,11 @@ class NegotiationResourceStateUpdatedHandlerTest {
 
     verify(originatedTransitionRepository).incrementReceivedCount(eq(originated.getRowId()));
     verify(adapter, never()).updateResourceState(any(), any(), any());
-    verify(originatedTransitionRepository).delete(eq(afterIncrement));
+    verify(originatedTransitionRepository)
+        .deleteByNegotiationIdAndTicketIdAndNewState(
+            eq(afterIncrement.getNegotiationId()),
+            eq(afterIncrement.getTicketId()),
+            eq(afterIncrement.getNewState()));
   }
 
   @Test
@@ -182,7 +191,8 @@ class NegotiationResourceStateUpdatedHandlerTest {
             NEGOTIATION_ID, RESOURCE_ID))
         .thenReturn(Optional.of(mapping()));
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
-    when(originatedTransitionRepository.findByNegotiationIdAndTicketId(NEGOTIATION_ID, TICKET_ID))
+    when(originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
+            NEGOTIATION_ID, TICKET_ID, NEW_STATE))
         .thenReturn(Optional.empty());
     org.mockito.Mockito.doThrow(new RuntimeException("adapter down"))
         .when(adapter)

@@ -147,12 +147,14 @@ public class NegotiatorClient {
   /**
    * Get a post by its ID.
    *
+   * @param negotiationId the ID of the negotiation to which the post belongs
    * @param postId the ID of the post to retrieve
    * @param config organization configuration to use for this request
    * @return the response PostDTO object
    */
-  public EntityModelPostDTO getPostText(String postId, OrganizationConfig config) {
-    return getOrCreateClient(config).comments().getById(postId);
+  public EntityModelPostDTO getPost(
+      String negotiationId, String postId, OrganizationConfig config) {
+    return getOrCreateClient(config).comments().getById(negotiationId, postId);
   }
 
   /**
