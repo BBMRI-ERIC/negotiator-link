@@ -173,7 +173,7 @@ public class ZammadAdapter implements HelpDeskAdapter {
       return Optional.empty();
     }
 
-    HelpdeskCallbackType callbackType = resolveType(transitionEvent != null, hasArticle);
+    HelpdeskCallbackType callbackType = resolveType(transitionEvent != null, hasArticle, parsed);
     if (callbackType.equals(HelpdeskCallbackType.POST_MESSAGE) && parsed.article().internal()) {
       log.warn("Zammad callback for ticket '{}' is an internal comment — discarding", ticketId);
       return Optional.empty();
@@ -184,12 +184,7 @@ public class ZammadAdapter implements HelpDeskAdapter {
 
     return Optional.of(
         new HelpdeskCallbackEvent(
-            ticketId,
-            resolveType(transitionEvent != null, hasArticle),
-            resourceState,
-            transitionEvent,
-            postText,
-            sender));
+            ticketId, callbackType, resourceState, transitionEvent, postText, sender));
   }
 
   private Map<String, Object> buildCreateTicketBody(
@@ -278,9 +273,12 @@ public class ZammadAdapter implements HelpDeskAdapter {
     return new CreatedTicket(String.valueOf(id.longValue()), String.valueOf(numberObj));
   }
 
-  private static HelpdeskCallbackType resolveType(boolean hasTransition, boolean hasArticle) {
+  private static HelpdeskCallbackType resolveType(
+      boolean hasTransition, boolean hasArticle, ZammadCallbackPayload parsed) {
     if (hasTransition && hasArticle) {
-      return HelpdeskCallbackType.RESOURCE_TRANSITION_WITH_POST_MESSAGE;
+      return parsed.article().internal()
+          ? HelpdeskCallbackType.RESOURCE_TRANSITION
+          : HelpdeskCallbackType.RESOURCE_TRANSITION_WITH_POST_MESSAGE;
     }
     return hasTransition
         ? HelpdeskCallbackType.RESOURCE_TRANSITION

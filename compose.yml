@@ -55,7 +55,7 @@ services:
 
   negotiator:
     container_name: negotiator
-    image: bbmrieric/negotiator:latest
+    image: bbmrieric/negotiator:master
     depends_on:
       negotiator-postgresql:
         condition: service_healthy
@@ -82,7 +82,7 @@ services:
 
   negotiator-frontend:
     container_name: negotiator-frontend
-    image: bbmrieric/negotiator-frontend:latest
+    image: bbmrieric/negotiator-frontend:master
     environment:
       DEV_MODE: "true"
       AUTH_URL: http://localhost:4011
@@ -167,6 +167,8 @@ services:
       # Negotiator OAuth2 client credentials
       NEGOTIATOR_CLIENT_ID: negotiator-link
       NEGOTIATOR_CLIENT_SECRET: negotiator-link-secret
+      NEGOTIATOR_CLIENT_ID_CZ_MMCI: negotiator-link-cz-mmci
+      NEGOTIATOR_CLIENT_SECRET_CZ_MMCI: negotiator-link-cz-mmci-secret
       NEGOTIATOR_BASE_URL: http://negotiator:8081/api
       NEGOTIATOR_ISSUER_URI: http://oidc-server-mock:8080
       # Webhook signing secret — must match what is configured in Negotiator webhook entity

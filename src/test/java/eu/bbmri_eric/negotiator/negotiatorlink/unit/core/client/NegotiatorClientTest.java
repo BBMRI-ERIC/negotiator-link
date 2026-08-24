@@ -184,9 +184,9 @@ class NegotiatorClientTest {
   }
 
   @Test
-  void getPostText_returnsPostDto() {
+  void getPost_returnsPostDto() {
     server
-        .expect(requestTo(BASE_URL + "/v3/posts/post-99"))
+        .expect(requestTo(BASE_URL + "/v3/negotiations/neg-1/posts/post-99"))
         .andExpect(method(HttpMethod.GET))
         .andExpect(header("Authorization", "Bearer " + BEARER_TOKEN))
         .andRespond(
@@ -196,7 +196,7 @@ class NegotiatorClientTest {
                 """,
                 MediaType.APPLICATION_JSON));
 
-    EntityModelPostDTO result = client.getPostText("post-99", config);
+    EntityModelPostDTO result = client.getPost("neg-1", "post-99", config);
 
     assertThat(result.getId()).isEqualTo("post-99");
     assertThat(result.getText()).isEqualTo("some message");

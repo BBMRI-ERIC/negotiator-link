@@ -118,7 +118,8 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiatorEventHa
   private void dispatchStateUpdate(ResourceStateUpdate update, DispatchContext context) {
     OriginatedTransition originated =
         originatedTransitionRepository
-            .findByNegotiationIdAndTicketId(update.negotiationId(), context.ticketId())
+            .findByNegotiationIdAndTicketIdAndNewState(
+                update.negotiationId(), context.ticketId(), update.toState())
             .orElse(null);
 
     try {
@@ -182,7 +183,8 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiatorEventHa
     }
 
     if (received >= expected) {
-      originatedTransitionRepository.delete(updated);
+      originatedTransitionRepository.deleteByNegotiationIdAndTicketIdAndNewState(
+          updated.getNegotiationId(), updated.getTicketId(), updated.getNewState());
       log.debug(
           "Consumed all {} webhooks for ticket '{}' — removed originated_transitions row",
           expected,

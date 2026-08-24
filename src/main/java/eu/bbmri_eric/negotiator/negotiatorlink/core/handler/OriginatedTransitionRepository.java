@@ -12,10 +12,21 @@ public interface OriginatedTransitionRepository extends JpaRepository<Originated
   Optional<OriginatedTransition> findByNegotiationIdAndTicketId(
       String negotiationId, String ticketId);
 
-  @Modifying
+  Optional<OriginatedTransition> findByNegotiationIdAndTicketIdAndNewState(
+      String negotiationId, String ticketId, String newState);
+
+  @Modifying(clearAutomatically = true)
   @Query(
       "UPDATE OriginatedTransition t SET t.receivedCount = t.receivedCount + 1 WHERE t.rowId = :id")
   void incrementReceivedCount(@Param("id") Long id);
+
+  @Modifying(clearAutomatically = true)
+  @Query(
+      "DELETE FROM OriginatedTransition t WHERE t.negotiationId = :negotiationId AND t.ticketId = :ticketId AND t.newState = :newState")
+  void deleteByNegotiationIdAndTicketIdAndNewState(
+      @Param("negotiationId") String negotiationId,
+      @Param("ticketId") String ticketId,
+      @Param("newState") String newState);
 
   void deleteByCreatedAtBefore(Instant cutoff);
 }

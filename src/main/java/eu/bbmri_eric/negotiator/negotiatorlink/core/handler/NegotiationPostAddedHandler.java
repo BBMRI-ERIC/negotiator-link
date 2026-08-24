@@ -61,7 +61,7 @@ public class NegotiationPostAddedHandler implements NegotiatorEventHandler {
     NegotiationPostAddedWebhookEvent event =
         objectMapper.convertValue(data, NegotiationPostAddedWebhookEvent.class);
 
-    PostContent content = fetchPostContent(event.getPostId(), event);
+    PostContent content = fetchPostContent(event);
     if (content == null) {
       return;
     }
@@ -83,14 +83,16 @@ public class NegotiationPostAddedHandler implements NegotiatorEventHandler {
   }
 
   /** Loads the post and returns its content, or {@code null} if it cannot be forwarded. */
-  private PostContent fetchPostContent(String postId, NegotiationPostAddedWebhookEvent event) {
+  private PostContent fetchPostContent(NegotiationPostAddedWebhookEvent event) {
     OrganizationConfig fetchConfig =
         resolveFetchConfig(event.getNegotiationId(), event.getOrganizationId());
+    String postId = event.getPostId();
     if (fetchConfig == null) {
       log.warn("No usable org config to fetch post '{}' — skipping", postId);
       return null;
     }
-    EntityModelPostDTO post = negotiatorClient.getPostText(postId, fetchConfig);
+    EntityModelPostDTO post =
+        negotiatorClient.getPost(event.getNegotiationId(), postId, fetchConfig);
     if (post == null || post.getText() == null) {
       log.warn("Post '{}' not found or has no text — skipping", postId);
       return null;
@@ -154,7 +156,6 @@ public class NegotiationPostAddedHandler implements NegotiatorEventHandler {
         .findFirstByTextHashAndOrganizationIdOrderByCreatedAtAsc(textHash, orgIdStr)
         .map(
             originated -> {
-              originatedPostRepository.delete(originated);
               log.debug(
                   "Deduplication: excluding originating ticket '{}' from fan-out for post '{}'",
                   originated.getTicketId(),
