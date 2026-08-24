@@ -140,7 +140,7 @@ In Zammad: **Admin → Manage → Triggers → New Trigger**
 - **Name**: `negotiator-link: new article`
 - **Action execution**: Selective
 - Enable expert mode and ensure the logic is set to match all (AND).
-- **Conditions**: `Article → Created by is not → <negotiator-link bot user>` AND `Article → Updated by is not → <negotiator-link bot user>` AND `Article Action → is → created` AND `Article Visibility → is → public`
+- **Conditions**: `Article → Created by is not → <negotiator-link bot user>` AND `Article Action → is → created` AND `Article Visibility → is → public`
 - **Execute changes on objects**: `Webhook → negotiator-link`
 
 **Create the three custom ticket fields:**
@@ -220,8 +220,8 @@ In Zammad: **Admin → Manage → Triggers → New Trigger**
 
 - **Name**: `negotiator-link: resource transition`
 - **Action execution**: Selective
-- **Conditions**: `Ticket → Request Resource State Transition → has changed` AND
-  `Updated by → is not → <negotiator-link bot user>` AND (Article Visibility → is → internal OR Article Action → is not → created)
+- **Conditions**: (`Ticket → Request Resource State Transition → is → MARK_AS_AVAILABLE` OR <same_for_all_other_transition_event>) AND
+  `Updated by → is not → <negotiator-link bot user>` AND (Article Action → is not → created OR Article Visibility → is → internal)
 - make sure in expert mode under Condition that the logic AND is selected.
 - **Execute changes on objects**: `Webhook → negotiator-link`
 
@@ -255,7 +255,7 @@ docker compose up --build -d negotiator-link
 
 To see the logs of negotiator-link:
 ```bash
-docker compose logs -f negotiator-link
+docker compose logs -f  negotiator-link
 ```
 
 ## Related Projects
