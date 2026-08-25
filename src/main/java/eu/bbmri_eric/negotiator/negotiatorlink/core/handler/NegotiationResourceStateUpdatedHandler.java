@@ -30,6 +30,9 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
   private final Map<HelpDeskType, HelpDeskAdapter> adapters;
   private final ObjectMapper objectMapper;
 
+  private record DispatchContext(
+      String ticketId, OrganizationConfig config, HelpDeskAdapter adapter) {}
+
   public NegotiationResourceStateUpdatedHandler(
       TicketMappingRepository ticketMappingRepository,
       OriginatedTransitionRepository originatedTransitionRepository,
@@ -51,21 +54,21 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
   @Override
   @Transactional
   public void handle(JsonNode data) {
-    ResourceStateUpdate update = parseEvent(data);
-    if (update == null) {
+    NegotiationResourceStateUpdatedWebhookEvent event = parseEvent(data);
+    if (event == null) {
       return;
     }
 
-    DispatchContext context = resolveDispatchContext(update);
+    DispatchContext context = resolveDispatchContext(event);
     if (context == null) {
       return;
     }
 
-    dispatchStateUpdate(update, context);
+    dispatchStateUpdate(event, context);
   }
 
   /** Parses and validates the webhook event, or returns {@code null} if it is incomplete. */
-  private ResourceStateUpdate parseEvent(JsonNode data) {
+  private NegotiationResourceStateUpdatedWebhookEvent parseEvent(JsonNode data) {
     NegotiationResourceStateUpdatedWebhookEvent event =
         objectMapper.convertValue(data, NegotiationResourceStateUpdatedWebhookEvent.class);
 
@@ -77,22 +80,23 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
       log.warn("Incomplete resource state update event — skipping");
       return null;
     }
-    return new ResourceStateUpdate(negotiationId, resourceId, toState);
+    return event;
   }
 
   /**
    * Resolves the ticket mapping, org config, and adapter for the update, or returns {@code null} if
    * the resource is not managed here or is misconfigured.
    */
-  private DispatchContext resolveDispatchContext(ResourceStateUpdate update) {
+  private DispatchContext resolveDispatchContext(
+      NegotiationResourceStateUpdatedWebhookEvent event) {
     Optional<TicketMapping> mappingOpt =
         ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
-            update.negotiationId(), update.resourceId());
+            event.getNegotiationId(), event.getResourceId());
     if (mappingOpt.isEmpty()) {
       log.debug(
           "No ticket mapping for negotiation '{}' resource '{}' — not managed here",
-          update.negotiationId(),
-          update.resourceId());
+          event.getNegotiationId(),
+          event.getResourceId());
       return null;
     }
 
@@ -116,32 +120,33 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
   }
 
   /** Applies the state update, deduplicating it if it originated from the help desk. */
-  private void dispatchStateUpdate(ResourceStateUpdate update, DispatchContext context) {
+  private void dispatchStateUpdate(
+      NegotiationResourceStateUpdatedWebhookEvent event, DispatchContext context) {
+    String negotiationId = event.getNegotiationId();
+    String resourceId = event.getResourceId();
+    String toState = event.getToState().getValue();
     OriginatedTransition originated =
         originatedTransitionRepository
-            .findByNegotiationIdAndTicketIdAndNewState(
-                update.negotiationId(), context.ticketId(), update.toState())
+            .findByNegotiationIdAndTicketIdAndNewState(negotiationId, context.ticketId(), toState)
             .orElse(null);
 
     try {
       if (context.config.ticketStrategy() == TicketStrategy.PER_NEGOTIATION && originated != null) {
-        handleOriginatedTransition(originated, update.toState(), context);
+        handleOriginatedTransition(originated, toState, context);
       } else {
         log.info(
             "Updating resource state to '{}' on ticket '{}' (Negotiator-triggered or from helpdesk with PER_RESOURCE strategy)",
-            update.toState(),
+            toState,
             context.ticketId());
-        context
-            .adapter()
-            .updateResourceState(context.ticketId(), update.toState(), context.config());
+        context.adapter().updateResourceState(context.ticketId(), toState, context.config());
       }
     } catch (Exception e) {
       log.error(
           "Failed to update resource state to '{}' on ticket '{}' for negotiation '{}' resource '{}'",
-          update.toState(),
+          toState,
           context.ticketId(),
-          update.negotiationId(),
-          update.resourceId(),
+          negotiationId,
+          resourceId,
           e);
     }
   }
@@ -192,11 +197,4 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
           ticketId);
     }
   }
-
-  /** The validated fields extracted from the webhook event. */
-  private record ResourceStateUpdate(String negotiationId, String resourceId, String toState) {}
-
-  /** The resolved target for a state update: which ticket, and how to reach it. */
-  private record DispatchContext(
-      String ticketId, OrganizationConfig config, HelpDeskAdapter adapter) {}
 }

@@ -20,6 +20,14 @@
         <postgresql.version>42.7.13</postgresql.version>
         <lombok.version>1.18.46</lombok.version>
         <openapi-generator.version>7.23.0</openapi-generator.version>
+        <wiremock.version>3.13.0</wiremock.version>
+        <okhttp.version>5.1.0</okhttp.version>
+        <jsoup.version>1.18.1</jsoup.version>
+        <jackson-databind-nullable.version>0.2.6</jackson-databind-nullable.version>
+        <standardwebhooks.version>1.1.1</standardwebhooks.version>
+        <j2html.version>1.6.0</j2html.version>
+        <fmt-maven-plugin.version>2.29</fmt-maven-plugin.version>
+        <jacoco.version>0.8.15</jacoco.version>
     </properties>
     <dependencies>
         <!-- Spring Boot Starters -->
@@ -116,19 +124,19 @@
         <dependency>
             <groupId>org.wiremock</groupId>
             <artifactId>wiremock-standalone</artifactId>
-            <version>3.13.0</version>
+            <version>${wiremock.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>
             <artifactId>mockwebserver</artifactId>
-            <version>5.1.0</version>
+            <version>${okhttp.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.jsoup</groupId>
             <artifactId>jsoup</artifactId>
-            <version>1.18.1</version>
+            <version>${jsoup.version}</version>
             <scope>test</scope>
         </dependency>
 
@@ -136,14 +144,14 @@
         <dependency>
             <groupId>org.openapitools</groupId>
             <artifactId>jackson-databind-nullable</artifactId>
-            <version>0.2.6</version>
+            <version>${jackson-databind-nullable.version}</version>
         </dependency>
 
         <!-- Standard Webhooks verification -->
         <dependency>
             <groupId>com.standardwebhooks</groupId>
             <artifactId>standardwebhooks</artifactId>
-            <version>1.1.1</version>
+            <version>${standardwebhooks.version}</version>
         </dependency>
 
         <!-- Utilities -->
@@ -165,7 +173,7 @@
         <dependency>
             <groupId>com.j2html</groupId>
             <artifactId>j2html</artifactId>
-            <version>1.6.0</version>
+            <version>${j2html.version}</version>
         </dependency>
     </dependencies>
 
@@ -219,7 +227,7 @@
             <plugin>
                 <groupId>com.spotify.fmt</groupId>
                 <artifactId>fmt-maven-plugin</artifactId>
-                <version>2.29</version>
+                <version>${fmt-maven-plugin.version}</version>
                 <executions>
                     <execution>
                         <goals>
@@ -243,7 +251,7 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.15</version>
+                <version>${jacoco.version}</version>
                 <executions>
                     <execution>
                         <id>prepare-agent</id>

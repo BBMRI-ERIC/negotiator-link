@@ -36,6 +36,8 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
   private final OriginatedPostRepository originatedPostRepository;
   private final ObjectMapper objectMapper;
 
+  private record PostContent(String text, boolean isPublic, String textHash) {}
+
   public NegotiationPostAddedHandler(
       NegotiatorClient negotiatorClient,
       OrganizationConfigRegistry registry,
@@ -215,7 +217,4 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
 
     return ticketToOrgExtId;
   }
-
-  /** Bundles the fetched post's text, visibility, and content hash. */
-  private record PostContent(String text, boolean isPublic, String textHash) {}
 }

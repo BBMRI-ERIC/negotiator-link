@@ -285,13 +285,27 @@ public class ZammadAdapter implements HelpDeskAdapter {
         : HelpdeskCallbackType.POST_MESSAGE;
   }
 
-  /** Treats blank transition events as absent. */
   private static String normalize(String value) {
     return StringUtils.isBlank(value) ? null : value;
   }
 
   private static boolean hasArticle(ZammadCallbackPayload.Article article) {
     return article != null && article.body() != null;
+  }
+
+  private static Sender parseSender(ZammadCallbackPayload.ArticleUser user) {
+    if (user == null) {
+      return null;
+    }
+    String name = buildFullName(user.firstname(), user.lastname());
+    return new Sender(name, user.email());
+  }
+
+  private static String buildFullName(String firstName, String lastName) {
+    if (firstName == null && lastName == null) return null;
+    if (firstName == null) return lastName;
+    if (lastName == null) return firstName;
+    return firstName + " " + lastName;
   }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
@@ -308,20 +322,5 @@ public class ZammadAdapter implements HelpDeskAdapter {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record ArticleUser(String firstname, String lastname, String email) {}
-  }
-
-  private static Sender parseSender(ZammadCallbackPayload.ArticleUser user) {
-    if (user == null) {
-      return null;
-    }
-    String name = buildFullName(user.firstname(), user.lastname());
-    return new Sender(name, user.email());
-  }
-
-  private static String buildFullName(String firstName, String lastName) {
-    if (firstName == null && lastName == null) return null;
-    if (firstName == null) return lastName;
-    if (lastName == null) return firstName;
-    return firstName + " " + lastName;
   }
 }

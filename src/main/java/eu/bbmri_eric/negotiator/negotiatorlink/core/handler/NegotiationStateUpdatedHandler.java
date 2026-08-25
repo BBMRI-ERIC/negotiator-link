@@ -45,6 +45,13 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
   private final TicketMappingRepository ticketMappingRepository;
   private final ObjectMapper objectMapper;
 
+  private record NegotiationWithConfig(
+      EntityModelNegotiationDTO negotiation, OrganizationConfig config) {}
+
+  /** The resolved per-organization context for creating tickets */
+  private record OrgTicketContext(
+      String negotiationId, String orgExtId, OrganizationConfig config, HelpDeskAdapter adapter) {}
+
   public NegotiationStateUpdatedHandler(
       NegotiatorClient negotiatorClient,
       OrganizationConfigRegistry registry,
@@ -128,7 +135,6 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     }
   }
 
-  /** Resolves the org config and adapter, or returns {@code null} if unmanaged/misconfigured. */
   private OrgTicketContext resolveOrgContext(String negotiationId, String orgExtId) {
     OrganizationConfig config = registry.findByExternalId(orgExtId).orElse(null);
     if (config == null) {
@@ -235,7 +241,6 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
             });
   }
 
-  /** Persists the mapping between a created ticket and a resource. */
   private void saveMapping(
       CreatedTicket ticket, EntityModelResourceWithStatusDTO resource, OrgTicketContext context) {
     TicketMappingId id =
@@ -293,11 +298,4 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     }
     return null;
   }
-
-  private record NegotiationWithConfig(
-      EntityModelNegotiationDTO negotiation, OrganizationConfig config) {}
-
-  /** The resolved per-organization context for creating tickets during an APPROVE. */
-  private record OrgTicketContext(
-      String negotiationId, String orgExtId, OrganizationConfig config, HelpDeskAdapter adapter) {}
 }
