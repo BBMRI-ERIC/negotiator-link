@@ -4,6 +4,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.OriginatedTransition;
@@ -66,7 +67,7 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
 
     HelpdeskClient client = clients.get(config.type());
 
-    if (mappings.size() == 1) {
+    if (config.ticketStrategy() == TicketStrategy.PER_RESOURCE) {
       handlePerResource(mappings.getFirst(), requestedEvent, event.resourceState(), client, config);
     } else {
       handlePerNegotiation(mappings, requestedEvent, event.resourceState(), client, config);

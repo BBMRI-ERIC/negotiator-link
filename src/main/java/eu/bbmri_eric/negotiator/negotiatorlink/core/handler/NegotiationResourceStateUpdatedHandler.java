@@ -155,16 +155,19 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
       OriginatedTransition originated, String toState, DispatchContext context) {
     String ticketId = context.ticketId();
 
-    originatedTransitionRepository.incrementReceivedCount(originated.getRowId());
-    // Re-fetch to get the updated count after the atomic increment
-    OriginatedTransition updated =
-        originatedTransitionRepository.findById(originated.getRowId()).orElse(null);
-    if (updated == null) {
+    // Lock the row for the duration of this transaction so concurrent webhooks for the same
+    // originated transition serialise here; exactly one thread observes the 0 -> 1 transition.
+    OriginatedTransition locked =
+        originatedTransitionRepository.findByIdForUpdate(originated.getRowId()).orElse(null);
+    if (locked == null) {
       return;
     }
 
-    int received = updated.getReceivedCount();
-    int expected = updated.getExpectedCount();
+    locked.setReceivedCount(locked.getReceivedCount() + 1);
+    originatedTransitionRepository.save(locked);
+
+    int received = locked.getReceivedCount();
+    int expected = locked.getExpectedCount();
 
     if (received == 1) {
       log.info(
@@ -189,8 +192,7 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
     }
 
     if (received >= expected) {
-      originatedTransitionRepository.deleteByNegotiationIdAndTicketIdAndNewState(
-          updated.getNegotiationId(), updated.getTicketId(), updated.getNewState());
+      originatedTransitionRepository.deleteById(locked.getRowId());
       log.debug(
           "Consumed all {} webhooks for ticket '{}' — removed originated_transitions row",
           expected,

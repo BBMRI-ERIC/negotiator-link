@@ -45,6 +45,27 @@ class PostUtilTest {
             "email only prepends email",
             TEXT,
             new Sender(null, "jane@example.com"),
-            "From: jane@example.com\n\n" + TEXT));
+            "From: jane@example.com\n\n" + TEXT),
+        Arguments.of(
+            "forwarded email starting with 'From: ' plus header lines is still signed",
+            "From: jane@example.com\nTo: bob@example.com\nSubject: Hi\n\nForwarded body",
+            new Sender("Rep", "rep@example.com"),
+            "From: Rep <rep@example.com>\n\n"
+                + "From: jane@example.com\nTo: bob@example.com\nSubject: Hi\n\nForwarded body"),
+        Arguments.of(
+            "text starting with 'From: ...\\n' but no blank line is still signed",
+            "From: jane@example.com\nsome more text",
+            new Sender("Rep", "rep@example.com"),
+            "From: Rep <rep@example.com>\n\nFrom: jane@example.com\nsome more text"),
+        Arguments.of(
+            "text that is only 'From: ...' with no newline is still signed",
+            "From: jane@example.com",
+            new Sender("Rep", "rep@example.com"),
+            "From: Rep <rep@example.com>\n\nFrom: jane@example.com"),
+        Arguments.of(
+            "content that merely contains a later blank line but no 'From: ' prefix is signed",
+            "Regarding your request\n\nplease advise",
+            new Sender("Rep", "rep@example.com"),
+            "From: Rep <rep@example.com>\n\nRegarding your request\n\nplease advise"));
   }
 }

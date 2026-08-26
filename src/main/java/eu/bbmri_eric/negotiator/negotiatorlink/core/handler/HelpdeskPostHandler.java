@@ -15,6 +15,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostCreateDTO;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
@@ -39,6 +40,7 @@ public class HelpdeskPostHandler implements HelpdeskCallbackHandler {
   }
 
   @Override
+  @Transactional
   public void handle(HelpdeskCallbackEvent event, OrganizationConfig config) {
     String ticketId = event.ticketId();
 

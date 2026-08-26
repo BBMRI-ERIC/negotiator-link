@@ -215,6 +215,14 @@ public final class NegotiationTicketBodyFormatter {
     return sb.toString();
   }
 
+  /**
+   * Attempts to read a human-readable title from the negotiation payload at {@code
+   * payload.project.title}.
+   *
+   * <p>The payload has no deployment-independent shape. Its structure is determined entirely by
+   * each Negotiator instance's configurable access forms, so this {@code project.title} path is an
+   * assumption that may not hold everywhere. In that case the generic title is used as a fallback.
+   */
   @SuppressWarnings("unchecked")
   private static Optional<String> getTitleIfPresentInPayload(
       EntityModelNegotiationDTO negotiation, String resourceName) {

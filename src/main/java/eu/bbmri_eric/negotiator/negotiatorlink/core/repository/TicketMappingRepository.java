@@ -10,6 +10,9 @@ public interface TicketMappingRepository extends JpaRepository<TicketMapping, Ti
 
   List<TicketMapping> findByIdNegotiationId(String negotiationId);
 
+  List<TicketMapping> findByIdNegotiationIdAndOrganizationId(
+      String negotiationId, String organizationId);
+
   List<TicketMapping> findByIdHelpdeskTicketIdAndOrganizationExtId(
       String helpdeskTicketId, String organizationExtId);
 

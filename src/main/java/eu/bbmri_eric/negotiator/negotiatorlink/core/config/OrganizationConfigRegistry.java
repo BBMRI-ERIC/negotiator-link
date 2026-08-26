@@ -54,6 +54,10 @@ public class OrganizationConfigRegistry {
   private static void validate(List<OrganizationConfig> configs) {
     for (OrganizationConfig config : configs) {
       String orgId = config.organizationExternalId();
+      if (StringUtils.isBlank(config.baseUrl())) {
+        throw new IllegalStateException(
+            "Organization '%s': baseUrl must not be blank".formatted(orgId));
+      }
       if (StringUtils.isBlank(config.callbackSecret())) {
         throw new IllegalStateException(
             "Organization '%s': callbackSecret must not be blank".formatted(orgId));

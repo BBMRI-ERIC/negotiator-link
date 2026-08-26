@@ -117,8 +117,9 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
   private OrganizationConfig resolveFetchConfig(String negotiationId, Long organizationId) {
     if (organizationId != null) {
       String orgIdStr = String.valueOf(organizationId);
-      return ticketMappingRepository.findAll().stream()
-          .filter(mapping -> orgIdStr.equals(mapping.getOrganizationId()))
+      return ticketMappingRepository
+          .findByIdNegotiationIdAndOrganizationId(negotiationId, orgIdStr)
+          .stream()
           .findFirst()
           .flatMap(mapping -> registry.findByExternalId(mapping.getOrganizationExtId()))
           .orElse(null);
