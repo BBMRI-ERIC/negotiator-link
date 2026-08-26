@@ -153,7 +153,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
 
   private void handleStateChange(NegotiationStateUpdatedWebhookEvent event) {
     // TODO: milestone 2 — update negotiation_state field on all mapped tickets
-    log.debug(
+    log.info(
         "Ignoring negotiation state change '{}' for negotiation '{}' — not yet implemented",
         event.getEvent(),
         event.getNegotiationId());
@@ -188,6 +188,11 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
 
     List<CreatedTicket> createdTickets = new ArrayList<>();
 
+    // The post list is negotiation-wide and identical for every resource ticket, so fetch it once
+    // rather than once per created ticket.
+    List<EntityModelPostDTO> posts =
+        negotiatorClient.getPosts(context.negotiationId(), context.config());
+
     for (EntityModelResourceWithStatusDTO resource : resources) {
       String body =
           NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(negotiation, resource);
@@ -206,7 +211,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       saveMapping(created, resource, context);
       createdTickets.add(created);
 
-      postNegotiationCommentsToTicket(created.ticketId(), context);
+      postCommentsToTicket(created.ticketId(), posts, context);
     }
 
     if (createdTickets.size() > 1) {
@@ -215,8 +220,14 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
   }
 
   private void postNegotiationCommentsToTicket(String ticketId, OrgTicketContext context) {
+    List<EntityModelPostDTO> posts =
+        negotiatorClient.getPosts(context.negotiationId(), context.config());
+    postCommentsToTicket(ticketId, posts, context);
+  }
+
+  private void postCommentsToTicket(
+      String ticketId, List<EntityModelPostDTO> posts, OrgTicketContext context) {
     OrganizationConfig config = context.config();
-    List<EntityModelPostDTO> posts = negotiatorClient.getPosts(context.negotiationId(), config);
     if (posts.isEmpty()) {
       return;
     }
@@ -275,6 +286,10 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     return result;
   }
 
+  /**
+   * Finds an organization authorized to read the negotiation by probing each configured org's
+   * credentials in turn until one is not rejected with 403. This should be improved in the future.
+   */
   private NegotiationWithConfig fetchNegotiationFromAuthorizedOrg(String negotiationId) {
     for (OrganizationConfig config : registry.findAll()) {
       try {
