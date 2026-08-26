@@ -103,8 +103,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
   @Test
   void handle_originatedTransition_firstWebhook_updatesStateAndKeepsRow() {
     var config = createConfig(TicketStrategy.PER_NEGOTIATION);
-    var originated = transition(2, 0);
-    var afterIncrement = transition(2, 1);
+    var transition = transition(2, 0);
 
     when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
             NEGOTIATION_ID, RESOURCE_ID))
@@ -112,23 +111,21 @@ class NegotiationResourceStateUpdatedHandlerTest {
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
     when(originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
             NEGOTIATION_ID, TICKET_ID, NEW_STATE))
-        .thenReturn(Optional.of(originated));
-    when(originatedTransitionRepository.findById(originated.getRowId()))
-        .thenReturn(Optional.of(afterIncrement));
+        .thenReturn(Optional.of(transition));
+    when(originatedTransitionRepository.findByIdForUpdate(transition.getRowId()))
+        .thenReturn(Optional.of(transition));
 
     handler.handle(eventData(NEW_STATE));
 
-    verify(originatedTransitionRepository).incrementReceivedCount(eq(originated.getRowId()));
+    verify(originatedTransitionRepository).save(transition);
     verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
-    verify(originatedTransitionRepository, never())
-        .deleteByNegotiationIdAndTicketIdAndNewState(any(), any(), any());
+    verify(originatedTransitionRepository, never()).deleteById(any());
   }
 
   @Test
   void handle_originatedTransition_secondWebhook_discardedAndRowDeleted() {
     var config = createConfig(TicketStrategy.PER_NEGOTIATION);
-    var originated = transition(2, 1);
-    var afterIncrement = transition(2, 2);
+    var transition = transition(2, 1);
 
     when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
             NEGOTIATION_ID, RESOURCE_ID))
@@ -136,19 +133,15 @@ class NegotiationResourceStateUpdatedHandlerTest {
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
     when(originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
             NEGOTIATION_ID, TICKET_ID, NEW_STATE))
-        .thenReturn(Optional.of(originated));
-    when(originatedTransitionRepository.findById(originated.getRowId()))
-        .thenReturn(Optional.of(afterIncrement));
+        .thenReturn(Optional.of(transition));
+    when(originatedTransitionRepository.findByIdForUpdate(transition.getRowId()))
+        .thenReturn(Optional.of(transition));
 
     handler.handle(eventData(NEW_STATE));
 
-    verify(originatedTransitionRepository).incrementReceivedCount(eq(originated.getRowId()));
+    verify(originatedTransitionRepository).save(transition);
     verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
-    verify(originatedTransitionRepository)
-        .deleteByNegotiationIdAndTicketIdAndNewState(
-            eq(afterIncrement.getNegotiationId()),
-            eq(afterIncrement.getTicketId()),
-            eq(afterIncrement.getNewState()));
+    verify(originatedTransitionRepository).deleteById(eq(transition.getRowId()));
   }
 
   @Test
