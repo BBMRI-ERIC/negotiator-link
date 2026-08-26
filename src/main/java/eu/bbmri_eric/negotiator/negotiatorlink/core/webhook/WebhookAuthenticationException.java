@@ -1,4 +1,4 @@
-package eu.bbmri_eric.negotiator.negotiatorlink.core.verification;
+package eu.bbmri_eric.negotiator.negotiatorlink.core.webhook;
 
 public class WebhookAuthenticationException extends RuntimeException {
 

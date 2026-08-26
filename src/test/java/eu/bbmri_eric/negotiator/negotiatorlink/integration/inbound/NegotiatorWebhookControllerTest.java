@@ -16,7 +16,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpDeskAdapter;
+import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.OriginatedPost;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.OriginatedTransition;
@@ -51,7 +51,7 @@ class NegotiatorWebhookControllerTest {
   @Autowired private TicketMappingRepository ticketMappingRepository;
   @Autowired private OriginatedTransitionRepository originatedTransitionRepository;
   @Autowired private OriginatedPostRepository originatedPostRepository;
-  @MockitoSpyBean private HelpDeskAdapter helpDeskAdapter;
+  @MockitoSpyBean private HelpdeskClient helpDeskAdapter;
   @MockitoBean private NegotiatorClient negotiatorClient;
 
   @Value("${negotiatorlink.webhook.secret}")

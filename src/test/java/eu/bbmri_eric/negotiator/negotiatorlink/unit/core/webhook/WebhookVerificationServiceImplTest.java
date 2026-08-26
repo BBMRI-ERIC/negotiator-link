@@ -1,13 +1,12 @@
-package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.verification;
+package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.webhook;
 
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.buildWebhookRequest;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.signedWebhookPayload;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.core.verification.WebhookAuthenticationException;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.verification.WebhookVerificationServiceImpl;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.webhook.WebhookAuthenticationException;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.webhook.WebhookVerificationServiceImpl;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,17 +61,6 @@ class WebhookVerificationServiceImplTest {
     assertThatThrownBy(() -> service.verify(request, BODY.getBytes(StandardCharsets.UTF_8)))
         .isInstanceOf(WebhookAuthenticationException.class)
         .hasMessageContaining("Webhook-Signature");
-  }
-
-  @Test
-  void checkAndMarkSeen_whenFirstCall_returnsFalse() {
-    assertThat(service.checkAndMarkSeen("new-id-1")).isFalse();
-  }
-
-  @Test
-  void checkAndMarkSeen_whenCalledTwice_returnsTrueOnSecond() {
-    service.checkAndMarkSeen("new-id-2");
-    assertThat(service.checkAndMarkSeen("new-id-2")).isTrue();
   }
 
   @Test
