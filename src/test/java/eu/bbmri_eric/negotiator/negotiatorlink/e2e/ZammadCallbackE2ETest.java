@@ -4,6 +4,7 @@ import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.hmacSha1Hex;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -16,6 +17,8 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostCreateDTO;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
@@ -24,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -39,12 +43,40 @@ class ZammadCallbackE2ETest {
   private static final String RESOURCE_SOURCE_ID = "src-cb-1";
   private static final String RESOURCE_ID = "100";
   private static final String ORGANIZATION_ID = "42";
-  private static final String POST_TEXT = "Internal Message";
-  private static final String SENDER_FIRST_NAME = "John";
-  private static final String SENDER_LAST_NAME = "Smith";
-  private static final String SENDER_EMAIL = "john.smith@example.com";
+
+  private static final String ARTICLE_BODY = "Internal Message";
+  private static final String AUTHOR_FIRSTNAME = "John";
+  private static final String AUTHOR_LASTNAME = "Smith";
+  private static final String AUTHOR_EMAIL = "john.smith@example.com";
   private static final String SIGNED_POST_TEXT =
-      "From: John Smith <john.smith@example.com>\n\n" + POST_TEXT;
+      "From: "
+          + AUTHOR_FIRSTNAME
+          + " "
+          + AUTHOR_LASTNAME
+          + " <"
+          + AUTHOR_EMAIL
+          + ">\n\n"
+          + ARTICLE_BODY;
+
+  private static final String ARTICLE_BODY_WITH_TRANSITION =
+      "Public Message With change resource state";
+  private static final String SIGNED_POST_TEXT_WITH_TRANSITION =
+      "From: "
+          + AUTHOR_FIRSTNAME
+          + " "
+          + AUTHOR_LASTNAME
+          + " <"
+          + AUTHOR_EMAIL
+          + ">\n\n"
+          + ARTICLE_BODY_WITH_TRANSITION;
+
+  private static final String PAYLOAD_NEW_ARTICLE = "webhookPayloadWhenNewPublicArticle.json";
+  private static final String PAYLOAD_RESOURCE_TRANSITION =
+      "webhookPayloadWhenResourceTransitionOnly.json";
+  private static final String PAYLOAD_ARTICLE_AND_TRANSITION =
+      "webhookPayloadWhenBothNewPublicArticleAndResourceStateTransition.json";
+  private static final String PAYLOAD_INTERNAL_ARTICLE_AND_TRANSITION =
+      "webhookPayloadWhenBothNewInternalArticleAndResourceStateTransition.json";
 
   private static final String PER_RESOURCE_ORG = "bbmri:DE:MHH";
   private static final String PER_RESOURCE_SECRET = "test-callback-secret";
@@ -75,7 +107,7 @@ class ZammadCallbackE2ETest {
             ORGANIZATION_ID,
             PER_RESOURCE_ORG));
 
-    postCallback(PER_RESOURCE_ORG, PER_RESOURCE_SECRET, newPublicArticlePayload());
+    postCallback(PER_RESOURCE_ORG, PER_RESOURCE_SECRET, loadFile(PAYLOAD_NEW_ARTICLE));
 
     verify(negotiatorClient)
         .createPost(
@@ -103,7 +135,7 @@ class ZammadCallbackE2ETest {
             ORGANIZATION_ID,
             PER_NEGOTIATION_ORG));
 
-    postCallback(PER_NEGOTIATION_ORG, PER_NEGOTIATION_SECRET, newPublicArticlePayload());
+    postCallback(PER_NEGOTIATION_ORG, PER_NEGOTIATION_SECRET, loadFile(PAYLOAD_NEW_ARTICLE));
 
     verify(negotiatorClient)
         .createPost(
@@ -131,7 +163,7 @@ class ZammadCallbackE2ETest {
             eq(NEGOTIATION_ID), eq(RESOURCE_SOURCE_ID), any(OrganizationConfig.class)))
         .thenReturn(Set.of(event));
 
-    postCallback(PER_RESOURCE_ORG, PER_RESOURCE_SECRET, resourceTransitionOnlyPayload());
+    postCallback(PER_RESOURCE_ORG, PER_RESOURCE_SECRET, loadFile(PAYLOAD_RESOURCE_TRANSITION));
 
     verify(negotiatorClient)
         .sendResourceEvent(
@@ -167,7 +199,8 @@ class ZammadCallbackE2ETest {
             eq(NEGOTIATION_ID), eq(resourceSourceId2), any(OrganizationConfig.class)))
         .thenReturn(Set.of(event));
 
-    postCallback(PER_NEGOTIATION_ORG, PER_NEGOTIATION_SECRET, resourceTransitionOnlyPayload());
+    postCallback(
+        PER_NEGOTIATION_ORG, PER_NEGOTIATION_SECRET, loadFile(PAYLOAD_RESOURCE_TRANSITION));
 
     verify(negotiatorClient)
         .sendBulkResourceEvent(
@@ -175,6 +208,63 @@ class ZammadCallbackE2ETest {
             argThat(ids -> ids.size() == 2 && ids.containsAll(List.of(resourceId1, resourceId2))),
             eq(ResourceTransitionEvent.MARK_AS_CHECKING_AVAILABILITY.targetState()),
             any(OrganizationConfig.class));
+    zammadServer.verify();
+  }
+
+  @Test
+  void articleWithResourceTransition_perResourceOrg_sendsPostAndResourceEvent() throws Exception {
+    String event = ResourceTransitionEvent.MARK_AS_CHECKING_AVAILABILITY.toString();
+
+    ticketMappingRepository.save(
+        new TicketMapping(
+            new TicketMappingId(NEGOTIATION_ID, TICKET_ID, RESOURCE_ID),
+            RESOURCE_SOURCE_ID,
+            ORGANIZATION_ID,
+            PER_RESOURCE_ORG));
+
+    when(negotiatorClient.getPossibleResourceEvents(
+            eq(NEGOTIATION_ID), eq(RESOURCE_SOURCE_ID), any(OrganizationConfig.class)))
+        .thenReturn(Set.of(event));
+
+    postCallback(PER_RESOURCE_ORG, PER_RESOURCE_SECRET, loadFile(PAYLOAD_ARTICLE_AND_TRANSITION));
+
+    verify(negotiatorClient)
+        .createPost(
+            eq(NEGOTIATION_ID),
+            argThat(
+                p ->
+                    SIGNED_POST_TEXT_WITH_TRANSITION.equals(p.getText())
+                        && PostCreateDTO.TypeEnum.PRIVATE.equals(p.getType())),
+            any(OrganizationConfig.class));
+    verify(negotiatorClient)
+        .sendResourceEvent(
+            eq(NEGOTIATION_ID), eq(RESOURCE_SOURCE_ID), eq(event), any(OrganizationConfig.class));
+    zammadServer.verify();
+  }
+
+  @Test
+  void internalArticleWithResourceTransition_perResourceOrg_discardsPostButSendsResourceEvent()
+      throws Exception {
+    String event = "MARK_AS_CHECKING_AVAILABILITY";
+
+    ticketMappingRepository.save(
+        new TicketMapping(
+            new TicketMappingId(NEGOTIATION_ID, TICKET_ID, RESOURCE_ID),
+            RESOURCE_SOURCE_ID,
+            ORGANIZATION_ID,
+            PER_RESOURCE_ORG));
+
+    when(negotiatorClient.getPossibleResourceEvents(
+            eq(NEGOTIATION_ID), eq(RESOURCE_SOURCE_ID), any(OrganizationConfig.class)))
+        .thenReturn(Set.of(event));
+
+    postCallback(
+        PER_RESOURCE_ORG, PER_RESOURCE_SECRET, loadFile(PAYLOAD_INTERNAL_ARTICLE_AND_TRANSITION));
+
+    verify(negotiatorClient, never()).createPost(any(), any(), any());
+    verify(negotiatorClient)
+        .sendResourceEvent(
+            eq(NEGOTIATION_ID), eq(RESOURCE_SOURCE_ID), eq(event), any(OrganizationConfig.class));
     zammadServer.verify();
   }
 
@@ -192,36 +282,12 @@ class ZammadCallbackE2ETest {
         .andExpect(status().isOk());
   }
 
-  private static String newPublicArticlePayload() {
-    return """
-        {
-          "ticket": {
-            "id": 1,
-            "negotiator_resource_transition_event": ""
-          },
-          "article": {
-            "body": "%s",
-            "internal": false,
-            "created_by": {
-              "firstname": "%s",
-              "lastname": "%s",
-              "email": "%s"
-            }
-          }
-        }
-        """
-        .formatted(POST_TEXT, SENDER_FIRST_NAME, SENDER_LAST_NAME, SENDER_EMAIL);
-  }
-
-  private static String resourceTransitionOnlyPayload() {
-    return """
-        {
-          "ticket": {
-            "id": 1,
-            "negotiator_resource_transition_event": "MARK_AS_CHECKING_AVAILABILITY"
-          },
-          "article": {}
-        }
-        """;
+  private static String loadFile(String filename) {
+    try {
+      return new ClassPathResource("api-tests/zammad/" + filename)
+          .getContentAsString(StandardCharsets.UTF_8);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 }

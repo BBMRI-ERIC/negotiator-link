@@ -212,4 +212,52 @@ class NegotiatorClientTest {
     assertThatThrownBy(() -> client.getNegotiation("neg-err", config))
         .isInstanceOf(RestClientException.class);
   }
+
+  @Test
+  void getPosts_unwrapsHateoasEmbedded() {
+    server
+        .expect(requestTo(BASE_URL + "/v3/negotiations/neg-1/posts"))
+        .andExpect(method(HttpMethod.GET))
+        .andExpect(header("Authorization", "Bearer " + BEARER_TOKEN))
+        .andRespond(
+            withSuccess(
+                """
+                {"_embedded":{"posts":[
+                  {"id":"post-1","text":"hello","type":"PRIVATE"},
+                  {"id":"post-2","text":"world","type":"PUBLIC"}
+                ]}}
+                """,
+                MediaType.APPLICATION_JSON));
+
+    List<EntityModelPostDTO> posts = client.getPosts("neg-1", config);
+
+    assertThat(posts).hasSize(2);
+    assertThat(posts.get(0).getId()).isEqualTo("post-1");
+    assertThat(posts.get(1).getId()).isEqualTo("post-2");
+  }
+
+  @Test
+  void getPosts_whenEmbeddedNull_returnsEmptyList() {
+    server
+        .expect(requestTo(BASE_URL + "/v3/negotiations/neg-1/posts"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+
+    assertThat(client.getPosts("neg-1", config)).isEmpty();
+  }
+
+  @Test
+  void getPosts_whenPostsListNull_returnsEmptyList() {
+    server
+        .expect(requestTo(BASE_URL + "/v3/negotiations/neg-1/posts"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(
+            withSuccess(
+                """
+                {"_embedded":{}}
+                """,
+                MediaType.APPLICATION_JSON));
+
+    assertThat(client.getPosts("neg-1", config)).isEmpty();
+  }
 }

@@ -47,20 +47,6 @@ public final class TestUtil {
         + "\",\"fromState\":\"SUBMITTED\",\"toState\":\"IN_PROGRESS\",\"event\":\"APPROVE\"}}";
   }
 
-  public static String negotiationStateUpdatedPayload(
-      String negotiationId, String fromState, String toState, String event) {
-    return "{\"type\":\"negotiation.state.updated\","
-        + "\"data\":{\"negotiationId\":\""
-        + negotiationId
-        + "\",\"fromState\":\""
-        + fromState
-        + "\",\"toState\":\""
-        + toState
-        + "\",\"event\":\""
-        + event
-        + "\"}}";
-  }
-
   public static String postAddedPayload(String negotiationId, String postId, long organizationId) {
     return "{\"type\":\"negotiation.post.added\","
         + "\"data\":{\"postId\":\""
