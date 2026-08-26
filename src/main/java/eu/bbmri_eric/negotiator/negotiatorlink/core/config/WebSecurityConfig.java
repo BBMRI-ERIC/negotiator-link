@@ -1,9 +1,12 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.config;
 
+import java.net.http.HttpClient;
+import java.time.Duration;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -15,8 +18,13 @@ import org.springframework.web.client.RestClient;
 public class WebSecurityConfig {
 
   @Bean
-  RestClient.Builder restClientBuilder() {
-    return RestClient.builder().requestFactory(new SimpleClientHttpRequestFactory());
+  RestClient.Builder restClientBuilder(
+      @Value("${negotiatorlink.helpdesk.connect-timeout:PT5S}") Duration connectTimeout,
+      @Value("${negotiatorlink.helpdesk.read-timeout:PT30S}") Duration readTimeout) {
+    var httpClient = HttpClient.newBuilder().connectTimeout(connectTimeout).build();
+    var requestFactory = new JdkClientHttpRequestFactory(httpClient);
+    requestFactory.setReadTimeout(readTimeout);
+    return RestClient.builder().requestFactory(requestFactory);
   }
 
   @Bean

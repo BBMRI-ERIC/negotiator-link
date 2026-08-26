@@ -9,6 +9,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreatedTicket;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -28,6 +29,7 @@ public class ZammadClient implements HelpdeskClient {
   private static final String ARTICLE_TYPE_NOTE = "note";
 
   private final RestClient.Builder restClientBuilder;
+  private final Map<String, RestClient> clientCache = new ConcurrentHashMap<>();
 
   public ZammadClient(RestClient.Builder restClientBuilder) {
     this.restClientBuilder = restClientBuilder;
@@ -164,12 +166,18 @@ public class ZammadClient implements HelpdeskClient {
   }
 
   private RestClient buildClient(OrganizationConfig config) {
-    String apiToken = config.credentials().get("apiToken");
-    return restClientBuilder
-        .clone()
-        .baseUrl(config.baseUrl())
-        .defaultHeader(AUTH_HEADER, "Token token=" + apiToken)
-        .build();
+    // Cached per organizationExternalId since a given org's apiToken/baseUrl are immutable at
+    // runtime
+    // (env-var config), so a cached client never goes stale. Reusing the client reuses its
+    // underlying connection pool instead of allocating a new one on every API call.
+    return clientCache.computeIfAbsent(
+        config.organizationExternalId(),
+        id ->
+            restClientBuilder
+                .clone()
+                .baseUrl(config.baseUrl())
+                .defaultHeader(AUTH_HEADER, "Token token=" + config.credentials().get("apiToken"))
+                .build());
   }
 
   private CreatedTicket parseCreatedTicket(CreatedTicketResponse response) {
