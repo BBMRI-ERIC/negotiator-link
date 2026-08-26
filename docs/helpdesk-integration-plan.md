@@ -799,7 +799,7 @@ Receives all webhook deliveries from Negotiator at `POST /webhooks/negotiator`. 
 1. Delegate signature and timestamp verification to `WebhookVerificationService`
 2. Check `Webhook-Id` against the shared `ReplayGuard`
 3. Return HTTP 200 within the Negotiator timeout window
-4. Pass the verified raw event to `EventRouter` for processing
+4. Pass the verified raw event to `NegotiatorEventRouter` for processing
 
 It contains no business logic. It never calls Negotiator or any help desk.
 
@@ -814,7 +814,7 @@ are:
 4. Extract the platform-specific callback ID via `adapter.extractCallbackId(headers)` and check it against the shared
    `ReplayGuard` keyed by `organizationExternalId + ":" + callbackId` — if already seen, return HTTP 200 and discard
    silently (replay prevention scoped per organization)
-5. Pass the verified callback to `EventRouter` for processing
+5. Pass the verified callback to `HelpdeskEventRouter` for processing
 
 Error responses are not built in the controller. When the organization is unknown (or its help desk type has no
 registered adapter) the controller throws `UnknownOrganizationException`; when callback authentication fails it throws
@@ -922,7 +922,7 @@ Optional<TicketMapping> findByNegotiationIdAndResourceId(String negotiationId, S
 Note that `findByTicketIdAndOrganization` returns a `List` rather than an `Optional` because a single
 `helpdesk_ticket_id` maps to multiple resources for `PER_NEGOTIATION` organizations.
 
-#### EventRouter
+#### HelpdeskEventRouter
 
 The central dispatch component. Receives a verified event (from either direction) and routes it to the correct event
 handler. For Negotiator-side events it resolves the handler by event type. For help-desk-side callbacks it resolves
@@ -1159,17 +1159,19 @@ eu.bbmri_eric.negotiator.negotiator-link
 ├── core
 │   ├── config
 │   │   ├── OrganizationConfig
-│   │   └── OrganizationConfigRegistry
+│   │   ├── OrganizationConfigRegistry
+│   │   └── ...
 │   ├── webhook
 │   │   ├── WebhookVerificationService
 │   │   ├── ReplayGuard
 │   │   ├── WebhookAuthenticationException
 │   │   └── UnknownOrganizationException
 │   ├── client
+│   │   ├── NegotiatorBootstrapService
 │   │   └── NegotiatorClient
 │   ├── routing
-│   │   ├── EventRouter
-│   │   └── TicketMappingRepository
+│   │   ├── HelpdeskEventRouter
+│   │   └── NegotiatorEventRouter
 │   ├── handler
 │   │   ├── NegotiationApprovedHandler
 │   │   ├── NegotiationStateUpdatedHandler
@@ -1181,7 +1183,8 @@ eu.bbmri_eric.negotiator.negotiator-link
 │   └── model
 │       ├── CreateTicketRequest
 │       ├── HelpdeskCallbackEvent
-│       └── HelpdeskCallbackType
+│       ├── HelpdeskCallbackType
+│       └── ...
 └── adapter
     ├── HelpdeskTyped
     ├── HelpdeskCallbackAdapter
@@ -1213,7 +1216,7 @@ intentional, because implementation of Milestone 1 could surface details that ar
 **Scope:** Milestone 1 delivers the complete bidirectional integration for the core representative workflows: ticket
 creation when a negotiation is approved, resource state transitions from the help desk, and bidirectional message
 exchange (PUBLIC and PRIVATE posts). Security as described in Section 5 is implemented in full from the start since the
-middleware would not work without the new `negotiator_helpdesk` scope and the per-organization representative account
+middleware would not work without the per-organization representative account
 assignment in Negotiator. The Zammad adapter is the reference implementation. At the end of milestone 1 a representative
 can manage the full resource lifecycle and communicate with researchers entirely from Zammad without opening Negotiator.
 
@@ -1241,8 +1244,8 @@ unimplemented stub returning `null`. Two targeted changes are required:
 
 #### Middleware Implementation
 
-1. **Project setup** — Spring Boot application, Maven build, Dockerfile, Docker Compose configuration placing the
-   middleware as a sidecar alongside Negotiator. All secrets injected via environment variables. The application fails
+1. **Project setup** — Spring Boot application, Maven build, Dockerfile, Docker Compose configuration.
+   All secrets injected via environment variables. The application fails
    to start if any required secret environment variable is absent. The Docker Compose configuration also includes a
    Zammad instance so that end-to-end tests can be run locally against a real help desk without any external dependency.
 
@@ -1272,7 +1275,7 @@ unimplemented stub returning `null`. Two targeted changes are required:
    `received_count`, `new_state`, `created_at`), all managed via Spring Data JPA. Scheduled cleanup job deleting rows
    older than 24 hours from both `originated_posts` and `originated_transitions`.
 
-6. **Event routing and handlers** — `EventRouter` with Strategy pattern dispatch. Handlers implemented in milestone 1:
+6. **Event routing and handlers** — `NegotiatorEventRouter` with Strategy pattern dispatch. Handlers implemented in milestone 1:
 
 - `NegotiationApprovedHandler` — triggered by `negotiation.state.updated` with `event: APPROVE`; fetches all resources
   from Negotiator; groups resources by `organizationExternalId`; for each group matching an entry in the YAML config,
@@ -1291,8 +1294,7 @@ unimplemented stub returning `null`. Two targeted changes are required:
   have a matching config entry because rows are only ever inserted for opted-in organizations
 - `ResourceStateUpdatedHandler` — looks up the `ticket_mapping` row by `negotiationId` and `resourceId`; checks
   `originated_transitions` by `(negotiationId, ticketId)`: if a matching record exists, processes the first webhook (
-  updates `negotiator_resource_state`, clears `negotiator_resource_transition_event`) and discards the rest; if no
-  record exists, calls `adapter.updateResourceState()` normally
+  updates `negotiator_resource_state`, clears `negotiator_resource_transition_event`) and discards the rest
 - `HelpdeskResourceTransitionHandler` — resolves `negotiationId` and `resourceId` list from `ticket_mapping` by
   `ticketId`; for `PER_RESOURCE`: validates via `NegotiatorClient.getPossibleResourceEvents()`, on legal transition
   calls `sendResourceEvent()`, on illegal transition clears the field and posts rejection comment; for
@@ -1355,10 +1357,9 @@ workflow, but also when the negotiation is paused, concluded, or abandoned, when
 and when files are exchanged in either direction.
 
 **Negotiation state changes (`negotiation.state.updated` for states other than `IN_PROGRESS`):** When a negotiation
-moves to `PAUSED`, `CONCLUDED`, or `ABANDONED`, all tickets for that negotiation must be updated. This requires a new
-`NegotiationStateUpdatedHandler` and a new `updateNegotiationState()` method on the `HelpdeskClient` interface. The
-Zammad adapter maps Negotiator states to the closest Zammad ticket state (e.g. `CONCLUDED` → closed as resolved,
-`ABANDONED` → closed as cancelled).
+moves to `PAUSED`, `CONCLUDED`, or `ABANDONED`, all tickets for that negotiation must be updated. This requires a handling in
+`NegotiationStateUpdatedHandler` and a `updateNegotiationState()` method on the `HelpdeskClient` interface. It needs to be
+confirmed if the Zammad should map the negotiation state to the ticket state.
 
 **Access form payload updates:** When the researcher updates the negotiation access form, the help desk ticket
 description should be refreshed to reflect the new content, and any attachments uploaded during the edit must also be
@@ -1375,52 +1376,11 @@ registration. On the middleware side a new `NegotiationPayloadUpdatedHandler` fe
 Negotiator via a secondary REST call, posts the refreshed content as a new comment to all mapped tickets, and forwards
 any standalone attachments that have not yet been forwarded (see attachment deduplication below).
 
-**Attachments:** Attachments are currently not linked to posts anywhere in the data model — both `Post` and `Attachment`
-independently reference `negotiation_id` and `organization_id`, but there is no `post_id` FK on `Attachment` and no
-`attachments` collection on `Post`. To support transferring attachments to the help desk as part of the post flow,
-attachments must be optionally linked to posts. The link is optional because attachments can also be uploaded
-independently — during negotiation creation or via the negotiation payload edit — and those must continue to work
-without a post reference.
+**Attachments:** No changes to the Negotiator data model, frontend, or webhook payload are required. The middleware
+handles attachment forwarding autonomously using a deduplication table that tracks which attachments have already been
+transferred for each negotiation.
 
-The following Negotiator changes are required:
-
-- **Migration** — `ALTER TABLE attachment ADD COLUMN post_id VARCHAR(255) NULL` with a FK to `post(id)`.
-- **`Attachment` entity** — add `@ManyToOne @JoinColumn(name = "post_id") private Post post`.
-- **`Post` entity** — add `@OneToMany(mappedBy = "post") private List<Attachment> attachments`.
-- **`PostCreateDTO`** — add `private List<String> attachmentIds` so the caller can reference previously uploaded
-  attachments.
-- **`PostServiceImpl.create()`** — after saving the post entity, fetch each attachment by ID, verify it belongs to the
-  same negotiation and is not already linked to another post, set `attachment.setPost(postEntity)`, and save.
-- **`PostDTO`** — add `private List<AttachmentMetadataDTO> attachments` so attachment metadata is returned alongside the
-  post.
-- **`NegotiationPostAddedWebhookEvent` and `NewPostEvent`** — add `List<String> attachmentIds` so the webhook payload
-  carries the IDs of all attachments linked to the post.
-
-The frontend `handleSendMessage()` in `NegotiationPosts.vue` currently makes two independent calls — one to create the
-post and one to upload the attachment — with no link between them. It must be updated to upload the attachment first via
-`POST /v3/negotiations/{negotiationId}/attachments`, collect the returned attachment ID, and then include it in the
-`PostCreateDTO` body when calling `POST /v3/negotiations/{negotiationId}/posts`. The user experience is unchanged —
-one "Send message" button — only the internal call sequence changes.
-
-On the middleware side, `NegotiationPostAddedHandler` is extended to read `attachmentIds` from the webhook payload and,
-for each ID, fetch the binary content from `GET /attachments/{id}` before calling the adapter. A new `addComment()`
-overload (or an extended `addComment()` signature) on `HelpdeskClient` accepts an optional list of attachment binaries
-alongside the comment text, so the adapter can attach the files to the help desk ticket article in the same API call.
-Post-linked attachments are deduplicated automatically through the existing `originated_posts` mechanism — if the
-originating post is excluded from fan-out, its attachments are excluded with it.
-
-For the reverse direction (help desk → Negotiator), `HelpdeskPostHandler` is extended to detect attachments in the
-callback payload. If attachments are present, each file is uploaded to Negotiator first via
-`POST /v3/negotiations/{negotiationId}/attachments`, and the returned attachment IDs are included in
-`PostCreateDTO.attachmentIds` when creating the post. This keeps the post and its attachments linked from the moment
-they are created in Negotiator.
-
-**Attachment deduplication for standalone attachments:** Post-linked attachments are deduplicated automatically through
-the `originated_posts` mechanism. Standalone attachments — those uploaded during negotiation creation or access form
-payload edits — have no post reference and are handled separately. These attachments reach the middleware via
-`NegotiationApprovedHandler` (negotiation creation attachments are included in the initial ticket body) and
-`NegotiationPayloadUpdatedHandler` (attachments uploaded during payload edit). To prevent re-forwarding the same file on
-every subsequent payload update, the middleware maintains a `forwarded_attachments` table:
+The middleware maintains a `forwarded_attachments` table:
 
 | Column           | Type      | Constraints  |
 |------------------|-----------|--------------|
@@ -1428,24 +1388,70 @@ every subsequent payload update, the middleware maintains a `forwarded_attachmen
 | `attachment_id`  | VARCHAR   | composite PK |
 | `forwarded_at`   | TIMESTAMP | NOT NULL     |
 
-When a standalone attachment is forwarded to a help desk ticket, a row is inserted. When
-`NegotiationPayloadUpdatedHandler` fires, it fetches all attachment IDs for the negotiation from Negotiator via
-`GET /v3/negotiations/{negotiationId}/attachments`, subtracts the IDs already present in `forwarded_attachments` for the
-relevant ticket, and forwards only the delta. Attachments linked to posts (`post_id IS NOT NULL`) are excluded from this
-query — they are managed entirely through the post flow and never enter `forwarded_attachments`.
+When any handler that may trigger attachment forwarding fires — `NegotiationPostAddedHandler`,
+`NegotiationApprovedHandler`, or `NegotiationPayloadUpdatedHandler` — it fetches the full list of attachments for the
+negotiation from Negotiator via `GET /v3/negotiations/{negotiationId}/attachments`, subtracts the IDs already present in
+`forwarded_attachments`, and forwards only the delta. For each new attachment the binary content is fetched from
+`GET /attachments/{id}` and uploaded to the corresponding help desk ticket. A row is inserted into
+`forwarded_attachments` after each successful upload.
+
+A new `addComment()` overload (or an extended `addComment()` signature) on `HelpdeskClient` accepts an optional list of
+attachment binaries alongside the comment text, so the adapter can attach the files to the help desk ticket article in
+the same API call when a post is being forwarded. When attachments are forwarded outside of a post (e.g. from
+`NegotiationApprovedHandler` or `NegotiationPayloadUpdatedHandler`), they are uploaded as standalone ticket attachments.
+
+For the reverse direction (help desk → Negotiator), `HelpdeskPostHandler` is extended to detect attachments in the
+callback payload. If attachments are present, each file is uploaded to Negotiator via
+`POST /v3/negotiations/{negotiationId}/attachments` before the post is created.
 
 All changes in milestone 2 follow the established patterns from milestone 1. No architectural changes are required.
 
 ### Milestone 3
 
-**Scope:** Milestone 3 handles the case where a negotiation is transferred to a different researcher (author change). This
+**Scope:** Milestone 3 attaches a PDF summary of the negotiation to help desk tickets at two well-defined points in the
+negotiation lifecycle.
+
+**Background:** Negotiator users can already download a PDF summarising the negotiation details from the Negotiator UI.
+The integration should expose this same document inside the help desk ticket so that representatives working exclusively
+in the help desk have the full negotiation context without needing to open Negotiator.
+
+**When to send the PDF:** Two triggers are proposed, but the exact policy must be confirmed before implementation:
+
+1. **On ticket creation** — immediately after `NegotiationApprovedHandler` successfully creates the ticket(s), the PDF
+   is fetched and attached. This gives representatives the full negotiation snapshot from the moment the ticket lands in
+   their queue.
+2. **When a resource reaches its final state** — when the resource-level state machine transitions to a terminal state,
+   a fresh PDF is fetched and attached to the corresponding ticket. This captures
+   the final agreed outcome.
+
+Both triggers can fire for the same ticket; the result is two PDF attachments at different points in time, each
+reflecting the negotiation state at the moment of attachment.
+
+**Negotiator API:** A dedicated PDF export endpoint must exist on the Negotiator side. The middleware calls it to fetch
+the binary PDF before attaching it to the ticket. The exact endpoint path and authentication requirements must be
+confirmed during implementation planning for this milestone.
+
+**Middleware changes:**
+
+- `NegotiationApprovedHandler` — after ticket creation succeeds, call the PDF export endpoint, then upload the binary
+  to each newly created ticket via the adapter's attachment API.
+- `NegotiationResourceStateChangedHandler` — after updating the ticket's `negotiator_resource_state` field, check
+  whether the new state is terminal (determined by the configured resource state machine); if so, fetch and attach the
+  PDF.
+- A method on `NegotiatorClient` encapsulates the PDF fetch so both handlers reuse the same logic.
+- The adapter interface gains an `attachFile(ticketId, filename, contentType, bytes)` method used by both handlers and
+  by the attachment forwarding introduced in milestone 2.
+
+### Milestone 4
+
+**Scope:** Milestone 4 handles the case where a negotiation is transferred to a different researcher (author change). This
 is the only remaining Negotiator-level event that affects the help desk ticket but is not yet covered.
 
 Negotiation transfer is performed via `PATCH /v3/negotiations/{id}` with `authorSubjectId` in `NegotiationUpdateDTO` (
 `NegotiationServiceImpl.java:201-208`). The transfer simply updates `negotiation.createdBy` and saves. No
 `ApplicationEvent` is published and no webhook event type for transfer currently exists.
 
-Milestone 3 therefore requires a Negotiator change before middleware work can begin: a new `NegotiationTransferredEvent`
+Milestone 4 therefore requires a Negotiator change before middleware work can begin: a new `NegotiationTransferredEvent`
 Spring application event published from `NegotiationServiceImpl` at the point where
 `negotiationEntity.setCreatedBy(person)` is called, a new `NEGOTIATION_TRANSFERRED` webhook event type constant, a new
 payload DTO carrying `negotiationId` and the new author's identifier, and a new `WebhookMappingStrategy` registration
@@ -1456,9 +1462,9 @@ negotiation to reflect the new requester identity. The exact representation in t
 ticket description or adding a system comment noting the transfer) is an adapter-level decision implemented in adapter
 it self. For Zammad, it will be done with a system comment via `ZammadClient`.
 
-### Milestone 4
+### Milestone 5
 
-**Scope:** Milestone 4 addresses reliability and observability of the middleware.
+**Scope:** Milestone 5 addresses reliability and observability of the middleware.
 
 **Reliability — handling Negotiator downtime:** In the current synchronous design, if Negotiator is unavailable when a
 help desk callback arrives, the middleware's outbound REST call fails and the event is lost with no recovery path. Milestone
@@ -1485,9 +1491,9 @@ multi-value `negotiationId` filter (so the catch-up pass can batch-query posts f
 Prometheus and visualized in Grafana dashboards, giving operators visibility into webhook delivery rates, processing
 latency, and error counts across both directions of the integration.
 
-### Milestone 5
+### Milestone 6
 
-**Scope:** Milestone 5 replaces synchronous webhook processing with an asynchronous queue-based model, addressing the
+**Scope:** Milestone 6 replaces synchronous webhook processing with an asynchronous queue-based model, addressing the
 Negotiator delivery timeout constraint and enabling horizontal scaling.
 
 In the current synchronous design all processing (secondary REST calls to Negotiator, help desk API calls) happens
@@ -1495,12 +1501,12 @@ within the HTTP request thread that received the webhook. Negotiator's read time
 `WebhookTimeoutProperties.java`). Under load or when Negotiator or help desk APIs are slow, the middleware risks missing
 this window, causing Negotiator to record the delivery as failed.
 
-Milestone 5 introduces an internal queue for both inbound directions. When `NegotiatorWebhookController` or
+Milestone 6 introduces an internal queue for both inbound directions. When `NegotiatorWebhookController` or
 `HelpdeskCallbackController` receives a verified request, it enqueues the event and returns HTTP 200 immediately. A
 separate worker pool dequeues events and processes them asynchronously, with no time pressure from the inbound HTTP
 timeout.
 
-Before milestone 5 implementation begins, the choice of queue infrastructure technology (e.g. database-backed queue,
+Before milestone 6 implementation begins, the choice of queue infrastructure technology (e.g. database-backed queue,
 RabbitMQ, Redis Streams) will be discussed and agreed with the developers of the Negotiator application so it meet their
 expectations.
 
@@ -1636,7 +1642,7 @@ not be forwarded to Negotiator.
 > **Note:** Some help desk platforms allow a representative to update `negotiator_resource_transition_event` and post
 > an external message in the same ticket save action. In this case a single callback may carry both a new article body
 > and a non-null transition event simultaneously. The adapter must detect this combination and set the
-> `HelpdeskCallbackEvent` type to `RESOURCE_TRANSITION_WITH_POST_MESSAGE`. When `EventRouter` receives an event of
+> `HelpdeskCallbackEvent` type to `RESOURCE_TRANSITION_WITH_POST_MESSAGE`. When `HelpdeskEventRouter` receives an event of
 > this type it calls `HelpdeskResourceTransitionHandler` first and then `HelpdeskPostHandler`, in that order.
 
 **Trigger 2 — Resource state transition request:**
