@@ -1,4 +1,4 @@
-package eu.bbmri_eric.negotiator.negotiatorlink.unit.adapter;
+package eu.bbmri_eric.negotiator.negotiatorlink.unit.adapter.zammad;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
@@ -9,32 +9,30 @@ import static com.github.tomakehurst.wiremock.client.WireMock.put;
 import static com.github.tomakehurst.wiremock.client.WireMock.putRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.ZammadAdapter;
+import eu.bbmri_eric.negotiator.negotiatorlink.adapter.zammad.ZammadClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorCredentials;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreatedTicket;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
-import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpHeaders;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
-class ZammadAdapterTest {
+class ZammadClientTest {
 
   private static final String TICKETS_URL = "/api/v1/tickets";
   private static final String TICKET_ARTICLES_URL = "/api/v1/ticket_articles";
@@ -42,10 +40,9 @@ class ZammadAdapterTest {
 
   private static final String API_TOKEN = "test-api-token";
   private static final String CALLBACK_SECRET = "test-callback-secret";
-  private static final String SIGNATURE_HEADER = "X-Hub-Signature";
 
   private WireMockServer wireMock;
-  private ZammadAdapter adapter;
+  private ZammadClient client;
   private OrganizationConfig config;
 
   @BeforeEach
@@ -54,7 +51,7 @@ class ZammadAdapterTest {
     wireMock.start();
     RestClient.Builder builder =
         RestClient.builder().requestFactory(new SimpleClientHttpRequestFactory());
-    adapter = new ZammadAdapter(builder, new ObjectMapper());
+    client = new ZammadClient(builder);
     config =
         new OrganizationConfig(
             "bbmri:DE:MHH",
@@ -74,40 +71,7 @@ class ZammadAdapterTest {
 
   @Test
   void getType_returnsZammadType() {
-    assertThat(adapter.getType()).isEqualTo(HelpDeskType.ZAMMAD);
-  }
-
-  @Test
-  void verifyCallback_validSignature_returnsTrue() throws Exception {
-    byte[] body = "{\"ticket\":{\"id\":1}}".getBytes(StandardCharsets.UTF_8);
-    HttpHeaders headers = new HttpHeaders();
-    headers.set(SIGNATURE_HEADER, "sha1=" + TestUtil.hmacSha1Hex(CALLBACK_SECRET, body));
-
-    assertThat(adapter.verifyCallback(headers, body, CALLBACK_SECRET)).isTrue();
-  }
-
-  @Test
-  void verifyCallback_wrongSignature_returnsFalse() {
-    byte[] body = "{\"ticket\":{\"id\":1}}".getBytes(StandardCharsets.UTF_8);
-    HttpHeaders headers = new HttpHeaders();
-    headers.set(SIGNATURE_HEADER, "sha1=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
-
-    assertThat(adapter.verifyCallback(headers, body, CALLBACK_SECRET)).isFalse();
-  }
-
-  @Test
-  void verifyCallback_missingHeader_returnsFalse() {
-    byte[] body = "{}".getBytes(StandardCharsets.UTF_8);
-    assertThat(adapter.verifyCallback(new HttpHeaders(), body, CALLBACK_SECRET)).isFalse();
-  }
-
-  @Test
-  void verifyCallback_malformedHex_returnsFalse() {
-    byte[] body = "{}".getBytes(StandardCharsets.UTF_8);
-    HttpHeaders headers = new HttpHeaders();
-    headers.set(SIGNATURE_HEADER, "sha1=not-valid-hex!!!");
-
-    assertThat(adapter.verifyCallback(headers, body, CALLBACK_SECRET)).isFalse();
+    assertThat(client.getType()).isEqualTo(HelpDeskType.ZAMMAD);
   }
 
   @Test
@@ -127,7 +91,7 @@ class ZammadAdapterTest {
             "SUBMITTED",
             "Ticket body");
 
-    CreatedTicket result = adapter.createTicket(request, config);
+    CreatedTicket result = client.createTicket(request, config);
 
     assertThat(result.ticketId()).isEqualTo("42");
     assertThat(result.ticketNumber()).isEqualTo("22042");
@@ -172,7 +136,7 @@ class ZammadAdapterTest {
         new CreateTicketRequest(
             "[NEGO-2] Resources Access Request", "IN_PROGRESS", "SUBMITTED", "Body text");
 
-    CreatedTicket result = adapter.createTicket(request, config);
+    CreatedTicket result = client.createTicket(request, config);
 
     assertThat(result.ticketId()).isEqualTo("99");
 
@@ -201,6 +165,30 @@ class ZammadAdapterTest {
                     false)));
   }
 
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("invalidCreateTicketResponses")
+  void createTicket_invalidResponse_throwsIllegalStateException(
+      String description, Integer status, String responseBody) {
+    var stub = aResponse().withStatus(status).withHeader("Content-Type", "application/json");
+    if (responseBody != null) {
+      stub = stub.withBody(responseBody);
+    }
+    wireMock.stubFor(post(urlEqualTo(TICKETS_URL)).willReturn(stub));
+
+    var request =
+        new CreateTicketRequest("[NEGO-1] Access Request", "IN_PROGRESS", "SUBMITTED", "Body");
+
+    assertThatThrownBy(() -> client.createTicket(request, config))
+        .isInstanceOf(IllegalStateException.class);
+  }
+
+  static Stream<Arguments> invalidCreateTicketResponses() {
+    return Stream.of(
+        Arguments.of("empty response body", 201, null),
+        Arguments.of("missing id", 201, "{\"number\":\"22042\"}"),
+        Arguments.of("missing number", 201, "{\"id\":42}"));
+  }
+
   @Test
   void updateNegotiationState_sendsCorrectPut() {
     var ticketId = "42";
@@ -212,7 +200,7 @@ class ZammadAdapterTest {
                     .withHeader("Content-Type", "application/json")
                     .withBody("{}")));
 
-    adapter.updateNegotiationState(ticketId, "CONCLUDED", config);
+    client.updateNegotiationState(ticketId, "CONCLUDED", config);
 
     wireMock.verify(
         putRequestedFor(urlEqualTo(TICKETS_URL + "/" + ticketId))
@@ -231,7 +219,7 @@ class ZammadAdapterTest {
                     .withHeader("Content-Type", "application/json")
                     .withBody("{}")));
 
-    adapter.updateResourceState("42", "RESOURCE_AVAILABLE", config);
+    client.updateResourceState("42", "RESOURCE_AVAILABLE", config);
 
     wireMock.verify(
         putRequestedFor(urlEqualTo(TICKETS_URL + "/" + ticketId))
@@ -257,7 +245,7 @@ class ZammadAdapterTest {
                     .withHeader("Content-Type", "application/json")
                     .withBody("{}")));
 
-    adapter.addComment("7", "Hello representative", config);
+    client.addComment("7", "Hello representative", config);
 
     wireMock.verify(
         postRequestedFor(urlEqualTo(TICKET_ARTICLES_URL))
@@ -285,7 +273,7 @@ class ZammadAdapterTest {
                     .withHeader("Content-Type", "application/json")
                     .withBody("{}")));
 
-    adapter.addSystemComment("7", "Transition rejected", config);
+    client.addSystemComment("7", "Transition rejected", config);
 
     wireMock.verify(
         postRequestedFor(urlEqualTo(TICKET_ARTICLES_URL))
@@ -319,7 +307,7 @@ class ZammadAdapterTest {
             new CreatedTicket("2", "10002"),
             new CreatedTicket("3", "10003"));
 
-    adapter.linkRelatedTickets(tickets, config);
+    client.linkRelatedTickets(tickets, config);
 
     // N*(N-1)/2 = 3 calls — one per unique pair; Zammad creates a bidirectional link per call
     wireMock.verify(3, postRequestedFor(urlEqualTo(LINKS_ADD_URL)));
@@ -343,120 +331,7 @@ class ZammadAdapterTest {
 
   @Test
   void linkRelatedTickets_singleTicket_makesNoCalls() {
-    adapter.linkRelatedTickets(List.of(new CreatedTicket("1", "10001")), config);
+    client.linkRelatedTickets(List.of(new CreatedTicket("1", "10001")), config);
     wireMock.verify(0, postRequestedFor(urlEqualTo(LINKS_ADD_URL)));
-  }
-
-  @Test
-  void parseCallback_resourceTransitionOnly_returnsResourceTransitionEvent() {
-    var payload = zammadCallbackPayload("1", "MARK_AS_CHECKING_AVAILABILITY", "IN_PROGRESS");
-
-    var expected =
-        new HelpdeskCallbackEvent(
-            "1",
-            HelpdeskCallbackType.RESOURCE_TRANSITION,
-            "IN_PROGRESS",
-            "MARK_AS_CHECKING_AVAILABILITY",
-            null,
-            null);
-    assertThat(adapter.parseCallback(payload)).contains(expected);
-  }
-
-  @Test
-  void parseCallback_publicArticleOnly_returnsPostMessage() {
-    var payload =
-        zammadCallbackPayload(
-            "2", "", "IN_PROGRESS", "Hello from help desk", "John", "Rep", "john.rep@example.com");
-
-    var expected =
-        new HelpdeskCallbackEvent(
-            "2",
-            HelpdeskCallbackType.POST_MESSAGE,
-            "IN_PROGRESS",
-            null,
-            "Hello from help desk",
-            new Sender("John Rep", "john.rep@example.com"));
-    assertThat(adapter.parseCallback(payload)).contains(expected);
-  }
-
-  @Test
-  void parseCallback_bothArticleAndTransition_returnsCombinedType() {
-    var payload =
-        zammadCallbackPayload(
-            "3",
-            "MARK_AS_AVAILABLE",
-            "IN_PROGRESS",
-            "Granting access",
-            "Jane",
-            "Rep",
-            "jane.rep@example.com");
-
-    var expected =
-        new HelpdeskCallbackEvent(
-            "3",
-            HelpdeskCallbackType.RESOURCE_TRANSITION_WITH_POST_MESSAGE,
-            "IN_PROGRESS",
-            "MARK_AS_AVAILABLE",
-            "Granting access",
-            new Sender("Jane Rep", "jane.rep@example.com"));
-    assertThat(adapter.parseCallback(payload)).contains(expected);
-  }
-
-  @Test
-  void parseCallback_nullPayload_returnsEmpty() {
-    assertThat(adapter.parseCallback(null)).isEmpty();
-  }
-
-  @Test
-  void parseCallback_bothEmptyArticleAndNoTransitionEvent_returnsEmpty() {
-    var payload = zammadCallbackPayload("4", "", null);
-
-    assertThat(adapter.parseCallback(payload)).isEmpty();
-  }
-
-  private static Map<String, Object> zammadCallbackPayload(
-      String ticketId,
-      String transitionEvent,
-      String resourceState,
-      String articleBody,
-      String firstName,
-      String lastName,
-      String email) {
-    Map<String, Object> ticket = new java.util.HashMap<>();
-    ticket.put("id", ticketId);
-    ticket.put("negotiator_resource_transition_event", transitionEvent);
-    ticket.put("negotiator_resource_state", resourceState);
-    Map<String, Object> article = new java.util.HashMap<>();
-    if (articleBody != null) {
-      article.put("body", articleBody);
-      Map<String, Object> createdBy = new java.util.HashMap<>();
-      createdBy.put("firstname", firstName);
-      createdBy.put("lastname", lastName);
-      createdBy.put("email", email);
-      article.put("created_by", createdBy);
-    }
-    return Map.of("ticket", ticket, "article", article);
-  }
-
-  private static Map<String, Object> zammadCallbackPayload(
-      String ticketId, String transitionEvent, String resourceState) {
-    return zammadCallbackPayload(ticketId, transitionEvent, resourceState, null, null, null, null);
-  }
-
-  @Test
-  void extractCallbackId_headerAbsent_returnsEmpty() {
-    assertThat(adapter.extractCallbackId(new HttpHeaders())).isEmpty();
-  }
-
-  @Test
-  void extractCallbackId_differentIds_returnsDifferentValues() {
-    HttpHeaders first = new HttpHeaders();
-    first.set("X-Zammad-Delivery", "delivery-1");
-
-    HttpHeaders second = new HttpHeaders();
-    second.set("X-Zammad-Delivery", "delivery-2");
-
-    assertThat(adapter.extractCallbackId(first)).contains("delivery-1");
-    assertThat(adapter.extractCallbackId(second)).contains("delivery-2");
   }
 }
