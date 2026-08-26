@@ -22,8 +22,11 @@ public class DeduplicationCleanupJob {
   @Scheduled(cron = "0 0 0 * * *")
   public void deleteStaleRows() {
     Instant cutoff = Instant.now().minus(24, ChronoUnit.HOURS);
-    originatedPostRepository.deleteByCreatedAtBefore(cutoff);
-    originatedTransitionRepository.deleteByCreatedAtBefore(cutoff);
-    log.info("Cleaned up deduplication rows older than 24 hours");
+    long deletedPosts = originatedPostRepository.deleteByCreatedAtBefore(cutoff);
+    long deletedTransitions = originatedTransitionRepository.deleteByCreatedAtBefore(cutoff);
+    log.info(
+        "Cleaned up deduplication rows older than 24h: {} posts, {} transitions",
+        deletedPosts,
+        deletedTransitions);
   }
 }
