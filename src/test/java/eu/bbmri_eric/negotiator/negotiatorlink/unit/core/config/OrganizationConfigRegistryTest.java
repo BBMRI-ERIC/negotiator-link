@@ -43,6 +43,16 @@ class OrganizationConfigRegistryTest {
   }
 
   @Test
+  void constructor_whenBaseUrlIsBlank_throws() {
+    var entry = zammadEntry();
+    entry.setBaseUrl("");
+    assertThatThrownBy(() -> new OrganizationConfigRegistry(propsWithEntry(entry)))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining(ORG_EXTERNAL_ID)
+        .hasMessageContaining("baseUrl");
+  }
+
+  @Test
   void constructor_whenCallbackSecretIsBlank_throws() {
     var entry = zammadEntry();
     entry.setCallbackSecret("");

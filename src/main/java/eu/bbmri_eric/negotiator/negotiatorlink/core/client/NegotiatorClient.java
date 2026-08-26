@@ -183,6 +183,10 @@ public class NegotiatorClient {
   }
 
   private PerOrgClient getOrCreateClient(OrganizationConfig config) {
+    // Cached per organizationExternalId under the assumption that per-org credentials are
+    // immutable at runtime. This holds because credentials originate from environment variables,
+    // which can only change via a restart.
+    // The cached OAuth2 manager still refreshes expired access tokens automatically.
     return clientCache.computeIfAbsent(
         config.organizationExternalId(), id -> buildClient(config.negotiatorCredentials()));
   }
