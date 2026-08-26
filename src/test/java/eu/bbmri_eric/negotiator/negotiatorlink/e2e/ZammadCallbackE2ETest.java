@@ -77,6 +77,8 @@ class ZammadCallbackE2ETest {
       "webhookPayloadWhenBothNewPublicArticleAndResourceStateTransition.json";
   private static final String PAYLOAD_INTERNAL_ARTICLE_AND_TRANSITION =
       "webhookPayloadWhenBothNewInternalArticleAndResourceStateTransition.json";
+  private static final String PAYLOAD_NEW_INTERNAL_ARTICLE =
+      "webhookPayloadWhenNewInternalArticle.json";
 
   private static final String PER_RESOURCE_ORG = "bbmri:DE:MHH";
   private static final String PER_RESOURCE_SECRET = "test-callback-secret";
@@ -118,6 +120,20 @@ class ZammadCallbackE2ETest {
                         && PostCreateDTO.TypeEnum.PRIVATE.equals(p.getType())),
             any(OrganizationConfig.class));
     zammadServer.verify();
+  }
+
+  @Test
+  void postFromHelpdesk_internalMsg_doNotForwardsPostToNegotiator() throws Exception {
+    ticketMappingRepository.save(
+        new TicketMapping(
+            new TicketMappingId(NEGOTIATION_ID, TICKET_ID, RESOURCE_ID),
+            RESOURCE_SOURCE_ID,
+            ORGANIZATION_ID,
+            PER_RESOURCE_ORG));
+
+    postCallback(PER_RESOURCE_ORG, PER_RESOURCE_SECRET, loadFile(PAYLOAD_NEW_INTERNAL_ARTICLE));
+
+    verify(negotiatorClient, never()).createPost(any(), any(), any());
   }
 
   @Test
