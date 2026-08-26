@@ -2,7 +2,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpDeskAdapter;
+import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
@@ -41,7 +41,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
 
   private final NegotiatorClient negotiatorClient;
   private final OrganizationConfigRegistry registry;
-  private final Map<HelpDeskType, HelpDeskAdapter> adapters;
+  private final Map<HelpDeskType, HelpdeskClient> clients;
   private final TicketMappingRepository ticketMappingRepository;
   private final ObjectMapper objectMapper;
 
@@ -50,17 +50,17 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
 
   /** The resolved per-organization context for creating tickets */
   private record OrgTicketContext(
-      String negotiationId, String orgExtId, OrganizationConfig config, HelpDeskAdapter adapter) {}
+      String negotiationId, String orgExtId, OrganizationConfig config, HelpdeskClient client) {}
 
   public NegotiationStateUpdatedHandler(
       NegotiatorClient negotiatorClient,
       OrganizationConfigRegistry registry,
-      Map<HelpDeskType, HelpDeskAdapter> adapters,
+      Map<HelpDeskType, HelpdeskClient> clients,
       TicketMappingRepository ticketMappingRepository,
       ObjectMapper objectMapper) {
     this.negotiatorClient = negotiatorClient;
     this.registry = registry;
-    this.adapters = adapters;
+    this.clients = clients;
     this.ticketMappingRepository = ticketMappingRepository;
     this.objectMapper = objectMapper;
   }
@@ -142,13 +142,13 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       return null;
     }
 
-    HelpDeskAdapter adapter = adapters.get(config.type());
-    if (adapter == null) {
+    HelpdeskClient client = clients.get(config.type());
+    if (client == null) {
       log.error("No adapter for help desk type '{}' (org '{}')", config.type(), orgExtId);
       return null;
     }
 
-    return new OrgTicketContext(negotiationId, orgExtId, config, adapter);
+    return new OrgTicketContext(negotiationId, orgExtId, config, client);
   }
 
   private void handleStateChange(NegotiationStateUpdatedWebhookEvent event) {
@@ -171,7 +171,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
         new CreateTicketRequest(
             title, negotiation.getStatus(), resolveInitialState(resources.getFirst()), body);
 
-    CreatedTicket created = context.adapter().createTicket(request, context.config());
+    CreatedTicket created = context.client().createTicket(request, context.config());
     log.info(
         "Created PER_NEGOTIATION ticket '{}' for org '{}' in negotiation '{}'",
         created.ticketId(),
@@ -197,7 +197,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
           new CreateTicketRequest(
               title, negotiation.getStatus(), resolveInitialState(resource), body);
 
-      CreatedTicket created = context.adapter().createTicket(request, context.config());
+      CreatedTicket created = context.client().createTicket(request, context.config());
       log.info(
           "Created PER_RESOURCE ticket '{}' for resource '{}' in negotiation '{}'",
           created.ticketId(),
@@ -210,7 +210,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     }
 
     if (createdTickets.size() > 1) {
-      context.adapter().linkRelatedTickets(createdTickets, context.config());
+      context.client().linkRelatedTickets(createdTickets, context.config());
     }
   }
 
@@ -233,7 +233,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
                   createdBy != null ? new Sender(createdBy.getName(), createdBy.getEmail()) : null;
               String signedText = PostUtil.signPost(post.getText(), sender);
               try {
-                context.adapter().addComment(ticketId, signedText, config);
+                context.client().addComment(ticketId, signedText, config);
                 log.info("Posted comment '{}' to ticket '{}'", post.getId(), ticketId);
               } catch (Exception e) {
                 log.error("Failed to post comment '{}' to ticket '{}'", post.getId(), ticketId, e);

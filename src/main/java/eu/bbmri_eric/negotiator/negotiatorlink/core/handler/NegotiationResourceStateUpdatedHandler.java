@@ -2,7 +2,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpDeskAdapter;
+import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
@@ -27,22 +27,22 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
   private final TicketMappingRepository ticketMappingRepository;
   private final OriginatedTransitionRepository originatedTransitionRepository;
   private final OrganizationConfigRegistry registry;
-  private final Map<HelpDeskType, HelpDeskAdapter> adapters;
+  private final Map<HelpDeskType, HelpdeskClient> clients;
   private final ObjectMapper objectMapper;
 
   private record DispatchContext(
-      String ticketId, OrganizationConfig config, HelpDeskAdapter adapter) {}
+      String ticketId, OrganizationConfig config, HelpdeskClient client) {}
 
   public NegotiationResourceStateUpdatedHandler(
       TicketMappingRepository ticketMappingRepository,
       OriginatedTransitionRepository originatedTransitionRepository,
       OrganizationConfigRegistry registry,
-      Map<HelpDeskType, HelpDeskAdapter> adapters,
+      Map<HelpDeskType, HelpdeskClient> clients,
       ObjectMapper objectMapper) {
     this.ticketMappingRepository = ticketMappingRepository;
     this.originatedTransitionRepository = originatedTransitionRepository;
     this.registry = registry;
-    this.adapters = adapters;
+    this.clients = clients;
     this.objectMapper = objectMapper;
   }
 
@@ -110,13 +110,13 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
       return null;
     }
 
-    HelpDeskAdapter adapter = adapters.get(config.type());
-    if (adapter == null) {
+    HelpdeskClient client = clients.get(config.type());
+    if (client == null) {
       log.error("No adapter for type '{}' (org '{}')", config.type(), orgExtId);
       return null;
     }
 
-    return new DispatchContext(ticketId, config, adapter);
+    return new DispatchContext(ticketId, config, client);
   }
 
   /** Applies the state update, deduplicating it if it originated from the help desk. */
@@ -138,7 +138,7 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
             "Updating resource state to '{}' on ticket '{}' (Negotiator-triggered or from helpdesk with PER_RESOURCE strategy)",
             toState,
             context.ticketId());
-        context.adapter().updateResourceState(context.ticketId(), toState, context.config());
+        context.client().updateResourceState(context.ticketId(), toState, context.config());
       }
     } catch (Exception e) {
       log.error(
@@ -172,7 +172,7 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
           ticketId,
           toState);
       try {
-        context.adapter().updateResourceState(ticketId, toState, context.config());
+        context.client().updateResourceState(ticketId, toState, context.config());
       } catch (Exception e) {
         log.error(
             "Failed to update resource state to '{}' on ticket '{}' for originated transition",

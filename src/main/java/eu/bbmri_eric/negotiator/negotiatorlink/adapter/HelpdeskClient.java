@@ -1,31 +1,12 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.adapter;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreatedTicket;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import org.springframework.http.HttpHeaders;
 
-public interface HelpDeskAdapter {
-
-  /** Returns the help desk type this adapter handles. Used for auto-registration. */
-  HelpDeskType getType();
-
-  /**
-   * Verify the authenticity of an inbound callback from the help desk platform. Returns false if
-   * verification fails.
-   */
-  boolean verifyCallback(HttpHeaders headers, byte[] body, String callbackSecret);
-
-  /**
-   * Extracts the platform-specific webhook delivery ID from the request headers. Returns empty if
-   * the platform does not provide a delivery ID header.
-   */
-  Optional<String> extractCallbackId(HttpHeaders headers);
+/** Outbound side of a help desk integration. */
+public interface HelpdeskClient extends HelpdeskTyped {
 
   /**
    * Create a new ticket for a resource or organization in a negotiation. Called once per resource
@@ -62,10 +43,4 @@ public interface HelpDeskAdapter {
    * objects.
    */
   void linkRelatedTickets(List<CreatedTicket> tickets, OrganizationConfig config);
-
-  /**
-   * Parse a raw help desk callback payload into the middleware's internal HelpdeskCallbackEvent
-   * model. Returns empty if the payload should be ignored (e.g. internal comment).
-   */
-  Optional<HelpdeskCallbackEvent> parseCallback(Map<String, Object> payload);
 }

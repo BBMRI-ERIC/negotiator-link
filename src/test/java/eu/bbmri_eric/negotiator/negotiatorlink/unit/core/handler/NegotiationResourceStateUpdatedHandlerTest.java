@@ -9,7 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpDeskAdapter;
+import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
@@ -41,7 +41,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
   @Mock private TicketMappingRepository ticketMappingRepository;
   @Mock private OriginatedTransitionRepository originatedTransitionRepository;
   @Mock private OrganizationConfigRegistry registry;
-  @Mock private HelpDeskAdapter adapter;
+  @Mock private HelpdeskClient adapter;
 
   private final ObjectMapper objectMapper = new ObjectMapper();
   private NegotiationResourceStateUpdatedHandler handler;

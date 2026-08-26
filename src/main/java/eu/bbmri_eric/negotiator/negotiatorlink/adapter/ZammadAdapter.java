@@ -30,7 +30,7 @@ import org.springframework.web.client.RestClient;
 
 @Slf4j
 @Component
-public class ZammadAdapter implements HelpDeskAdapter {
+public class ZammadAdapter implements HelpdeskCallbackAdapter, HelpdeskClient {
 
   private static final String AUTH_HEADER = "Authorization";
   private static final String TICKET_ARTICLES_PATH = "/api/v1/ticket_articles";

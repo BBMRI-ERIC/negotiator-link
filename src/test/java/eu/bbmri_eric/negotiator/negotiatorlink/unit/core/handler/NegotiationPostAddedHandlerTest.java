@@ -8,7 +8,7 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpDeskAdapter;
+import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
@@ -47,7 +47,7 @@ class NegotiationPostAddedHandlerTest {
 
   @Mock private NegotiatorClient negotiatorClient;
   @Mock private OrganizationConfigRegistry registry;
-  @Mock private HelpDeskAdapter adapter;
+  @Mock private HelpdeskClient adapter;
   @Mock private TicketMappingRepository ticketMappingRepository;
   @Mock private OriginatedPostRepository originatedPostRepository;
 

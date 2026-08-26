@@ -10,7 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpDeskAdapter;
+import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
@@ -53,7 +53,7 @@ class HelpdeskResourceTransitionHandlerTest {
   @Mock private TicketMappingRepository ticketMappingRepository;
   @Mock private OriginatedTransitionRepository originatedTransitionRepository;
   @Mock private NegotiatorClient negotiatorClient;
-  @Mock private HelpDeskAdapter adapter;
+  @Mock private HelpdeskClient adapter;
 
   private OrganizationConfig config;
   private HelpdeskResourceTransitionHandler handler;

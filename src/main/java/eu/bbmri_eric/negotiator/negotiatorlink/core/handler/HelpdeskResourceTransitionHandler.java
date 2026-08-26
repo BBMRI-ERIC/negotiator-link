@@ -1,6 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpDeskAdapter;
+import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
@@ -26,7 +26,7 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
   private final TicketMappingRepository ticketMappingRepository;
   private final OriginatedTransitionRepository originatedTransitionRepository;
   private final NegotiatorClient negotiatorClient;
-  private final Map<HelpDeskType, HelpDeskAdapter> adapters;
+  private final Map<HelpDeskType, HelpdeskClient> clients;
 
   private record InvalidResource(String resourceSourceId, Set<String> allowedEvents) {}
 
@@ -34,11 +34,11 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
       TicketMappingRepository ticketMappingRepository,
       OriginatedTransitionRepository originatedTransitionRepository,
       NegotiatorClient negotiatorClient,
-      Map<HelpDeskType, HelpDeskAdapter> adapters) {
+      Map<HelpDeskType, HelpdeskClient> clients) {
     this.ticketMappingRepository = ticketMappingRepository;
     this.originatedTransitionRepository = originatedTransitionRepository;
     this.negotiatorClient = negotiatorClient;
-    this.adapters = adapters;
+    this.clients = clients;
   }
 
   @Override
@@ -64,13 +64,12 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
       return;
     }
 
-    HelpDeskAdapter adapter = adapters.get(config.type());
+    HelpdeskClient client = clients.get(config.type());
 
     if (mappings.size() == 1) {
-      handlePerResource(
-          mappings.getFirst(), requestedEvent, event.resourceState(), adapter, config);
+      handlePerResource(mappings.getFirst(), requestedEvent, event.resourceState(), client, config);
     } else {
-      handlePerNegotiation(mappings, requestedEvent, event.resourceState(), adapter, config);
+      handlePerNegotiation(mappings, requestedEvent, event.resourceState(), client, config);
     }
   }
 
@@ -78,7 +77,7 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
       TicketMapping mapping,
       String requestedEvent,
       String resourceState,
-      HelpDeskAdapter adapter,
+      HelpdeskClient client,
       OrganizationConfig config) {
 
     String negotiationId = mapping.getId().getNegotiationId();
@@ -102,8 +101,8 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
           resourceSourceId,
           negotiationId,
           allowedEvents);
-      adapter.updateResourceState(ticketId, resourceState, config);
-      adapter.addSystemComment(
+      client.updateResourceState(ticketId, resourceState, config);
+      client.addSystemComment(
           ticketId, buildRejectionMessage(requestedEvent, allowedEvents), config);
     }
   }
@@ -112,7 +111,7 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
       List<TicketMapping> mappings,
       String requestedEvent,
       String resourceState,
-      HelpDeskAdapter adapter,
+      HelpdeskClient client,
       OrganizationConfig config) {
 
     String negotiationId = mappings.getFirst().getId().getNegotiationId();
@@ -128,8 +127,8 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
       String systemComment =
           buildBulkRejectionMessage(
               requestedEvent, invalidResources, mappings.size() == invalidResources.size());
-      adapter.updateResourceState(ticketId, resourceState, config);
-      adapter.addSystemComment(ticketId, systemComment, config);
+      client.updateResourceState(ticketId, resourceState, config);
+      client.addSystemComment(ticketId, systemComment, config);
       return;
     }
 
