@@ -770,7 +770,7 @@ The exact mechanism depends on the help desk platform and is encapsulated entire
 calls `adapter.verifyCallback(headers, body, callbackSecret)` and rejects with HTTP 401 if verification fails.
 
 **Zammad:** Zammad signs outbound webhooks using HMAC-SHA1. When a webhook is configured with an HMAC token, Zammad
-includes an `X-Hub-Signature` header containing `sha1=<HMAC-SHA1(secret, body)>`. The `ZammadAdapter` verifies this
+includes an `X-Hub-Signature` header containing `sha1=<HMAC-SHA1(secret, body)>`. The `ZammadCallbackAdapter` verifies this
 header using a constant-time comparison (`MessageDigest.isEqual`) to prevent timing attacks. The `callbackSecret` in
 the YAML config is the HMAC token configured in the Zammad webhook settings. Zammad also supports HTTP Basic Auth and
 Bearer Token for outbound webhooks, but HMAC-SHA1 is preferred because it authenticates the payload itself — a
@@ -996,8 +996,11 @@ following the Interface Segregation Principle, sharing a small `HelpdeskTyped` m
   `updateResourceState`, `addComment`, `addSystemComment`, `linkRelatedTickets`.
 
 The inbound methods are kept together in one interface (not split further) because the callback controller always uses
-them as a set. A concrete adapter for a platform implements **both** interfaces in a single class — the split is about
-the contract each consumer depends on, not the number of implementation classes. All parameters are typed internal
+them as a set. Each platform provides **two concrete components** — one implementing the inbound
+`HelpdeskCallbackAdapter` and one implementing the outbound `HelpdeskClient` — rather than a single class implementing
+both. This keeps each class to a single responsibility (SRP): the inbound and outbound sides change for different
+reasons and share no state (the inbound side needs only JSON parsing/verification, the outbound side only an HTTP
+client), so splitting them keeps each independently readable and testable. All parameters are typed internal
 models (no adapter ever receives a raw Negotiator DTO or a raw webhook payload); the translation from Negotiator domain
 objects to these internal models happens in the event handlers in the core, before the adapter is called.
 
@@ -1053,19 +1056,28 @@ The `CreatedTicket` record is defined in the `core/model` package so both the in
 it.
 
 The registry (`AdapterConfig`) exposes one bean per role — `Map<HelpDeskType, HelpdeskCallbackAdapter>` and
-`Map<HelpDeskType, HelpdeskClient>` — each populated from the corresponding beans by `getType()`. A single adapter bean
-that implements both interfaces appears in both maps.
+`Map<HelpDeskType, HelpdeskClient>` — each populated from the corresponding beans by `getType()`. Each platform's
+inbound component lands in the callback-adapter map and its outbound component in the client map, both keyed by the same
+`HelpDeskType`.
 
-#### ZammadAdapter
+#### Zammad adapter (`adapter/zammad`)
 
-The first and only concrete adapter in this MVP product. A Spring `@Component` singleton. Implements both
-`HelpdeskCallbackAdapter` and `HelpdeskClient` for Zammad ([Ticket endpoints](https://docs.zammad.org/en/latest/api/ticket/index.html),
-[Article endpoints](https://docs.zammad.org/en/latest/api/ticket/articles.html)). Uses an injected
-`RestClient.Builder`; each method builds a `RestClient` scoped to the org's `baseUrl` with
-`Authorization: Token token={apiToken}` set from `config.credentials().get("apiToken")`.
+The first and only platform integration in this MVP product ([Ticket endpoints](https://docs.zammad.org/en/latest/api/ticket/index.html),
+[Article endpoints](https://docs.zammad.org/en/latest/api/ticket/articles.html)). It lives in a per-platform
+sub-package `adapter/zammad` and is split into two Spring `@Component` singletons:
 
-- `verifyCallback()` — reads `X-Hub-Signature` header, computes `HMAC-SHA1(callbackSecret, body)` and compares it.
-- Returns `false` if the header is absent or the signature does not match.
+- **`ZammadClient implements HelpdeskClient`** — outbound side. Uses an injected `RestClient.Builder`; each method builds
+  a `RestClient` scoped to the org's `baseUrl` with `Authorization: Token token={apiToken}` set from
+  `config.credentials().get("apiToken")`.
+- **`ZammadCallbackAdapter implements HelpdeskCallbackAdapter`** — inbound side. Uses an injected `ObjectMapper` to parse
+  and verify callbacks; owns the Zammad payload records.
+
+The two share only the Zammad custom-field names (`negotiation_state`, `negotiator_resource_state`,
+`negotiator_resource_transition_event`), which are defined once in a package-private `ZammadFields` holder so the
+outbound request bodies and the inbound payload mapping cannot drift. Future `adapter/alvao` package follows the same shape.
+
+`ZammadClient` (outbound):
+
 - `createTicket()` — calls `POST /api/v1/tickets`,
   sets `negotiation_state`, `negotiator_resource_state`, and `negotiator_resource_transition_event: null` as top-level
   custom fields, includes an initial `article` in the request body. The Zammad response contains both `id` (ticket ID)
@@ -1080,6 +1092,11 @@ The first and only concrete adapter in this MVP product. A Spring `@Component` s
 - `linkRelatedTickets()` — calls `POST /api/v1/links/add` for each ordered pair from the provided `CreatedTicket` list,
   using `ticketNumber` as `link_object_source_number` and `ticketId` as `link_object_target_value`. No extra HTTP calls
   are needed because the ticket number is already captured from the `POST /api/v1/tickets` response in `createTicket()`.
+
+`ZammadCallbackAdapter` (inbound):
+
+- `verifyCallback()` — reads `X-Hub-Signature` header, computes `HMAC-SHA1(callbackSecret, body)` and compares it.
+  Returns `false` if the header is absent or the signature does not match.
 - `parseCallback()` — deserializes the Zammad webhook payload into `HelpdeskCallbackEvent`, extracting `ticket.id`,
   `ticket.negotiator_resource_transition_event`, and `article.body`.
 
@@ -1169,8 +1186,15 @@ eu.bbmri_eric.negotiator.negotiator-link
     ├── HelpdeskTyped
     ├── HelpdeskCallbackAdapter
     ├── HelpdeskClient
-    ├── ZammadAdapter
-    └── ...
+    ├── AdapterConfig
+    ├── zammad
+    │   ├── ZammadClient
+    │   ├── ZammadCallbackAdapter
+    │   └── ZammadFields
+    └── alvao
+        ├── AlvaoClient
+        ├── AlvaoCallbackAdapter
+        └── AlvaoFields
 ```
 
 ## 7. Implementation Plan
@@ -1278,14 +1302,8 @@ unimplemented stub returning `null`. Two targeted changes are required:
 - `HelpdeskPostHandler` — writes hash of post text and `ticketId` to `originated_posts` before calling Negotiator; calls
   `NegotiatorClient.createPost()` with visibility type always set to `PRIVATE`
 
-7. **Zammad adapter** — `ZammadAdapter` implementing both the `HelpdeskCallbackAdapter` and `HelpdeskClient` interfaces:
-   `verifyCallback` (verifies
-   `X-Hub-Signature` HMAC-SHA1 header), `createTicket` (title format:
-   `[{negotiationDisplayId}] {resourceName} — Access Request` for `PER_RESOURCE`;
-   `[{negotiationDisplayId}] Resources Access Request` for `PER_NEGOTIATION`; returns `CreatedTicket` with both ticket
-   ID and ticket number from the response), `updateNegotiationState`, `updateResourceState`, `addComment`,
-   `addSystemComment`, `linkRelatedTickets` (calls `POST /api/v1/links/add` for each pair using ticket number from
-   `CreatedTicket`), `parseCallback`.
+7. **Zammad adapter** — the `adapter/zammad` package split into `ZammadClient` (outbound `HelpdeskClient`) and
+   `ZammadCallbackAdapter` (inbound `HelpdeskCallbackAdapter`), sharing a `ZammadFields` constant holder.
 
 8. **Help desk setup documentation** — step-by-step instructions for the Zammad admin covering: dedicated bot user
    account for the middleware, group creation for tickets, three custom fields (`negotiation_state`,
@@ -1436,7 +1454,7 @@ following the exact same pattern as all existing webhook events.
 On the middleware side a new `NegotiationTransferredHandler` receives the event and updates all tickets for that
 negotiation to reflect the new requester identity. The exact representation in the help desk ticket (e.g. updating the
 ticket description or adding a system comment noting the transfer) is an adapter-level decision implemented in adapter
-it self. In the `ZammadAdapter`, it will be done with system coment.
+it self. For Zammad, it will be done with a system comment via `ZammadClient`.
 
 ### Milestone 4
 
@@ -1464,7 +1482,7 @@ multi-value `negotiationId` filter (so the catch-up pass can batch-query posts f
 
 **Observability:** Negotiator uses Spring Boot Actuator with Micrometer and `micrometer-registry-prometheus` (
 `pom.xml:257-259`). The middleware will use the same stack for consistency. The collected metrics will be scraped by
-Prometheus and visualised in Grafana dashboards, giving operators visibility into webhook delivery rates, processing
+Prometheus and visualized in Grafana dashboards, giving operators visibility into webhook delivery rates, processing
 latency, and error counts across both directions of the integration.
 
 ### Milestone 5
