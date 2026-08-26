@@ -53,7 +53,7 @@ class HelpdeskResourceTransitionHandlerTest {
   @Mock private TicketMappingRepository ticketMappingRepository;
   @Mock private OriginatedTransitionRepository originatedTransitionRepository;
   @Mock private NegotiatorClient negotiatorClient;
-  @Mock private HelpdeskClient adapter;
+  @Mock private HelpdeskClient helpdeskClient;
 
   private OrganizationConfig config;
   private HelpdeskResourceTransitionHandler handler;
@@ -66,7 +66,7 @@ class HelpdeskResourceTransitionHandlerTest {
             ticketMappingRepository,
             originatedTransitionRepository,
             negotiatorClient,
-            Map.of(HelpDeskType.ZAMMAD, adapter));
+            Map.of(HelpDeskType.ZAMMAD, helpdeskClient));
   }
 
   @Test
@@ -82,8 +82,8 @@ class HelpdeskResourceTransitionHandlerTest {
     verify(negotiatorClient)
         .sendResourceEvent(
             eq(NEGOTIATION_ID), eq(RESOURCE_SOURCE_ID), eq(REQUESTED_EVENT), eq(config));
-    verify(adapter, never()).updateResourceState(any(), any(), any());
-    verify(adapter, never()).addSystemComment(any(), any(), any());
+    verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
+    verify(helpdeskClient, never()).addSystemComment(any(), any(), any());
   }
 
   @Test
@@ -96,8 +96,8 @@ class HelpdeskResourceTransitionHandlerTest {
 
     handler.handle(callbackEvent(), config);
 
-    verify(adapter).updateResourceState(eq(TICKET_ID), eq(RESOURCE_STATE), eq(config));
-    verify(adapter).addSystemComment(eq(TICKET_ID), any(String.class), eq(config));
+    verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(RESOURCE_STATE), eq(config));
+    verify(helpdeskClient).addSystemComment(eq(TICKET_ID), any(String.class), eq(config));
     verify(negotiatorClient, never()).sendResourceEvent(any(), any(), any(), any());
   }
 
@@ -110,8 +110,8 @@ class HelpdeskResourceTransitionHandlerTest {
     handler.handle(callbackEvent(), config);
 
     verify(negotiatorClient, never()).sendResourceEvent(any(), any(), any(), any());
-    verify(adapter, never()).updateResourceState(any(), any(), any());
-    verify(adapter, never()).addSystemComment(any(), any(), any());
+    verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
+    verify(helpdeskClient, never()).addSystemComment(any(), any(), any());
   }
 
   @Test
@@ -145,8 +145,8 @@ class HelpdeskResourceTransitionHandlerTest {
             eq(List.of(101L, 102L)),
             eq(ResourceTransitionEvent.MARK_AS_CHECKING_AVAILABILITY.targetState()),
             eq(config));
-    verify(adapter, never()).updateResourceState(any(), any(), any());
-    verify(adapter, never()).addSystemComment(any(), any(), any());
+    verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
+    verify(helpdeskClient, never()).addSystemComment(any(), any(), any());
   }
 
   @ParameterizedTest(name = "{0}")
@@ -171,8 +171,8 @@ class HelpdeskResourceTransitionHandlerTest {
 
     handler.handle(callbackEvent(), config);
 
-    verify(adapter).updateResourceState(eq(TICKET_ID), eq(RESOURCE_STATE), eq(config));
-    verify(adapter)
+    verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(RESOURCE_STATE), eq(config));
+    verify(helpdeskClient)
         .addSystemComment(
             eq(TICKET_ID),
             argThat(s -> s.contains(RESOURCE_SOURCE_ID_2) == commentShouldMentionResource2),

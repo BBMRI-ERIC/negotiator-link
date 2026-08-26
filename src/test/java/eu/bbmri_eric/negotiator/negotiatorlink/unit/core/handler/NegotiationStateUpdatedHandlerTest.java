@@ -53,7 +53,7 @@ class NegotiationStateUpdatedHandlerTest {
 
   @Mock private NegotiatorClient negotiatorClient;
   @Mock private OrganizationConfigRegistry registry;
-  @Mock private HelpdeskClient adapter;
+  @Mock private HelpdeskClient helpdeskClient;
   @Mock private TicketMappingRepository ticketMappingRepository;
 
   private final ObjectMapper objectMapper = new ObjectMapper();
@@ -65,7 +65,7 @@ class NegotiationStateUpdatedHandlerTest {
         new NegotiationStateUpdatedHandler(
             negotiatorClient,
             registry,
-            Map.of(HelpDeskType.ZAMMAD, adapter),
+            Map.of(HelpDeskType.ZAMMAD, helpdeskClient),
             ticketMappingRepository,
             objectMapper);
   }
@@ -80,15 +80,15 @@ class NegotiationStateUpdatedHandlerTest {
     var ticket2 = new CreatedTicket("ticket-2", "2");
 
     stubHappyPath(negotiation, config, List.of(resource1, resource2));
-    when(adapter.createTicket(any(CreateTicketRequest.class), eq(config)))
+    when(helpdeskClient.createTicket(any(CreateTicketRequest.class), eq(config)))
         .thenReturn(ticket1)
         .thenReturn(ticket2);
 
     handler.handle(approveEventData());
 
-    verify(adapter).createTicket(eq(perResourceRequest(negotiation, resource1)), eq(config));
-    verify(adapter).createTicket(eq(perResourceRequest(negotiation, resource2)), eq(config));
-    verify(adapter).linkRelatedTickets(eq(List.of(ticket1, ticket2)), eq(config));
+    verify(helpdeskClient).createTicket(eq(perResourceRequest(negotiation, resource1)), eq(config));
+    verify(helpdeskClient).createTicket(eq(perResourceRequest(negotiation, resource2)), eq(config));
+    verify(helpdeskClient).linkRelatedTickets(eq(List.of(ticket1, ticket2)), eq(config));
     verify(ticketMappingRepository).save(eq(mappingFor(ticket1, "1", resource1)));
     verify(ticketMappingRepository).save(eq(mappingFor(ticket2, "2", resource2)));
   }
@@ -102,14 +102,15 @@ class NegotiationStateUpdatedHandlerTest {
     var ticket = new CreatedTicket(TICKET_ID, "42");
 
     stubHappyPath(negotiation, config, List.of(resource1, resource2));
-    when(adapter.createTicket(any(CreateTicketRequest.class), eq(config))).thenReturn(ticket);
+    when(helpdeskClient.createTicket(any(CreateTicketRequest.class), eq(config)))
+        .thenReturn(ticket);
 
     handler.handle(approveEventData());
 
     var expectedRequest = perNegotiationRequest(negotiation, List.of(resource1, resource2));
 
-    verify(adapter, times(1)).createTicket(eq(expectedRequest), eq(config));
-    verify(adapter, never()).linkRelatedTickets(any(), any());
+    verify(helpdeskClient, times(1)).createTicket(eq(expectedRequest), eq(config));
+    verify(helpdeskClient, never()).linkRelatedTickets(any(), any());
     verify(ticketMappingRepository).save(eq(mappingFor(ticket, "1", resource1)));
     verify(ticketMappingRepository).save(eq(mappingFor(ticket, "2", resource2)));
   }
@@ -122,13 +123,14 @@ class NegotiationStateUpdatedHandlerTest {
     var ticket = new CreatedTicket(TICKET_ID, "42");
 
     stubHappyPath(negotiation, config, List.of(resource));
-    when(adapter.createTicket(any(CreateTicketRequest.class), eq(config))).thenReturn(ticket);
+    when(helpdeskClient.createTicket(any(CreateTicketRequest.class), eq(config)))
+        .thenReturn(ticket);
 
     handler.handle(approveEventData());
 
-    verify(adapter, times(1))
+    verify(helpdeskClient, times(1))
         .createTicket(eq(perResourceRequest(negotiation, resource)), eq(config));
-    verify(adapter, never()).linkRelatedTickets(any(), any());
+    verify(helpdeskClient, never()).linkRelatedTickets(any(), any());
   }
 
   @Test
@@ -139,7 +141,7 @@ class NegotiationStateUpdatedHandlerTest {
 
     handler.handle(approveEventData());
 
-    verify(adapter, never()).createTicket(any(), any());
+    verify(helpdeskClient, never()).createTicket(any(), any());
     verify(ticketMappingRepository, never()).save(any());
   }
 
@@ -148,7 +150,7 @@ class NegotiationStateUpdatedHandlerTest {
     handler.handle(eventData("PAUSE", "IN_PROGRESS", "PAUSED"));
 
     verify(negotiatorClient, never()).getResources(any(), any());
-    verify(adapter, never()).createTicket(any(), any());
+    verify(helpdeskClient, never()).createTicket(any(), any());
   }
 
   @Test
@@ -158,7 +160,7 @@ class NegotiationStateUpdatedHandlerTest {
     handler.handle(approveEventData());
 
     verify(negotiatorClient, never()).getNegotiation(any(), any());
-    verify(adapter, never()).createTicket(any(), any());
+    verify(helpdeskClient, never()).createTicket(any(), any());
   }
 
   @Test
@@ -170,7 +172,7 @@ class NegotiationStateUpdatedHandlerTest {
 
     handler.handle(approveEventData());
 
-    verify(adapter, never()).createTicket(any(), any());
+    verify(helpdeskClient, never()).createTicket(any(), any());
   }
 
   @Test
@@ -196,7 +198,7 @@ class NegotiationStateUpdatedHandlerTest {
     var config = createConfig(TicketStrategy.PER_RESOURCE);
     var resource = createResource("r-1", 1L);
     stubHappyPath(createNegotiation(), config, List.of(resource));
-    when(adapter.createTicket(any(), any())).thenThrow(new RuntimeException("adapter down"));
+    when(helpdeskClient.createTicket(any(), any())).thenThrow(new RuntimeException("adapter down"));
 
     assertDoesNotThrow(() -> handler.handle(approveEventData()));
   }
@@ -217,12 +219,12 @@ class NegotiationStateUpdatedHandlerTest {
             "alice@example.com");
 
     stubHappyPath(negotiation, config, List.of(resource));
-    when(adapter.createTicket(any(), eq(config))).thenReturn(ticket);
+    when(helpdeskClient.createTicket(any(), eq(config))).thenReturn(ticket);
     stubPosts(config, List.of(post));
 
     handler.handle(approveEventData());
 
-    verify(adapter)
+    verify(helpdeskClient)
         .addComment(eq(TICKET_ID), startsWith("From: Alice <alice@example.com>"), eq(config));
   }
 
@@ -239,14 +241,14 @@ class NegotiationStateUpdatedHandlerTest {
     newer.setCreationDate(LocalDateTime.of(2024, 1, 2, 10, 0));
 
     stubHappyPath(negotiation, config, List.of(resource));
-    when(adapter.createTicket(any(), eq(config))).thenReturn(ticket);
+    when(helpdeskClient.createTicket(any(), eq(config))).thenReturn(ticket);
     stubPosts(config, List.of(newer, older)); // reversed intentionally
 
     handler.handle(approveEventData());
 
-    var order = inOrder(adapter);
-    order.verify(adapter).addComment(eq(TICKET_ID), startsWith("first"), eq(config));
-    order.verify(adapter).addComment(eq(TICKET_ID), startsWith("second"), eq(config));
+    var order = inOrder(helpdeskClient);
+    order.verify(helpdeskClient).addComment(eq(TICKET_ID), startsWith("first"), eq(config));
+    order.verify(helpdeskClient).addComment(eq(TICKET_ID), startsWith("second"), eq(config));
   }
 
   @Test
@@ -260,13 +262,13 @@ class NegotiationStateUpdatedHandlerTest {
     var post = TestUtil.post("p-1", "Hello", EntityModelPostDTO.TypeEnum.PUBLIC, null);
 
     stubHappyPath(negotiation, config, List.of(resource1, resource2));
-    when(adapter.createTicket(any(), eq(config))).thenReturn(ticket1).thenReturn(ticket2);
+    when(helpdeskClient.createTicket(any(), eq(config))).thenReturn(ticket1).thenReturn(ticket2);
     stubPosts(config, List.of(post));
 
     handler.handle(approveEventData());
 
-    verify(adapter).addComment(eq("ticket-1"), any(), eq(config));
-    verify(adapter).addComment(eq("ticket-2"), any(), eq(config));
+    verify(helpdeskClient).addComment(eq("ticket-1"), any(), eq(config));
+    verify(helpdeskClient).addComment(eq("ticket-2"), any(), eq(config));
   }
 
   @Test
@@ -277,12 +279,12 @@ class NegotiationStateUpdatedHandlerTest {
     var ticket = new CreatedTicket(TICKET_ID, "42");
 
     stubHappyPath(negotiation, config, List.of(resource));
-    when(adapter.createTicket(any(), eq(config))).thenReturn(ticket);
+    when(helpdeskClient.createTicket(any(), eq(config))).thenReturn(ticket);
     stubPosts(config, List.of());
 
     handler.handle(approveEventData());
 
-    verify(adapter, never()).addComment(any(), any(), any());
+    verify(helpdeskClient, never()).addComment(any(), any(), any());
   }
 
   @Test
@@ -294,12 +296,12 @@ class NegotiationStateUpdatedHandlerTest {
     var post = TestUtil.post("p-1", "Anonymous text", EntityModelPostDTO.TypeEnum.PUBLIC, null);
 
     stubHappyPath(negotiation, config, List.of(resource));
-    when(adapter.createTicket(any(), eq(config))).thenReturn(ticket);
+    when(helpdeskClient.createTicket(any(), eq(config))).thenReturn(ticket);
     stubPosts(config, List.of(post));
 
     handler.handle(approveEventData());
 
-    verify(adapter).addComment(eq(TICKET_ID), eq("Anonymous text"), eq(config));
+    verify(helpdeskClient).addComment(eq(TICKET_ID), eq("Anonymous text"), eq(config));
   }
 
   @Test
@@ -311,12 +313,12 @@ class NegotiationStateUpdatedHandlerTest {
     var post = TestUtil.post("p-1", null, EntityModelPostDTO.TypeEnum.PUBLIC, null);
 
     stubHappyPath(negotiation, config, List.of(resource));
-    when(adapter.createTicket(any(), eq(config))).thenReturn(ticket);
+    when(helpdeskClient.createTicket(any(), eq(config))).thenReturn(ticket);
     stubPosts(config, List.of(post));
 
     handler.handle(approveEventData());
 
-    verify(adapter, never()).addComment(any(), any(), any());
+    verify(helpdeskClient, never()).addComment(any(), any(), any());
   }
 
   @Test
@@ -332,14 +334,14 @@ class NegotiationStateUpdatedHandlerTest {
     post2.setCreationDate(LocalDateTime.of(2024, 1, 2, 10, 0));
 
     stubHappyPath(negotiation, config, List.of(resource));
-    when(adapter.createTicket(any(), eq(config))).thenReturn(ticket);
+    when(helpdeskClient.createTicket(any(), eq(config))).thenReturn(ticket);
     stubPosts(config, List.of(post1, post2));
     doThrow(new RuntimeException("adapter down"))
-        .when(adapter)
+        .when(helpdeskClient)
         .addComment(eq(TICKET_ID), startsWith("first"), eq(config));
 
     assertDoesNotThrow(() -> handler.handle(approveEventData()));
-    verify(adapter).addComment(eq(TICKET_ID), startsWith("second"), eq(config));
+    verify(helpdeskClient).addComment(eq(TICKET_ID), startsWith("second"), eq(config));
   }
 
   @Test
@@ -351,9 +353,11 @@ class NegotiationStateUpdatedHandlerTest {
     var post = TestUtil.post("p-1", "text", EntityModelPostDTO.TypeEnum.PUBLIC, null);
 
     stubHappyPath(negotiation, config, List.of(resource));
-    when(adapter.createTicket(any(), eq(config))).thenReturn(ticket);
+    when(helpdeskClient.createTicket(any(), eq(config))).thenReturn(ticket);
     stubPosts(config, List.of(post));
-    doThrow(new RuntimeException("adapter down")).when(adapter).addComment(any(), any(), any());
+    doThrow(new RuntimeException("adapter down"))
+        .when(helpdeskClient)
+        .addComment(any(), any(), any());
 
     handler.handle(approveEventData());
 
