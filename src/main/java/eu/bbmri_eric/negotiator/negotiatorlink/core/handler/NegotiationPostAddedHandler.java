@@ -5,7 +5,7 @@ import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil.signPos
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpDeskAdapter;
+import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
@@ -31,7 +31,7 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
 
   private final NegotiatorClient negotiatorClient;
   private final OrganizationConfigRegistry registry;
-  private final Map<HelpDeskType, HelpDeskAdapter> adapters;
+  private final Map<HelpDeskType, HelpdeskClient> clients;
   private final TicketMappingRepository ticketMappingRepository;
   private final OriginatedPostRepository originatedPostRepository;
   private final ObjectMapper objectMapper;
@@ -41,13 +41,13 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
   public NegotiationPostAddedHandler(
       NegotiatorClient negotiatorClient,
       OrganizationConfigRegistry registry,
-      Map<HelpDeskType, HelpDeskAdapter> adapters,
+      Map<HelpDeskType, HelpdeskClient> clients,
       TicketMappingRepository ticketMappingRepository,
       OriginatedPostRepository originatedPostRepository,
       ObjectMapper objectMapper) {
     this.negotiatorClient = negotiatorClient;
     this.registry = registry;
-    this.adapters = adapters;
+    this.clients = clients;
     this.ticketMappingRepository = ticketMappingRepository;
     this.originatedPostRepository = originatedPostRepository;
     this.objectMapper = objectMapper;
@@ -184,14 +184,14 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
 
   private void forwardToTicket(String ticketId, String orgExtId, String postText, String postId) {
     OrganizationConfig config = registry.findByExternalId(orgExtId).orElseThrow();
-    HelpDeskAdapter adapter = adapters.get(config.type());
-    if (adapter == null) {
+    HelpdeskClient client = clients.get(config.type());
+    if (client == null) {
       log.error("No adapter for type '{}' (org '{}')", config.type(), orgExtId);
       return;
     }
 
     try {
-      adapter.addComment(ticketId, postText, config);
+      client.addComment(ticketId, postText, config);
       log.info("Forwarded post '{}' to ticket '{}'", postId, ticketId);
     } catch (Exception e) {
       log.error("Failed to add comment to ticket '{}' for post '{}'", ticketId, postId, e);

@@ -1,7 +1,8 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.inbound;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.NegotiatorEventRouter;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.verification.WebhookVerificationService;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.webhook.ReplayGuard;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.webhook.WebhookVerificationService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -14,11 +15,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class NegotiatorWebhookController {
 
   private final WebhookVerificationService verifier;
+  private final ReplayGuard replayGuard;
   private final NegotiatorEventRouter negotiatorEventRouter;
 
   public NegotiatorWebhookController(
-      WebhookVerificationService verifier, NegotiatorEventRouter negotiatorEventRouter) {
+      WebhookVerificationService verifier,
+      ReplayGuard replayGuard,
+      NegotiatorEventRouter negotiatorEventRouter) {
     this.verifier = verifier;
+    this.replayGuard = replayGuard;
     this.negotiatorEventRouter = negotiatorEventRouter;
   }
 
@@ -26,7 +31,7 @@ public class NegotiatorWebhookController {
   ResponseEntity<Void> receiveWebhook(HttpServletRequest request, @RequestBody byte[] body) {
     verifier.verify(request, body);
     String webhookId = request.getHeader("Webhook-Id");
-    if (verifier.checkAndMarkSeen(webhookId)) {
+    if (replayGuard.alreadySeen(webhookId)) {
       log.debug("Duplicate webhook {} — acknowledged and discarded", webhookId);
       return ResponseEntity.ok().build();
     }

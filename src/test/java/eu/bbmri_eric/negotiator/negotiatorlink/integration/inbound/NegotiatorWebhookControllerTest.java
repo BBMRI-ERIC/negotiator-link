@@ -16,7 +16,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpDeskAdapter;
+import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.OriginatedPost;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.OriginatedTransition;
@@ -51,7 +51,7 @@ class NegotiatorWebhookControllerTest {
   @Autowired private TicketMappingRepository ticketMappingRepository;
   @Autowired private OriginatedTransitionRepository originatedTransitionRepository;
   @Autowired private OriginatedPostRepository originatedPostRepository;
-  @MockitoSpyBean private HelpDeskAdapter helpDeskAdapter;
+  @MockitoSpyBean private HelpdeskClient helpdeskClient;
   @MockitoBean private NegotiatorClient negotiatorClient;
 
   @Value("${negotiatorlink.webhook.secret}")
@@ -59,7 +59,7 @@ class NegotiatorWebhookControllerTest {
 
   @org.junit.jupiter.api.BeforeEach
   void resetMocks() {
-    Mockito.reset(helpDeskAdapter, negotiatorClient);
+    Mockito.reset(helpdeskClient, negotiatorClient);
   }
 
   @Test
@@ -137,7 +137,7 @@ class NegotiatorWebhookControllerTest {
 
     // First webhook: adapter must be called once to update the state
     sendResourceStateWebhook("dedup-w1", negotiationId, resourceSourceId, toState);
-    verify(helpDeskAdapter, times(1)).updateResourceState(eq(ticketId), eq(toState), any());
+    verify(helpdeskClient, times(1)).updateResourceState(eq(ticketId), eq(toState), any());
     assertThat(
             originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
                 negotiationId, ticketId, toState))
@@ -146,7 +146,7 @@ class NegotiatorWebhookControllerTest {
 
     // Second webhook: adapter must NOT be called again, row still exists
     sendResourceStateWebhook("dedup-w2", negotiationId, resourceSourceId, toState);
-    verify(helpDeskAdapter, times(1)).updateResourceState(any(), any(), any());
+    verify(helpdeskClient, times(1)).updateResourceState(any(), any(), any());
     assertThat(
             originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
                 negotiationId, ticketId, toState))
@@ -155,7 +155,7 @@ class NegotiatorWebhookControllerTest {
 
     // Third webhook: adapter must NOT be called again, row is deleted
     sendResourceStateWebhook("dedup-w3", negotiationId, resourceSourceId, toState);
-    verify(helpDeskAdapter, times(1)).updateResourceState(any(), any(), any());
+    verify(helpdeskClient, times(1)).updateResourceState(any(), any(), any());
     assertThat(
             originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
                 negotiationId, ticketId, toState))
@@ -198,8 +198,8 @@ class NegotiatorWebhookControllerTest {
         .andExpect(status().isOk());
 
     // ticketB must receive the comment; ticketA must be excluded
-    verify(helpDeskAdapter).addComment(eq(ticketB), contains(postText), any());
-    verify(helpDeskAdapter, never()).addComment(eq(ticketA), any(), any());
+    verify(helpdeskClient).addComment(eq(ticketB), contains(postText), any());
+    verify(helpdeskClient, never()).addComment(eq(ticketA), any(), any());
   }
 
   private void sendResourceStateWebhook(

@@ -8,7 +8,7 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpDeskAdapter;
+import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
@@ -47,7 +47,7 @@ class NegotiationPostAddedHandlerTest {
 
   @Mock private NegotiatorClient negotiatorClient;
   @Mock private OrganizationConfigRegistry registry;
-  @Mock private HelpDeskAdapter adapter;
+  @Mock private HelpdeskClient helpdeskClient;
   @Mock private TicketMappingRepository ticketMappingRepository;
   @Mock private OriginatedPostRepository originatedPostRepository;
 
@@ -60,7 +60,7 @@ class NegotiationPostAddedHandlerTest {
         new NegotiationPostAddedHandler(
             negotiatorClient,
             registry,
-            Map.of(HelpDeskType.ZAMMAD, adapter),
+            Map.of(HelpDeskType.ZAMMAD, helpdeskClient),
             ticketMappingRepository,
             originatedPostRepository,
             objectMapper);
@@ -81,8 +81,8 @@ class NegotiationPostAddedHandlerTest {
 
     handler.handle(postEventData(null));
 
-    verify(adapter).addComment(eq(TICKET_A), eq(POST_TEXT), eq(configMhh));
-    verify(adapter).addComment(eq(TICKET_B), eq(POST_TEXT), eq(configAmc));
+    verify(helpdeskClient).addComment(eq(TICKET_A), eq(POST_TEXT), eq(configMhh));
+    verify(helpdeskClient).addComment(eq(TICKET_B), eq(POST_TEXT), eq(configAmc));
   }
 
   @Test
@@ -102,8 +102,8 @@ class NegotiationPostAddedHandlerTest {
 
     handler.handle(postEventData(ORG_ID));
 
-    verify(adapter).addComment(eq(TICKET_A), eq(POST_TEXT), eq(config));
-    verify(adapter, never()).addComment(eq(TICKET_B), any(), any());
+    verify(helpdeskClient).addComment(eq(TICKET_A), eq(POST_TEXT), eq(config));
+    verify(helpdeskClient, never()).addComment(eq(TICKET_B), any(), any());
   }
 
   @Test
@@ -122,7 +122,7 @@ class NegotiationPostAddedHandlerTest {
 
     handler.handle(postEventData(ORG_ID));
 
-    verify(adapter, never()).addComment(eq(TICKET_A), any(), any());
+    verify(helpdeskClient, never()).addComment(eq(TICKET_A), any(), any());
   }
 
   @Test
@@ -137,7 +137,7 @@ class NegotiationPostAddedHandlerTest {
 
     handler.handle(postEventData(ORG_ID));
 
-    verify(adapter, never()).addComment(any(), any(), any());
+    verify(helpdeskClient, never()).addComment(any(), any(), any());
   }
 
   @Test
@@ -147,7 +147,7 @@ class NegotiationPostAddedHandlerTest {
     handler.handle(postEventData(ORG_ID));
 
     verify(negotiatorClient, never()).getPost(any(), any(), any());
-    verify(adapter, never()).addComment(any(), any(), any());
+    verify(helpdeskClient, never()).addComment(any(), any(), any());
   }
 
   @Test
@@ -157,7 +157,7 @@ class NegotiationPostAddedHandlerTest {
     handler.handle(postEventData(null));
 
     verify(negotiatorClient, never()).getPost(any(), any(), any());
-    verify(adapter, never()).addComment(any(), any(), any());
+    verify(helpdeskClient, never()).addComment(any(), any(), any());
   }
 
   @Test
@@ -171,7 +171,7 @@ class NegotiationPostAddedHandlerTest {
     handler.handle(postEventData(ORG_ID));
 
     verify(ticketMappingRepository, never()).findByIdNegotiationId(any());
-    verify(adapter, never()).addComment(any(), any(), any());
+    verify(helpdeskClient, never()).addComment(any(), any(), any());
   }
 
   private JsonNode postEventData(Long orgId) {
@@ -205,7 +205,7 @@ class NegotiationPostAddedHandlerTest {
 
     handler.handle(postEventData(ORG_ID));
 
-    verify(adapter)
+    verify(helpdeskClient)
         .addComment(
             eq(TICKET_A), eq("From: Jane Doe <jane@example.com>\n\n" + POST_TEXT), eq(config));
   }
@@ -232,7 +232,8 @@ class NegotiationPostAddedHandlerTest {
 
     handler.handle(postEventData(ORG_ID));
 
-    verify(adapter).addComment(eq(TICKET_A), eq("From: Jane Doe\n\n" + POST_TEXT), eq(config));
+    verify(helpdeskClient)
+        .addComment(eq(TICKET_A), eq("From: Jane Doe\n\n" + POST_TEXT), eq(config));
   }
 
   @Test
@@ -257,7 +258,7 @@ class NegotiationPostAddedHandlerTest {
 
     handler.handle(postEventData(ORG_ID));
 
-    verify(adapter)
+    verify(helpdeskClient)
         .addComment(eq(TICKET_A), eq("From: jane@example.com\n\n" + POST_TEXT), eq(config));
   }
 

@@ -797,7 +797,7 @@ interface, never on concrete adapter implementations.
 Receives all webhook deliveries from Negotiator at `POST /webhooks/negotiator`. Its only responsibilities are:
 
 1. Delegate signature and timestamp verification to `WebhookVerificationService`
-2. Check `Webhook-Id` against the seen-cache in `WebhookVerificationService`
+2. Check `Webhook-Id` against the shared `ReplayGuard`
 3. Return HTTP 200 within the Negotiator timeout window
 4. Pass the verified raw event to `EventRouter` for processing
 
@@ -808,14 +808,19 @@ It contains no business logic. It never calls Negotiator or any help desk.
 Receives all callbacks from help desks at `POST /webhooks/helpdesk/{organizationExternalId}`. Its only responsibilities
 are:
 
-1. Look up the organization config from `OrganizationConfigRegistry` by `organizationExternalId` — HTTP 404 if not found
-2. Resolve the correct `HelpDeskAdapter` implementation for that organization's `type`
-3. Delegate callback authentication to `adapter.verifyCallback(headers, body, callbackSecret)` — HTTP 401 if it returns
-   false
-4. Extract the platform-specific callback ID via `adapter.extractCallbackId(headers)` and check it against an
-   in-memory seen-cache (Caffeine, 15-minute TTL) keyed by `organizationExternalId + ":" + callbackId` — if already
-   seen, return HTTP 200 and discard silently (replay prevention scoped per organization)
+1. Look up the organization config from `OrganizationConfigRegistry` by `organizationExternalId`
+2. Resolve the correct `HelpdeskCallbackAdapter` implementation for that organization's `type`
+3. Delegate callback authentication to `adapter.verifyCallback(headers, body, callbackSecret)`
+4. Extract the platform-specific callback ID via `adapter.extractCallbackId(headers)` and check it against the shared
+   `ReplayGuard` keyed by `organizationExternalId + ":" + callbackId` — if already seen, return HTTP 200 and discard
+   silently (replay prevention scoped per organization)
 5. Pass the verified callback to `EventRouter` for processing
+
+Error responses are not built in the controller. When the organization is unknown (or its help desk type has no
+registered adapter) the controller throws `UnknownOrganizationException`; when callback authentication fails it throws
+`WebhookAuthenticationException`. Both are mapped to the corresponding HTTP status by `WebhookExceptionHandler` (see
+Core). The deliberate HTTP 200 acknowledgements (duplicate delivery, unparseable body, non-actionable payload) remain in
+the controller as explicit control flow — they are the webhook contract, not errors.
 
 
 ---
@@ -824,13 +829,32 @@ are:
 
 #### WebhookVerificationService
 
-Handles all security verification for inbound Negotiator webhooks. Encapsulates:
+Handles signature and timestamp verification for inbound Negotiator webhooks. Encapsulates:
 
 - HMAC-SHA256 signature verification against `NEGOTIATOR_WEBHOOK_SECRET`
 - Timestamp tolerance check (±5 minutes)
-- `Webhook-Id` seen-cache (in-memory TTL map, 15-minute window)
 
-This is a pure utility service with no dependency on any other core component.
+Verification failures are signalled by throwing `WebhookAuthenticationException`. This is a pure utility service with no
+dependency on any other core component.
+
+#### ReplayGuard
+
+Cross-cutting replay-prevention component shared by **both** inbound flows. Exposes a single operation
+`alreadySeen(String key)` that returns whether a delivery id has been seen before, recording it on first sight. Backed by
+an in-memory cache (Caffeine, 15-minute TTL); the default implementation is `ReplayGuardImpl`. `NegotiatorWebhookController`
+keys it by `Webhook-Id`; `HelpdeskCallbackController` keys it by `organizationExternalId + ":" + callbackId`. Keeping the
+guard separate from `WebhookVerificationService` avoids duplicating the cache across the two flows and lets the two
+platform-specific verification mechanisms stay independent.
+
+#### WebhookExceptionHandler
+
+A single `@RestControllerAdvice` that maps webhook-endpoint domain exceptions to HTTP responses. Controllers throw a
+typed exception describing *what happened* (`WebhookAuthenticationException` → 401,
+`UnknownOrganizationException` → 404); this advice decides *which status* to return. This keeps HTTP-status decisions out
+of the controllers and in one place, so error handling stays consistent as more controllers and adapters are added.
+Unexpected exceptions are intentionally left to the framework default (HTTP 500) — the advice only owns statuses that are
+a deliberate part of the API contract.
+
 
 #### OrganizationConfigRegistry
 
@@ -912,8 +936,8 @@ new event type means adding a new handler class - the router itself does not cha
 
 #### Event Handlers
 
-One class per event type. Each handler receives the parsed event, the resolved `OrganizationConfig`, and the
-`HelpDeskAdapter` instance and performs exactly the operations for that event:
+One class per event type. Each handler receives the parsed event, the resolved `OrganizationConfig`, and — for outbound
+operations — the resolved `HelpdeskClient` instance, and performs exactly the operations for that event:
 
 - `NegotiationApprovedHandler` — triggered by `negotiation.state.updated` with `event: APPROVE`; fetches all resources
   from Negotiator; groups resources by `organizationExternalId`; for each group whose `organizationExternalId` matches
@@ -958,70 +982,65 @@ section 7).
 
 ### Adapter Layer
 
-#### HelpDeskAdapter (interface)
+#### Adapter interfaces (inbound/outbound split)
 
-The contract every adapter must implement. All parameters are typed internal models (no adapter ever receives a raw
-Negotiator DTO or a raw webhook payload). The translation from Negotiator domain objects to these internal models
-happens in the event handlers in the core, before the adapter is called.
+An adapter has two distinct responsibilities: authenticating and translating **inbound** callbacks from the platform,
+and issuing **outbound** commands to it. These are consumed by different clients — the callback controller uses only the
+inbound side, the event handlers use only the outbound side — so they are expressed as two separate role interfaces
+following the Interface Segregation Principle, sharing a small `HelpdeskTyped` marker for registry resolution:
+
+- **`HelpdeskTyped`** — `HelpDeskType getType()`. Common identity used to resolve the correct adapter from the registry.
+- **`HelpdeskCallbackAdapter extends HelpdeskTyped`** — inbound side: `verifyCallback`, `extractCallbackId`,
+  `parseCallback`.
+- **`HelpdeskClient extends HelpdeskTyped`** — outbound side: `createTicket`, `updateNegotiationState`,
+  `updateResourceState`, `addComment`, `addSystemComment`, `linkRelatedTickets`.
+
+The inbound methods are kept together in one interface (not split further) because the callback controller always uses
+them as a set. A concrete adapter for a platform implements **both** interfaces in a single class — the split is about
+the contract each consumer depends on, not the number of implementation classes. All parameters are typed internal
+models (no adapter ever receives a raw Negotiator DTO or a raw webhook payload); the translation from Negotiator domain
+objects to these internal models happens in the event handlers in the core, before the adapter is called.
 
 ```java
-public interface HelpDeskAdapter {
+public interface HelpdeskTyped {
 
-  /**
-   * Returns the help desk type this adapter handles.
-   * Used to resolve the correct adapter from the registry.
-   */
+  /** Returns the help desk type this adapter handles. Used to resolve the correct adapter from the registry. */
   HelpDeskType getType();
+}
 
-  /**
-   * Verify the authenticity of an inbound callback from the help desk platform.
-   * Return false if verification fails.
-   */
+public interface HelpdeskCallbackAdapter extends HelpdeskTyped {
+
+  /** Verify the authenticity of an inbound callback. Returns false if verification fails. */
   boolean verifyCallback(HttpHeaders headers, byte[] body, String callbackSecret);
 
+  /** Extract the platform-specific delivery id used for replay prevention (empty if none). */
+  Optional<String> extractCallbackId(HttpHeaders headers);
+
+  /** Parse a raw help desk callback payload into the internal HelpdeskCallbackEvent model. */
+  Optional<HelpdeskCallbackEvent> parseCallback(Map<String, Object> payload);
+}
+
+public interface HelpdeskClient extends HelpdeskTyped {
+
   /**
-   * Create a new ticket for a resource in a negotiation.
-   * Called once per resource (PER_RESOURCE) or once per org (PER_NEGOTIATION) when the
-   * negotiation reaches IN_PROGRESS.
-   * Returns a CreatedTicket carrying the platform ticket ID and any platform-specific
-   * metadata the adapter needs later (e.g. ticket number for Zammad link creation).
+   * Create a new ticket for a resource (PER_RESOURCE) or org (PER_NEGOTIATION) when the negotiation
+   * reaches IN_PROGRESS. Returns a CreatedTicket carrying the platform ticket ID and ticket number.
    */
   CreatedTicket createTicket(CreateTicketRequest request, OrganizationConfig config);
 
-  /**
-   * Update the negotiation_state display field on an existing ticket.
-   */
+  /** Update the negotiation_state display field on an existing ticket. */
   void updateNegotiationState(String ticketId, String negotiationState, OrganizationConfig config);
 
-  /**
-   * Update the negotiator_resource_state display field on an existing ticket.
-   * Also clears negotiator_resource_transition_event back to null.
-   */
+  /** Update negotiator_resource_state and clear negotiator_resource_transition_event back to null. */
   void updateResourceState(String ticketId, String resourceState, OrganizationConfig config);
 
-  /**
-   * Add a comment to a ticket relaying a Negotiator post.
-   */
+  /** Add an external comment to a ticket relaying a Negotiator post. */
   void addComment(String ticketId, String commentText, OrganizationConfig config);
 
-  /**
-   * Post a system notification comment (e.g. illegal transition rejection, post not sent).
-   */
+  /** Add an internal system-notification comment (e.g. illegal transition rejection). */
   void addSystemComment(String ticketId, String message, OrganizationConfig config);
 
-  /**
-   * Parse a raw help desk callback payload into the middleware's
-   * internal HelpdeskCallbackEvent model.
-   */
-  Optional<HelpdeskCallbackEvent> parseCallback(Map<String, Object> payload);
-
-  /**
-   * Link a set of tickets as related so representatives can navigate between them.
-   * Called by NegotiationApprovedHandler after all PER_RESOURCE tickets for a
-   * negotiation+org are created, passing the full list of CreatedTicket objects.
-   * Each adapter uses whatever platform-specific data it needs from CreatedTicket
-   * (e.g. ZammadAdapter uses ticketNumber for the links API).
-   */
+  /** Link a set of tickets as related so representatives can navigate between them. */
   void linkRelatedTickets(List<CreatedTicket> tickets, OrganizationConfig config);
 }
 ```
@@ -1030,25 +1049,27 @@ public interface HelpDeskAdapter {
 ticket ID (stored in `ticket_mapping.helpdesk_ticket_id`) and the ticket number. For Zammad the ticket number is
 required by the links API (`POST /api/v1/links/add` expects the source ticket's human-readable number, not its ID);
 it is captured from the `POST /api/v1/tickets` response so no extra HTTP calls are needed in `linkRelatedTickets`.
-The `CreatedTicket` record is defined in the `core/model` package so both the interface and the handlers can reference
+The `CreatedTicket` record is defined in the `core/model` package so both the interfaces and the handlers can reference
 it.
+
+The registry (`AdapterConfig`) exposes one bean per role — `Map<HelpDeskType, HelpdeskCallbackAdapter>` and
+`Map<HelpDeskType, HelpdeskClient>` — each populated from the corresponding beans by `getType()`. A single adapter bean
+that implements both interfaces appears in both maps.
 
 #### ZammadAdapter
 
-The first and only concrete adapter in this MVP product. A Spring `@Component` singleton. Implements `HelpDeskAdapter`
-for Zammad ([Ticket endpoints](https://docs.zammad.org/en/latest/api/ticket/index.html),
+The first and only concrete adapter in this MVP product. A Spring `@Component` singleton. Implements both
+`HelpdeskCallbackAdapter` and `HelpdeskClient` for Zammad ([Ticket endpoints](https://docs.zammad.org/en/latest/api/ticket/index.html),
 [Article endpoints](https://docs.zammad.org/en/latest/api/ticket/articles.html)). Uses an injected
 `RestClient.Builder`; each method builds a `RestClient` scoped to the org's `baseUrl` with
 `Authorization: Token token={apiToken}` set from `config.credentials().get("apiToken")`.
 
-- `verifyCallback()` — reads `X-Hub-Signature` header, computes `HMAC-SHA1(callbackSecret, body)`, compares using
-  `MessageDigest.isEqual` (constant-time). Returns `false` if the header is absent or the signature does not match.
-- `createTicket()` — calls `POST /api/v1/tickets` with `group_id` from `config.platformConfig().get("groupId")`,
+- `verifyCallback()` — reads `X-Hub-Signature` header, computes `HMAC-SHA1(callbackSecret, body)` and compares it.
+- Returns `false` if the header is absent or the signature does not match.
+- `createTicket()` — calls `POST /api/v1/tickets`,
   sets `negotiation_state`, `negotiator_resource_state`, and `negotiator_resource_transition_event: null` as top-level
   custom fields, includes an initial `article` in the request body. The Zammad response contains both `id` (ticket ID)
-  and `number` (ticket number); both are captured and returned in the `CreatedTicket` record. Title format:
-  `[{negotiationDisplayId}] {resourceName} — Access Request` for `PER_RESOURCE`;
-  `[{negotiationDisplayId}] Resources Access Request` for `PER_NEGOTIATION`.
+  and `number` (ticket number); both are captured and returned in the `CreatedTicket` record. 
 - `updateNegotiationState()` — calls `PUT /api/v1/tickets/{id}` setting `negotiation_state`.
 - `updateResourceState()` — calls `PUT /api/v1/tickets/{id}` setting `negotiator_resource_state` and
   `negotiator_resource_transition_event: null`.
@@ -1116,13 +1137,17 @@ enum HelpdeskCallbackType {
 eu.bbmri_eric.negotiator.negotiator-link
 ├── inbound
 │   ├── NegotiatorWebhookController
-│   └── HelpdeskCallbackController
+│   ├── HelpdeskCallbackController
+│   └── WebhookExceptionHandler
 ├── core
 │   ├── config
 │   │   ├── OrganizationConfig
 │   │   └── OrganizationConfigRegistry
-│   ├── verification
-│   │   └── WebhookVerificationService
+│   ├── webhook
+│   │   ├── WebhookVerificationService
+│   │   ├── ReplayGuard
+│   │   ├── WebhookAuthenticationException
+│   │   └── UnknownOrganizationException
 │   ├── client
 │   │   └── NegotiatorClient
 │   ├── routing
@@ -1141,7 +1166,9 @@ eu.bbmri_eric.negotiator.negotiator-link
 │       ├── HelpdeskCallbackEvent
 │       └── HelpdeskCallbackType
 └── adapter
-    ├── HelpDeskAdapter
+    ├── HelpdeskTyped
+    ├── HelpdeskCallbackAdapter
+    ├── HelpdeskClient
     ├── ZammadAdapter
     └── ...
 ```
@@ -1203,8 +1230,10 @@ unimplemented stub returning `null`. Two targeted changes are required:
    step.
 
 3. **Inbound layer** — `NegotiatorWebhookController` and `HelpdeskCallbackController` as described in Section 6.
-   `WebhookVerificationService` implementing HMAC-SHA256 signature verification, ±5-minute timestamp tolerance check,
-   and `Webhook-Id` seen-cache (in-memory TTL, 15-minute window).
+   `WebhookVerificationService` implementing HMAC-SHA256 signature verification and a ±5-minute timestamp tolerance
+   check, plus a shared `ReplayGuard` providing the `Webhook-Id` / callback-id replay cache (in-memory TTL, 15-minute
+   window) used by both inbound flows, and `WebhookExceptionHandler` mapping `WebhookAuthenticationException` (401) and
+   `UnknownOrganizationException` (404) to responses.
 
 4. **Negotiator client** — `NegotiatorClient` with per-organization OAuth 2.0 Client Credentials token acquisition and
    caching via Spring Security's `OAuth2AuthorizedClientManager`. Each method accepts an `OrganizationConfig` parameter;
@@ -1249,7 +1278,8 @@ unimplemented stub returning `null`. Two targeted changes are required:
 - `HelpdeskPostHandler` — writes hash of post text and `ticketId` to `originated_posts` before calling Negotiator; calls
   `NegotiatorClient.createPost()` with visibility type always set to `PRIVATE`
 
-7. **Zammad adapter** — `ZammadAdapter` implementing the full `HelpDeskAdapter` interface: `verifyCallback` (verifies
+7. **Zammad adapter** — `ZammadAdapter` implementing both the `HelpdeskCallbackAdapter` and `HelpdeskClient` interfaces:
+   `verifyCallback` (verifies
    `X-Hub-Signature` HMAC-SHA1 header), `createTicket` (title format:
    `[{negotiationDisplayId}] {resourceName} — Access Request` for `PER_RESOURCE`;
    `[{negotiationDisplayId}] Resources Access Request` for `PER_NEGOTIATION`; returns `CreatedTicket` with both ticket
@@ -1308,7 +1338,7 @@ and when files are exchanged in either direction.
 
 **Negotiation state changes (`negotiation.state.updated` for states other than `IN_PROGRESS`):** When a negotiation
 moves to `PAUSED`, `CONCLUDED`, or `ABANDONED`, all tickets for that negotiation must be updated. This requires a new
-`NegotiationStateUpdatedHandler` and a new `updateNegotiationState()` method on the `HelpDeskAdapter` interface. The
+`NegotiationStateUpdatedHandler` and a new `updateNegotiationState()` method on the `HelpdeskClient` interface. The
 Zammad adapter maps Negotiator states to the closest Zammad ticket state (e.g. `CONCLUDED` → closed as resolved,
 `ABANDONED` → closed as cancelled).
 
@@ -1356,7 +1386,7 @@ one "Send message" button — only the internal call sequence changes.
 
 On the middleware side, `NegotiationPostAddedHandler` is extended to read `attachmentIds` from the webhook payload and,
 for each ID, fetch the binary content from `GET /attachments/{id}` before calling the adapter. A new `addComment()`
-overload (or an extended `addComment()` signature) on `HelpDeskAdapter` accepts an optional list of attachment binaries
+overload (or an extended `addComment()` signature) on `HelpdeskClient` accepts an optional list of attachment binaries
 alongside the comment text, so the adapter can attach the files to the help desk ticket article in the same API call.
 Post-linked attachments are deduplicated automatically through the existing `originated_posts` mechanism — if the
 originating post is excluded from fan-out, its attachments are excluded with it.

@@ -1,21 +1,18 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.inbound;
 
-import static org.springframework.http.HttpStatus.NOT_FOUND;
-import static org.springframework.http.HttpStatus.UNAUTHORIZED;
-
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpDeskAdapter;
+import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskCallbackAdapter;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.HelpdeskEventRouter;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.webhook.ReplayGuard;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.webhook.UnknownOrganizationException;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.webhook.WebhookAuthenticationException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
-import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
@@ -26,29 +23,28 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 @Slf4j
 @RestController
 public class HelpdeskCallbackController {
 
   private final OrganizationConfigRegistry registry;
-  private final Map<HelpDeskType, HelpDeskAdapter> adapters;
+  private final Map<HelpDeskType, HelpdeskCallbackAdapter> callbackAdapters;
   private final ObjectMapper objectMapper;
   private final HelpdeskEventRouter helpdeskEventRouter;
-
-  private final Cache<String, Boolean> seenWebhookIds =
-      Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(15)).build();
+  private final ReplayGuard replayGuard;
 
   public HelpdeskCallbackController(
       OrganizationConfigRegistry registry,
-      Map<HelpDeskType, HelpDeskAdapter> adapters,
+      Map<HelpDeskType, HelpdeskCallbackAdapter> callbackAdapters,
       ObjectMapper objectMapper,
-      HelpdeskEventRouter helpdeskEventRouter) {
+      HelpdeskEventRouter helpdeskEventRouter,
+      ReplayGuard replayGuard) {
     this.registry = registry;
-    this.adapters = adapters;
+    this.callbackAdapters = callbackAdapters;
     this.objectMapper = objectMapper;
     this.helpdeskEventRouter = helpdeskEventRouter;
+    this.replayGuard = replayGuard;
   }
 
   @PostMapping("/webhooks/helpdesk/{organizationExternalId}")
@@ -58,25 +54,20 @@ public class HelpdeskCallbackController {
       @RequestBody byte[] body) {
 
     OrganizationConfig config = getOrganizationConfig(organizationExternalId);
-    HelpDeskAdapter adapter = adapters.get(config.type());
+    HelpdeskCallbackAdapter adapter = callbackAdapters.get(config.type());
     if (adapter == null) {
-      log.error("No adapter registered for help desk type '{}'", config.type());
-      throw new ResponseStatusException(NOT_FOUND);
+      throw new UnknownOrganizationException(
+          "No adapter registered for help desk type " + config.type());
     }
 
     HttpHeaders headers = getHeaders(request);
     if (!adapter.verifyCallback(headers, body, config.callbackSecret())) {
-      log.warn(
-          "Callback signature verification failed for organization '{}'", organizationExternalId);
-      throw new ResponseStatusException(UNAUTHORIZED);
+      throw new WebhookAuthenticationException(
+          "Callback signature verification failed for organization " + organizationExternalId);
     }
 
     String webhookId = adapter.extractCallbackId(headers).orElse(null);
-    if (webhookId != null
-        && seenWebhookIds
-                .asMap()
-                .putIfAbsent(organizationExternalId + ":" + webhookId, Boolean.TRUE)
-            != null) {
+    if (webhookId != null && replayGuard.alreadySeen(organizationExternalId + ":" + webhookId)) {
       log.debug(
           "Duplicate helpdesk webhook '{}' for organization '{}' — acknowledged and discarded",
           webhookId,
@@ -113,10 +104,8 @@ public class HelpdeskCallbackController {
     return registry
         .findByExternalId(organizationExternalId)
         .orElseThrow(
-            () -> {
-              log.warn("Helpdesk callback for unknown organization '{}'", organizationExternalId);
-              return new ResponseStatusException(NOT_FOUND);
-            });
+            () ->
+                new UnknownOrganizationException("Unknown organization " + organizationExternalId));
   }
 
   private HttpHeaders getHeaders(HttpServletRequest request) {

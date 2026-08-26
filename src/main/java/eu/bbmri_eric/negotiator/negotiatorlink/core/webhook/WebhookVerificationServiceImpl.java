@@ -1,12 +1,9 @@
-package eu.bbmri_eric.negotiator.negotiatorlink.core.verification;
+package eu.bbmri_eric.negotiator.negotiatorlink.core.webhook;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import com.standardwebhooks.Webhook;
 import com.standardwebhooks.exceptions.WebhookVerificationException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -19,8 +16,6 @@ import org.springframework.stereotype.Service;
 public class WebhookVerificationServiceImpl implements WebhookVerificationService {
 
   private final Webhook webhook;
-  private final Cache<String, Boolean> seenIds =
-      Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(15)).build();
 
   public WebhookVerificationServiceImpl(@Value("${negotiatorlink.webhook.secret}") String secret) {
     if (StringUtils.isBlank(secret)) {
@@ -42,11 +37,6 @@ public class WebhookVerificationServiceImpl implements WebhookVerificationServic
     } catch (WebhookVerificationException e) {
       throw new WebhookAuthenticationException("Webhook verification failed: " + e.getMessage(), e);
     }
-  }
-
-  @Override
-  public boolean checkAndMarkSeen(String webhookId) {
-    return seenIds.asMap().putIfAbsent(webhookId, Boolean.TRUE) != null;
   }
 
   private String header(HttpServletRequest request, String name) {

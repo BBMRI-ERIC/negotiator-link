@@ -9,7 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpDeskAdapter;
+import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
@@ -41,7 +41,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
   @Mock private TicketMappingRepository ticketMappingRepository;
   @Mock private OriginatedTransitionRepository originatedTransitionRepository;
   @Mock private OrganizationConfigRegistry registry;
-  @Mock private HelpDeskAdapter adapter;
+  @Mock private HelpdeskClient helpdeskClient;
 
   private final ObjectMapper objectMapper = new ObjectMapper();
   private NegotiationResourceStateUpdatedHandler handler;
@@ -53,7 +53,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
             ticketMappingRepository,
             originatedTransitionRepository,
             registry,
-            Map.of(HelpDeskType.ZAMMAD, adapter),
+            Map.of(HelpDeskType.ZAMMAD, helpdeskClient),
             objectMapper);
   }
 
@@ -65,7 +65,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
 
     handler.handle(eventData(NEW_STATE));
 
-    verify(adapter, never()).updateResourceState(any(), any(), any());
+    verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
   }
 
   @Test
@@ -81,7 +81,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
 
     handler.handle(eventData(NEW_STATE));
 
-    verify(adapter).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
+    verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
   }
 
   @Test
@@ -97,7 +97,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
 
     handler.handle(eventData(NEW_STATE));
 
-    verify(adapter).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
+    verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
   }
 
   @Test
@@ -119,7 +119,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
     handler.handle(eventData(NEW_STATE));
 
     verify(originatedTransitionRepository).incrementReceivedCount(eq(originated.getRowId()));
-    verify(adapter).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
+    verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
     verify(originatedTransitionRepository, never())
         .deleteByNegotiationIdAndTicketIdAndNewState(any(), any(), any());
   }
@@ -143,7 +143,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
     handler.handle(eventData(NEW_STATE));
 
     verify(originatedTransitionRepository).incrementReceivedCount(eq(originated.getRowId()));
-    verify(adapter, never()).updateResourceState(any(), any(), any());
+    verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
     verify(originatedTransitionRepository)
         .deleteByNegotiationIdAndTicketIdAndNewState(
             eq(afterIncrement.getNegotiationId()),
@@ -160,7 +160,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
 
     handler.handle(eventData(NEW_STATE));
 
-    verify(adapter, never()).updateResourceState(any(), any(), any());
+    verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
   }
 
   @Test
@@ -181,7 +181,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
 
     handlerWithNoAdapters.handle(eventData(NEW_STATE));
 
-    verify(adapter, never()).updateResourceState(any(), any(), any());
+    verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
   }
 
   @Test
@@ -195,11 +195,11 @@ class NegotiationResourceStateUpdatedHandlerTest {
             NEGOTIATION_ID, TICKET_ID, NEW_STATE))
         .thenReturn(Optional.empty());
     org.mockito.Mockito.doThrow(new RuntimeException("adapter down"))
-        .when(adapter)
+        .when(helpdeskClient)
         .updateResourceState(any(), any(), any());
 
     assertDoesNotThrow(() -> handler.handle(eventData(NEW_STATE)));
-    verify(adapter).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
+    verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
   }
 
   @Test
@@ -210,7 +210,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
     handler.handle(data);
 
     verify(ticketMappingRepository, never()).findByIdNegotiationIdAndResourceSourceId(any(), any());
-    verify(adapter, never()).updateResourceState(any(), any(), any());
+    verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
   }
 
   private JsonNode eventData(String toState) {
