@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskCallbackAdapter;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
@@ -42,8 +42,8 @@ public class ZammadCallbackAdapter implements HelpdeskCallbackAdapter {
   }
 
   @Override
-  public HelpDeskType getType() {
-    return HelpDeskType.ZAMMAD;
+  public HelpdeskType getType() {
+    return HelpdeskType.ZAMMAD;
   }
 
   @Override

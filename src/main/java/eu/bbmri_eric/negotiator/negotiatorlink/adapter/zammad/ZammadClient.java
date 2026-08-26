@@ -2,7 +2,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.adapter.zammad;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreatedTicket;
@@ -36,8 +36,8 @@ public class ZammadClient implements HelpdeskClient {
   }
 
   @Override
-  public HelpDeskType getType() {
-    return HelpDeskType.ZAMMAD;
+  public HelpdeskType getType() {
+    return HelpdeskType.ZAMMAD;
   }
 
   @Override
@@ -167,8 +167,7 @@ public class ZammadClient implements HelpdeskClient {
 
   private RestClient buildClient(OrganizationConfig config) {
     // Cached per organizationExternalId since a given org's apiToken/baseUrl are immutable at
-    // runtime
-    // (env-var config), so a cached client never goes stale. Reusing the client reuses its
+    // runtime (env-var config), so a cached client never goes stale. Reusing the client reuses its
     // underlying connection pool instead of allocating a new one on every API call.
     return clientCache.computeIfAbsent(
         config.organizationExternalId(),

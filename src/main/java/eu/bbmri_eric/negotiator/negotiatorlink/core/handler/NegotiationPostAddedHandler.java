@@ -7,7 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
@@ -31,7 +31,7 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
 
   private final NegotiatorClient negotiatorClient;
   private final OrganizationConfigRegistry registry;
-  private final Map<HelpDeskType, HelpdeskClient> clients;
+  private final Map<HelpdeskType, HelpdeskClient> clients;
   private final TicketMappingRepository ticketMappingRepository;
   private final OriginatedPostRepository originatedPostRepository;
   private final ObjectMapper objectMapper;
@@ -41,7 +41,7 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
   public NegotiationPostAddedHandler(
       NegotiatorClient negotiatorClient,
       OrganizationConfigRegistry registry,
-      Map<HelpDeskType, HelpdeskClient> clients,
+      Map<HelpdeskType, HelpdeskClient> clients,
       TicketMappingRepository ticketMappingRepository,
       OriginatedPostRepository originatedPostRepository,
       ObjectMapper objectMapper) {

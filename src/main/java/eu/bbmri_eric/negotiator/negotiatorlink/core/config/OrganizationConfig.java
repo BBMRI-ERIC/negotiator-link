@@ -4,7 +4,7 @@ import java.util.Map;
 
 public record OrganizationConfig(
     String organizationExternalId,
-    HelpDeskType type,
+    HelpdeskType type,
     TicketStrategy ticketStrategy,
     String baseUrl,
     Map<String, String> credentials,

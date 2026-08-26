@@ -1,6 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.config;
 
-public enum HelpDeskType {
+public enum HelpdeskType {
   ZAMMAD,
   ALVAO
 }

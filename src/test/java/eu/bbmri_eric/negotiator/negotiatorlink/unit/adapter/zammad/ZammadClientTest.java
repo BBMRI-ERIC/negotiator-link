@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.zammad.ZammadClient;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorCredentials;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
@@ -55,7 +55,7 @@ class ZammadClientTest {
     config =
         new OrganizationConfig(
             "bbmri:DE:MHH",
-            HelpDeskType.ZAMMAD,
+            HelpdeskType.ZAMMAD,
             TicketStrategy.PER_RESOURCE,
             "http://localhost:" + wireMock.port(),
             Map.of("apiToken", API_TOKEN),
@@ -71,7 +71,7 @@ class ZammadClientTest {
 
   @Test
   void getType_returnsZammadType() {
-    assertThat(client.getType()).isEqualTo(HelpDeskType.ZAMMAD);
+    assertThat(client.getType()).isEqualTo(HelpdeskType.ZAMMAD);
   }
 
   @Test

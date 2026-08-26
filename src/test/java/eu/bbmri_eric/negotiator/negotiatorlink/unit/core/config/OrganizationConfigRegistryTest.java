@@ -3,7 +3,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.config;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigProperties;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
@@ -24,7 +24,7 @@ class OrganizationConfigRegistryTest {
     var result = registry.findByExternalId(ORG_EXTERNAL_ID);
     assertThat(result).isPresent();
     assertThat(result.get().organizationExternalId()).isEqualTo(ORG_EXTERNAL_ID);
-    assertThat(result.get().type()).isEqualTo(HelpDeskType.ZAMMAD);
+    assertThat(result.get().type()).isEqualTo(HelpdeskType.ZAMMAD);
     assertThat(result.get().ticketStrategy()).isEqualTo(TicketStrategy.PER_RESOURCE);
     assertThat(result.get().credentials()).containsEntry("apiToken", "secret-token");
     assertThat(result.get().platformConfig()).containsEntry("group", "Sales");
@@ -130,7 +130,7 @@ class OrganizationConfigRegistryTest {
   private static OrganizationConfigProperties.OrgEntry zammadEntry() {
     var entry = new OrganizationConfigProperties.OrgEntry();
     entry.setOrganizationExternalId(ORG_EXTERNAL_ID);
-    entry.setType(HelpDeskType.ZAMMAD);
+    entry.setType(HelpdeskType.ZAMMAD);
     entry.setTicketStrategy(TicketStrategy.PER_RESOURCE);
     entry.setBaseUrl("https://zammad.mhh.de");
     entry.setCredentials(new HashMap<>(Map.of("apiToken", "secret-token")));

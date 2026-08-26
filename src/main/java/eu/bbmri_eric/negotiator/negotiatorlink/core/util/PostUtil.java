@@ -30,10 +30,7 @@ public final class PostUtil {
     if (!text.startsWith("From: ")) {
       return false;
     }
-    // Our signature is a single "From: ..." line immediately followed by a blank line.
-    // A forwarded/quoted email starting with "From: " has further header lines (To:, Subject:)
-    // before any blank line, so its first newline precedes the blank-line separator — which
-    // distinguishes genuine content from a prefix we injected.
+
     int firstNewline = text.indexOf('\n');
     int blankLine = text.indexOf("\n\n");
     return blankLine > 0 && firstNewline == blankLine;

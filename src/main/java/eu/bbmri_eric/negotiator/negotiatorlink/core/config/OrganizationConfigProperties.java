@@ -23,7 +23,7 @@ public class OrganizationConfigProperties {
   public static class OrgEntry {
 
     private String organizationExternalId;
-    private HelpDeskType type;
+    private HelpdeskType type;
     private TicketStrategy ticketStrategy;
     private String baseUrl;
     private Map<String, String> credentials = new HashMap<>();

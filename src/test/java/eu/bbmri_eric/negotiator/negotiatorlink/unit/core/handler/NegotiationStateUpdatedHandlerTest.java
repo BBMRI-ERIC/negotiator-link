@@ -15,7 +15,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
@@ -65,7 +65,7 @@ class NegotiationStateUpdatedHandlerTest {
         new NegotiationStateUpdatedHandler(
             negotiatorClient,
             registry,
-            Map.of(HelpDeskType.ZAMMAD, helpdeskClient),
+            Map.of(HelpdeskType.ZAMMAD, helpdeskClient),
             ticketMappingRepository,
             objectMapper);
   }

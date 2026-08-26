@@ -1,7 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.util;
 
 import com.standardwebhooks.Webhook;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorCredentials;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
@@ -143,7 +143,7 @@ public final class TestUtil {
   public static OrganizationConfig organizationConfig(String orgExtId, TicketStrategy strategy) {
     return new OrganizationConfig(
         orgExtId,
-        HelpDeskType.ZAMMAD,
+        HelpdeskType.ZAMMAD,
         strategy,
         "https://zammad.example.com",
         Map.of("apiToken", "tok"),

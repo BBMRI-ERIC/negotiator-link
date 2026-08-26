@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.zammad.ZammadCallbackAdapter;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
@@ -34,7 +34,7 @@ class ZammadCallbackAdapterTest {
 
   @Test
   void getType_returnsZammadType() {
-    assertThat(adapter.getType()).isEqualTo(HelpDeskType.ZAMMAD);
+    assertThat(adapter.getType()).isEqualTo(HelpdeskType.ZAMMAD);
   }
 
   @Test

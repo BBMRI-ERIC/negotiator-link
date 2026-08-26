@@ -3,7 +3,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.inbound;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskCallbackAdapter;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
@@ -29,14 +29,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class HelpdeskCallbackController {
 
   private final OrganizationConfigRegistry registry;
-  private final Map<HelpDeskType, HelpdeskCallbackAdapter> callbackAdapters;
+  private final Map<HelpdeskType, HelpdeskCallbackAdapter> callbackAdapters;
   private final ObjectMapper objectMapper;
   private final HelpdeskEventRouter helpdeskEventRouter;
   private final ReplayGuard replayGuard;
 
   public HelpdeskCallbackController(
       OrganizationConfigRegistry registry,
-      Map<HelpDeskType, HelpdeskCallbackAdapter> callbackAdapters,
+      Map<HelpdeskType, HelpdeskCallbackAdapter> callbackAdapters,
       ObjectMapper objectMapper,
       HelpdeskEventRouter helpdeskEventRouter,
       ReplayGuard replayGuard) {

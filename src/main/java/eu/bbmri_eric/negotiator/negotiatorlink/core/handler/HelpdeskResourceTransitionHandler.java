@@ -2,7 +2,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
@@ -27,7 +27,7 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
   private final TicketMappingRepository ticketMappingRepository;
   private final OriginatedTransitionRepository originatedTransitionRepository;
   private final NegotiatorClient negotiatorClient;
-  private final Map<HelpDeskType, HelpdeskClient> clients;
+  private final Map<HelpdeskType, HelpdeskClient> clients;
 
   private record InvalidResource(String resourceSourceId, Set<String> allowedEvents) {}
 
@@ -35,7 +35,7 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
       TicketMappingRepository ticketMappingRepository,
       OriginatedTransitionRepository originatedTransitionRepository,
       NegotiatorClient negotiatorClient,
-      Map<HelpDeskType, HelpdeskClient> clients) {
+      Map<HelpdeskType, HelpdeskClient> clients) {
     this.ticketMappingRepository = ticketMappingRepository;
     this.originatedTransitionRepository = originatedTransitionRepository;
     this.negotiatorClient = negotiatorClient;

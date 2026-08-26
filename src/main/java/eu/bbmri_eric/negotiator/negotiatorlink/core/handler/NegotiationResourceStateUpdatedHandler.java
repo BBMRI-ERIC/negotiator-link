@@ -3,7 +3,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
@@ -27,7 +27,7 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
   private final TicketMappingRepository ticketMappingRepository;
   private final OriginatedTransitionRepository originatedTransitionRepository;
   private final OrganizationConfigRegistry registry;
-  private final Map<HelpDeskType, HelpdeskClient> clients;
+  private final Map<HelpdeskType, HelpdeskClient> clients;
   private final ObjectMapper objectMapper;
 
   private record DispatchContext(
@@ -37,7 +37,7 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
       TicketMappingRepository ticketMappingRepository,
       OriginatedTransitionRepository originatedTransitionRepository,
       OrganizationConfigRegistry registry,
-      Map<HelpDeskType, HelpdeskClient> clients,
+      Map<HelpdeskType, HelpdeskClient> clients,
       ObjectMapper objectMapper) {
     this.ticketMappingRepository = ticketMappingRepository;
     this.originatedTransitionRepository = originatedTransitionRepository;

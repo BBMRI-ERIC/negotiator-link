@@ -2,7 +2,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.integration.core.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import org.junit.jupiter.api.Test;
@@ -19,7 +19,7 @@ class OrganizationConfigPropertiesTest {
     var config = registry.findByExternalId("bbmri:DE:MHH");
     assertThat(config).isPresent();
     assertThat(config.get().organizationExternalId()).isEqualTo("bbmri:DE:MHH");
-    assertThat(config.get().type()).isEqualTo(HelpDeskType.ZAMMAD);
+    assertThat(config.get().type()).isEqualTo(HelpdeskType.ZAMMAD);
     assertThat(config.get().ticketStrategy()).isEqualTo(TicketStrategy.PER_RESOURCE);
     assertThat(config.get().baseUrl()).isEqualTo("https://zammad.mhh.de");
     assertThat(config.get().credentials()).containsEntry("apiToken", "test-api-token");

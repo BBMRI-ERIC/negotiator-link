@@ -10,7 +10,7 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpDeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
@@ -53,7 +53,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
             ticketMappingRepository,
             originatedTransitionRepository,
             registry,
-            Map.of(HelpDeskType.ZAMMAD, helpdeskClient),
+            Map.of(HelpdeskType.ZAMMAD, helpdeskClient),
             objectMapper);
   }
 
