@@ -10,7 +10,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
  * eu.bbmri_eric.negotiator.negotiatorlink.core.routing.HelpdeskEventRouter} can collect them at
  * startup.
  */
-public interface HelpdeskCallbackHandler {
+public interface HelpdeskCallbackHandler<T extends HelpdeskCallbackEvent> {
 
   /** Returns the callback type this handler processes. */
   HelpdeskCallbackType getSupportedType();
@@ -21,5 +21,5 @@ public interface HelpdeskCallbackHandler {
    * @param event the parsed, verified callback event
    * @param config the organization configuration resolved from the inbound URL
    */
-  void handle(HelpdeskCallbackEvent event, OrganizationConfig config);
+  void handle(T event, OrganizationConfig config);
 }

@@ -18,9 +18,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.NegotiatorResourceEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.OriginatedPost;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.OriginatedTransition;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
@@ -123,7 +123,7 @@ class NegotiatorWebhookControllerTest {
     String ticketId = "dedup-ticket-1";
     String orgExtId = "bbmri:NL:LUMC";
     String resourceSourceId = "bbmri:NL:LUMC:collection:res1";
-    String toState = ResourceTransitionEvent.MARK_AS_CHECKING_AVAILABILITY.targetState();
+    String toState = NegotiatorResourceEvent.MARK_AS_CHECKING_AVAILABILITY.targetState();
 
     ticketMappingRepository.save(
         new TicketMapping(
@@ -211,7 +211,7 @@ class NegotiatorWebhookControllerTest {
             resourceId,
             "SUBMITTED",
             toState,
-            ResourceTransitionEvent.MARK_AS_CHECKING_AVAILABILITY.toString());
+            NegotiatorResourceEvent.MARK_AS_CHECKING_AVAILABILITY.toString());
     performWebhook(webhookId, timestamp, body).andExpect(status().isOk());
   }
 

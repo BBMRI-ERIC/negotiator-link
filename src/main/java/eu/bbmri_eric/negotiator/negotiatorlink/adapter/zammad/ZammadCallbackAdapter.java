@@ -7,6 +7,9 @@ import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskCallbackAdapter;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.PostMessageEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionWithPostMessageEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
@@ -100,18 +103,17 @@ public class ZammadCallbackAdapter implements HelpdeskCallbackAdapter {
       return Optional.empty();
     }
 
-    String postText =
-        callbackType.equals(HelpdeskCallbackType.RESOURCE_TRANSITION)
-            ? null
-            : parsed.article().body();
-    Sender sender =
-        callbackType.equals(HelpdeskCallbackType.RESOURCE_TRANSITION)
-            ? null
-            : parseSender(parsed.article().createdBy());
+    Sender sender = parseSender(parsed.article() != null ? parsed.article().createdBy() : null);
 
     return Optional.of(
-        new HelpdeskCallbackEvent(
-            ticketId, callbackType, resourceState, transitionEvent, postText, sender));
+        switch (callbackType) {
+          case RESOURCE_TRANSITION ->
+              new ResourceTransitionEvent(ticketId, resourceState, transitionEvent);
+          case POST_MESSAGE -> new PostMessageEvent(ticketId, parsed.article().body(), sender);
+          case RESOURCE_TRANSITION_WITH_POST_MESSAGE ->
+              new ResourceTransitionWithPostMessageEvent(
+                  ticketId, resourceState, transitionEvent, parsed.article().body(), sender);
+        });
   }
 
   private static HelpdeskCallbackType resolveType(

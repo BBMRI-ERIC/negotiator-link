@@ -76,6 +76,7 @@ public class HelpdeskCallbackController {
     }
 
     log.debug("Received verified helpdesk callback for organization '{}'", organizationExternalId);
+    log.debug("Received helpdesk callback body: {}", new String(body));
 
     Map<String, Object> payload;
     try {

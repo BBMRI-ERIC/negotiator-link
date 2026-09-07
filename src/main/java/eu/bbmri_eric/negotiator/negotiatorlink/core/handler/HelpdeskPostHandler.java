@@ -5,9 +5,9 @@ import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil.signPos
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.OriginatedPost;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.PostMessageEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
@@ -19,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
-public class HelpdeskPostHandler implements HelpdeskCallbackHandler {
+public class HelpdeskPostHandler implements HelpdeskCallbackHandler<PostMessageEvent> {
 
   private final TicketMappingRepository ticketMappingRepository;
   private final OriginatedPostRepository originatedPostRepository;
@@ -41,8 +41,8 @@ public class HelpdeskPostHandler implements HelpdeskCallbackHandler {
 
   @Override
   @Transactional
-  public void handle(HelpdeskCallbackEvent event, OrganizationConfig config) {
-    String ticketId = event.ticketId();
+  public void handle(PostMessageEvent postMessageEvent, OrganizationConfig config) {
+    String ticketId = postMessageEvent.ticketId();
 
     List<TicketMapping> mappings =
         ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
@@ -60,7 +60,7 @@ public class HelpdeskPostHandler implements HelpdeskCallbackHandler {
     String negotiationId = anyMapping.getId().getNegotiationId();
     String organizationId = anyMapping.getOrganizationId();
 
-    String signedText = signPost(event.postText(), event.sender());
+    String signedText = signPost(postMessageEvent.postText(), postMessageEvent.sender());
     String textHash = sha256Hex(signedText);
 
     originatedPostRepository.save(new OriginatedPost(textHash, organizationId, ticketId));

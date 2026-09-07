@@ -16,8 +16,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HelpdeskResourceTransitionHandler;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.NegotiatorResourceEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.OriginatedTransition;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketMapping;
@@ -143,7 +142,7 @@ class HelpdeskResourceTransitionHandlerTest {
         .sendBulkResourceEvent(
             eq(NEGOTIATION_ID),
             eq(List.of(101L, 102L)),
-            eq(ResourceTransitionEvent.MARK_AS_CHECKING_AVAILABILITY.targetState()),
+            eq(NegotiatorResourceEvent.MARK_AS_CHECKING_AVAILABILITY.targetState()),
             eq(config));
     verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
     verify(helpdeskClient, never()).addSystemComment(any(), any(), any());
@@ -204,13 +203,7 @@ class HelpdeskResourceTransitionHandlerTest {
         ORG_EXT_ID);
   }
 
-  private HelpdeskCallbackEvent callbackEvent() {
-    return new HelpdeskCallbackEvent(
-        TICKET_ID,
-        HelpdeskCallbackType.RESOURCE_TRANSITION,
-        RESOURCE_STATE,
-        REQUESTED_EVENT,
-        null,
-        null);
+  private ResourceTransitionEvent callbackEvent() {
+    return new ResourceTransitionEvent(TICKET_ID, RESOURCE_STATE, REQUESTED_EVENT);
   }
 }

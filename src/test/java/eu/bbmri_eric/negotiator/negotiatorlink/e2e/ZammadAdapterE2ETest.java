@@ -19,7 +19,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.NegotiatorResourceEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
@@ -102,8 +102,8 @@ class ZammadAdapterE2ETest {
             negotiationId,
             resourceSourceId,
             "SUBMITTED",
-            ResourceTransitionEvent.MARK_AS_CHECKING_AVAILABILITY.targetState(),
-            ResourceTransitionEvent.MARK_AS_CHECKING_AVAILABILITY.toString());
+            NegotiatorResourceEvent.MARK_AS_CHECKING_AVAILABILITY.targetState(),
+            NegotiatorResourceEvent.MARK_AS_CHECKING_AVAILABILITY.toString());
 
     ticketMappingRepository.save(
         new TicketMapping(
@@ -117,7 +117,7 @@ class ZammadAdapterE2ETest {
         .andExpect(method(HttpMethod.PUT))
         .andExpect(
             jsonPath("$.negotiator_resource_state")
-                .value(ResourceTransitionEvent.MARK_AS_CHECKING_AVAILABILITY.targetState()))
+                .value(NegotiatorResourceEvent.MARK_AS_CHECKING_AVAILABILITY.targetState()))
         .andRespond(withSuccess());
 
     postWebhook("msg-e2e-rsu", body);

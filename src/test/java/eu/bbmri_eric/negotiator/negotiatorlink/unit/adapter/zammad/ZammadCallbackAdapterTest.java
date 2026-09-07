@@ -1,12 +1,14 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.unit.adapter.zammad;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.InstanceOfAssertFactories.type;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.zammad.ZammadCallbackAdapter;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.PostMessageEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionWithPostMessageEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.nio.charset.StandardCharsets;
@@ -74,14 +76,7 @@ class ZammadCallbackAdapterTest {
   void parseCallback_resourceTransitionOnly_returnsResourceTransitionEvent() {
     var payload = zammadCallbackPayload("1", "MARK_AS_CHECKING_AVAILABILITY", "IN_PROGRESS");
 
-    var expected =
-        new HelpdeskCallbackEvent(
-            "1",
-            HelpdeskCallbackType.RESOURCE_TRANSITION,
-            "IN_PROGRESS",
-            "MARK_AS_CHECKING_AVAILABILITY",
-            null,
-            null);
+    var expected = new ResourceTransitionEvent("1", "IN_PROGRESS", "MARK_AS_CHECKING_AVAILABILITY");
     assertThat(adapter.parseCallback(payload)).contains(expected);
   }
 
@@ -92,13 +87,8 @@ class ZammadCallbackAdapterTest {
             "2", "", "IN_PROGRESS", "Hello from help desk", "John", "Rep", "john.rep@example.com");
 
     var expected =
-        new HelpdeskCallbackEvent(
-            "2",
-            HelpdeskCallbackType.POST_MESSAGE,
-            "IN_PROGRESS",
-            null,
-            "Hello from help desk",
-            new Sender("John Rep", "john.rep@example.com"));
+        new PostMessageEvent(
+            "2", "Hello from help desk", new Sender("John Rep", "john.rep@example.com"));
     assertThat(adapter.parseCallback(payload)).contains(expected);
   }
 
@@ -115,9 +105,8 @@ class ZammadCallbackAdapterTest {
             "jane.rep@example.com");
 
     var expected =
-        new HelpdeskCallbackEvent(
+        new ResourceTransitionWithPostMessageEvent(
             "3",
-            HelpdeskCallbackType.RESOURCE_TRANSITION_WITH_POST_MESSAGE,
             "IN_PROGRESS",
             "MARK_AS_AVAILABLE",
             "Granting access",
@@ -158,7 +147,8 @@ class ZammadCallbackAdapterTest {
     assertThat(adapter.parseCallback(payload))
         .isPresent()
         .get()
-        .extracting(HelpdeskCallbackEvent::sender)
+        .asInstanceOf(type(PostMessageEvent.class))
+        .extracting(PostMessageEvent::sender)
         .isEqualTo(expectedSender);
   }
 
@@ -197,7 +187,8 @@ class ZammadCallbackAdapterTest {
     assertThat(adapter.parseCallback(payload))
         .isPresent()
         .get()
-        .extracting(HelpdeskCallbackEvent::sender)
+        .asInstanceOf(type(PostMessageEvent.class))
+        .extracting(PostMessageEvent::sender)
         .isNull();
   }
 

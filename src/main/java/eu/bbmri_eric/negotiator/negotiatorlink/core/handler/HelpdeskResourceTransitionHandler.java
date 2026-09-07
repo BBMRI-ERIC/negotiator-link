@@ -5,8 +5,8 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.NegotiatorResourceEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.OriginatedTransition;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketMapping;
@@ -22,7 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
-public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandler {
+public class HelpdeskResourceTransitionHandler
+    implements HelpdeskCallbackHandler<ResourceTransitionEvent> {
 
   private final TicketMappingRepository ticketMappingRepository;
   private final OriginatedTransitionRepository originatedTransitionRepository;
@@ -49,9 +50,9 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
 
   @Override
   @Transactional
-  public void handle(HelpdeskCallbackEvent event, OrganizationConfig config) {
-    String ticketId = event.ticketId();
-    String requestedEvent = event.resourceTransitionEvent();
+  public void handle(ResourceTransitionEvent transitionEvent, OrganizationConfig config) {
+    String ticketId = transitionEvent.ticketId();
+    String requestedEvent = transitionEvent.resourceTransitionEvent();
 
     List<TicketMapping> mappings =
         ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
@@ -68,9 +69,11 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
     HelpdeskClient client = clients.get(config.type());
 
     if (config.ticketStrategy() == TicketStrategy.PER_RESOURCE) {
-      handlePerResource(mappings.getFirst(), requestedEvent, event.resourceState(), client, config);
+      handlePerResource(
+          mappings.getFirst(), requestedEvent, transitionEvent.resourceState(), client, config);
     } else {
-      handlePerNegotiation(mappings, requestedEvent, event.resourceState(), client, config);
+      handlePerNegotiation(
+          mappings, requestedEvent, transitionEvent.resourceState(), client, config);
     }
   }
 
@@ -136,8 +139,8 @@ public class HelpdeskResourceTransitionHandler implements HelpdeskCallbackHandle
     List<Long> resourceIds =
         mappings.stream().map(m -> Long.parseLong(m.getId().getResourceId())).toList();
     String targetState =
-        ResourceTransitionEvent.fromEvent(requestedEvent)
-            .map(ResourceTransitionEvent::targetState)
+        NegotiatorResourceEvent.fromEvent(requestedEvent)
+            .map(NegotiatorResourceEvent::targetState)
             .orElse(requestedEvent);
 
     originatedTransitionRepository.save(

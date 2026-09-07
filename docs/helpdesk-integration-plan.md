@@ -926,17 +926,22 @@ Note that `findByTicketIdAndOrganization` returns a `List` rather than an `Optio
 
 The central dispatch component. Receives a verified event (from either direction) and routes it to the correct event
 handler. For Negotiator-side events it resolves the handler by event type. For help-desk-side callbacks it resolves
-the handler based on the `HelpdeskCallbackType` in the parsed `HelpdeskCallbackEvent`: `RESOURCE_TRANSITION` →
-`HelpdeskResourceTransitionHandler`; `POST_MESSAGE` → `HelpdeskPostHandler`;
-`RESOURCE_TRANSITION_WITH_POST_MESSAGE` → `HelpdeskResourceTransitionHandler` first, then `HelpdeskPostHandler` in
-that order.
+the handler based on the concrete `HelpdeskCallbackEvent` subtype: `ResourceTransitionEvent` →
+`HelpdeskResourceTransitionHandler`; `PostMessageEvent` → `HelpdeskPostHandler`;
+`ResourceTransitionWithPostMessageEvent` → `HelpdeskResourceTransitionHandler` first (projecting the combined event
+into a `ResourceTransitionEvent`), then `HelpdeskPostHandler` (projecting it into a `PostMessageEvent`), in that order.
 
-Uses the **Strategy pattern**: each event type has a dedicated handler registered in the router. Adding support for a
-new event type means adding a new handler class - the router itself does not change.
+Uses the **Strategy pattern**: each event type has a dedicated handler registered in the router via a
+`Map<HelpdeskCallbackType, HelpdeskCallbackHandler<?>>`. Adding support for a new event type means adding a new handler
+class — the router itself does not change.
 
 #### Event Handlers
 
-One class per event type. Each handler receives the parsed event, the resolved `OrganizationConfig`, and — for outbound
+One class per event type. Each handler implements `HelpdeskCallbackHandler<T>` where `T` is the concrete
+`HelpdeskCallbackEvent` subtype it processes — `HelpdeskPostHandler<PostMessageEvent>` and
+`HelpdeskResourceTransitionHandler<ResourceTransitionEvent>`. The generic parameter eliminates casts inside
+handler business logic; the single unavoidable unchecked cast is isolated in the router's `dispatch` method.
+Each handler receives the typed event, the resolved `OrganizationConfig`, and — for outbound
 operations — the resolved `HelpdeskClient` instance, and performs exactly the operations for that event:
 
 - `NegotiationApprovedHandler` — triggered by `negotiation.state.updated` with `event: APPROVE`; fetches all resources
@@ -1019,7 +1024,7 @@ public interface HelpdeskCallbackAdapter extends HelpdeskTyped {
   /** Extract the platform-specific delivery id used for replay prevention (empty if none). */
   Optional<String> extractCallbackId(HttpHeaders headers);
 
-  /** Parse a raw help desk callback payload into the internal HelpdeskCallbackEvent model. */
+  /** Parse a raw help desk callback payload into the appropriate HelpdeskCallbackEvent subtype. */
   Optional<HelpdeskCallbackEvent> parseCallback(Map<String, Object> payload);
 }
 
@@ -1097,7 +1102,9 @@ outbound request bodies and the inbound payload mapping cannot drift. Future `ad
 
 - `verifyCallback()` — reads `X-Hub-Signature` header, computes `HMAC-SHA1(callbackSecret, body)` and compares it.
   Returns `false` if the header is absent or the signature does not match.
-- `parseCallback()` — deserializes the Zammad webhook payload into `HelpdeskCallbackEvent`, extracting `ticket.id`,
+- `parseCallback()` — deserializes the Zammad webhook payload and constructs the appropriate
+  `HelpdeskCallbackEvent` subtype (`ResourceTransitionEvent`, `PostMessageEvent`, or
+  `ResourceTransitionWithPostMessageEvent`) based on which fields are present in the payload, extracting `ticket.id`,
   `ticket.negotiator_resource_transition_event`, and `article.body`.
 
 #### AlvaoAdapter
@@ -1125,13 +1132,27 @@ record CreatedTicket(
                              // (e.g. Zammad links API requires the source ticket number, not ID)
 )
 
-record HelpdeskCallbackEvent(
+sealed interface HelpdeskCallbackEvent // permits ResourceTransitionEvent, PostMessageEvent, ResourceTransitionWithPostMessageEvent
+                                      // common accessors: ticketId(), type()
+
+record ResourceTransitionEvent(
         String ticketId,
-        HelpdeskCallbackType type,         // RESOURCE_TRANSITION, POST_MESSAGE, or RESOURCE_TRANSITION_WITH_POST_MESSAGE
         String resourceState,
-        String resourceTransitionEvent,    // null if type = POST_MESSAGE
-        String postText,                   // null if type = RESOURCE_TRANSITION
-        Sender sender                      // sender parsed from the help desk article (null if type = RESOURCE_TRANSITION)
+        String resourceTransitionEvent // name of the requested Negotiator lifecycle event
+)
+
+record PostMessageEvent(
+        String ticketId,
+        String postText,
+        Sender sender                  // sender parsed from the help desk article
+)
+
+record ResourceTransitionWithPostMessageEvent(
+        String ticketId,
+        String resourceState,
+        String resourceTransitionEvent,
+        String postText,
+        Sender sender
 )
 
 record Sender(

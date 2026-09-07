@@ -2,12 +2,12 @@ package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.model;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.NegotiatorResourceEvent;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
-class ResourceTransitionEventTest {
+class NegotiatorResourceEventTest {
 
   @ParameterizedTest
   @CsvSource({
@@ -20,18 +20,18 @@ class ResourceTransitionEventTest {
     "GRANT_ACCESS_TO_RESOURCE, RESOURCE_MADE_AVAILABLE"
   })
   void fromEvent_knownEvent_returnsCorrectTargetState(String event, String expectedState) {
-    var result = ResourceTransitionEvent.fromEvent(event);
+    var result = NegotiatorResourceEvent.fromEvent(event);
     assertThat(result).isPresent();
     assertThat(result.get().targetState()).isEqualTo(expectedState);
   }
 
   @Test
   void fromEvent_unknownEvent_returnsEmpty() {
-    assertThat(ResourceTransitionEvent.fromEvent("SOME_UNKNOWN_EVENT")).isEmpty();
+    assertThat(NegotiatorResourceEvent.fromEvent("SOME_UNKNOWN_EVENT")).isEmpty();
   }
 
   @Test
   void fromEvent_null_returnsEmpty() {
-    assertThat(ResourceTransitionEvent.fromEvent(null)).isEmpty();
+    assertThat(NegotiatorResourceEvent.fromEvent(null)).isEmpty();
   }
 }
