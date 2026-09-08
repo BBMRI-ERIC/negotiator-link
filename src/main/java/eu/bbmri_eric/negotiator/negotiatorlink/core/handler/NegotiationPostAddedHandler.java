@@ -163,6 +163,7 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
                   "Deduplication: excluding originating ticket '{}' from fan-out for post '{}'",
                   originated.getTicketId(),
                   postId);
+              originatedPostRepository.deleteById(originated.getRowId());
               return originated.getTicketId();
             })
         .orElse(null);
