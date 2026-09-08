@@ -5,25 +5,25 @@ import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.signedWebhoo
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import eu.bbmri_eric.negotiator.negotiatorlink.core.webhook.NegotiatorWebhookVerificationServiceImpl;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.webhook.WebhookAuthenticationException;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.webhook.WebhookVerificationServiceImpl;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 
-class WebhookVerificationServiceImplTest {
+class NegotiatorWebhookVerificationServiceImplTest {
 
   private static final String SECRET = "whsec_dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaA==";
   private static final String WEBHOOK_ID = "msg_abc123";
   private static final String BODY = "{\"event\":\"test\"}";
 
-  private WebhookVerificationServiceImpl service;
+  private NegotiatorWebhookVerificationServiceImpl service;
 
   @BeforeEach
   void setUp() {
-    service = new WebhookVerificationServiceImpl(SECRET);
+    service = new NegotiatorWebhookVerificationServiceImpl(SECRET);
   }
 
   @Test
@@ -65,7 +65,7 @@ class WebhookVerificationServiceImplTest {
 
   @Test
   void constructor_whenSecretIsBlank_throwsIllegalStateException() {
-    assertThatThrownBy(() -> new WebhookVerificationServiceImpl(""))
+    assertThatThrownBy(() -> new NegotiatorWebhookVerificationServiceImpl(""))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("NEGOTIATOR_WEBHOOK_SECRET");
   }

@@ -13,11 +13,13 @@ import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
-public class WebhookVerificationServiceImpl implements WebhookVerificationService {
+public class NegotiatorWebhookVerificationServiceImpl
+    implements NegotiatorWebhookVerificationService {
 
   private final Webhook webhook;
 
-  public WebhookVerificationServiceImpl(@Value("${negotiatorlink.webhook.secret}") String secret) {
+  public NegotiatorWebhookVerificationServiceImpl(
+      @Value("${negotiatorlink.webhook.secret}") String secret) {
     if (StringUtils.isBlank(secret)) {
       throw new IllegalStateException(
           "NEGOTIATOR_WEBHOOK_SECRET must not be blank — set the environment variable");
