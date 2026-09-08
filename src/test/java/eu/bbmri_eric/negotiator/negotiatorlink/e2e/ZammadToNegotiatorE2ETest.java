@@ -36,7 +36,7 @@ import org.springframework.web.client.RestClient;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-class ZammadCallbackE2ETest {
+class ZammadToNegotiatorE2ETest {
 
   private static final String TICKET_ID = "1";
   private static final String NEGOTIATION_ID = "neg-cb-1";

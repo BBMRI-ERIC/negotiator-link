@@ -44,7 +44,7 @@ import org.springframework.web.client.RestClient;
 @SpringBootTest
 @AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
-class ZammadAdapterE2ETest {
+class NegotiatorToZammadE2ETest {
 
   private static final String ZAMMAD_BASE = "https://zammad.mhh.de";
   private static final String ORG_EXT_ID = "bbmri:DE:MHH";
