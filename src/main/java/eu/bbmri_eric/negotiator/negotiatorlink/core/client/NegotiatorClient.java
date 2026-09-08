@@ -134,8 +134,8 @@ public class NegotiatorClient {
    *
    * @param negotiationId the ID of the negotiation to which the post refers
    * @param post the Post DTO containing request information - text: the content of the post,
-   *     organizationId: the ID of the organization that is creating this post, used for PRIVATE
-   *     posts, type: the type of the post (e.g., PRIVATE, PUBLIC)
+   *     organizationId: the external ID of the organization that is creating this post, used for
+   *     PRIVATE posts, type: the type of the post (e.g., PRIVATE, PUBLIC)
    * @param config organization configuration to use for this request
    * @return the response PostDTO object
    */

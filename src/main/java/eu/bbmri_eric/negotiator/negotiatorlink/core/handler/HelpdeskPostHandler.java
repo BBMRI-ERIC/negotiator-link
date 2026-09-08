@@ -58,12 +58,12 @@ public class HelpdeskPostHandler implements HelpdeskCallbackHandler<PostMessageE
 
     TicketMapping anyMapping = mappings.getFirst();
     String negotiationId = anyMapping.getId().getNegotiationId();
-    String organizationId = anyMapping.getOrganizationId();
 
     String signedText = signPost(postMessageEvent.postText(), postMessageEvent.sender());
     String textHash = sha256Hex(signedText);
 
-    originatedPostRepository.save(new OriginatedPost(textHash, organizationId, ticketId));
+    originatedPostRepository.save(
+        new OriginatedPost(textHash, anyMapping.getOrganizationId(), ticketId));
 
     var post =
         new PostCreateDTO()
