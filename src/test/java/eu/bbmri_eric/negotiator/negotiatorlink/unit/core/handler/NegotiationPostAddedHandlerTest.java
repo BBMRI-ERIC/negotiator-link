@@ -125,6 +125,7 @@ class NegotiationPostAddedHandlerTest {
     handler.handle(postEventData(ORG_ID));
 
     verify(helpdeskClient, never()).addComment(eq(TICKET_A), any(), any());
+    verify(originatedPostRepository).deleteById(any());
   }
 
   @Test
