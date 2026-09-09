@@ -8,7 +8,7 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @Data
-@ConfigurationProperties(prefix = "negotiatorlink")
+@ConfigurationProperties(prefix = "negotiator-link")
 public class OrganizationConfigProperties {
 
   private NegotiatorProperties negotiator = new NegotiatorProperties();

@@ -19,7 +19,7 @@ public class NegotiatorWebhookVerificationServiceImpl
   private final Webhook webhook;
 
   public NegotiatorWebhookVerificationServiceImpl(
-      @Value("${negotiatorlink.webhook.secret}") String secret) {
+      @Value("${negotiator-link.webhook.secret}") String secret) {
     if (StringUtils.isBlank(secret)) {
       throw new IllegalStateException(
           "NEGOTIATOR_WEBHOOK_SECRET must not be blank — set the environment variable");

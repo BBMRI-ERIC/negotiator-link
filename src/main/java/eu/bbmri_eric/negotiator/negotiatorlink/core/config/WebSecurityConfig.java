@@ -19,8 +19,8 @@ public class WebSecurityConfig {
 
   @Bean
   RestClient.Builder restClientBuilder(
-      @Value("${negotiatorlink.helpdesk.connect-timeout:PT5S}") Duration connectTimeout,
-      @Value("${negotiatorlink.helpdesk.read-timeout:PT30S}") Duration readTimeout) {
+      @Value("${negotiator-link.helpdesk.connect-timeout:PT5S}") Duration connectTimeout,
+      @Value("${negotiator-link.helpdesk.read-timeout:PT30S}") Duration readTimeout) {
     var httpClient = HttpClient.newBuilder().connectTimeout(connectTimeout).build();
     var requestFactory = new JdkClientHttpRequestFactory(httpClient);
     requestFactory.setReadTimeout(readTimeout);

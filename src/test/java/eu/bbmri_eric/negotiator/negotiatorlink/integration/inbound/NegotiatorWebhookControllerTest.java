@@ -54,7 +54,7 @@ class NegotiatorWebhookControllerTest {
   @MockitoSpyBean private HelpdeskClient helpdeskClient;
   @MockitoBean private NegotiatorClient negotiatorClient;
 
-  @Value("${negotiatorlink.webhook.secret}")
+  @Value("${negotiator-link.webhook.secret}")
   private String secret;
 
   @org.junit.jupiter.api.BeforeEach

@@ -10,7 +10,7 @@ spring:
     hibernate:
       ddl-auto: create-drop
 
-negotiatorlink:
+negotiator-link:
   webhook:
     secret: "whsec_dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaA=="
   negotiator:

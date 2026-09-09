@@ -18,7 +18,7 @@ logging:
   level:
     eu.bbmri_eric.negotiator.negotiatorlink: DEBUG
 
-negotiatorlink:
+negotiator-link:
   webhook:
     secret: ${NEGOTIATOR_WEBHOOK_SECRET}
   negotiator:

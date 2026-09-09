@@ -54,7 +54,7 @@ class NegotiatorToZammadE2ETest {
   @Autowired private TicketMappingRepository ticketMappingRepository;
   @Autowired private RestClient.Builder restClientBuilder;
 
-  @Value("${negotiatorlink.webhook.secret}")
+  @Value("${negotiator-link.webhook.secret}")
   private String secret;
 
   @MockitoBean private NegotiatorClient negotiatorClient;

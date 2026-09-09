@@ -2,7 +2,7 @@
 # Credentials are injected from environment variables — never hardcode real secrets.
 # Copy this file to docker/organizations.yml and adjust as needed.
 
-negotiatorlink:
+negotiator-link:
   organizations:
     - organizationExternalId: "bbmri-eric:ID:SE_890"
       type: "ZAMMAD"
