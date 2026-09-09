@@ -1,6 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.repository;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.OriginatedTransition;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedTransition;
 import jakarta.persistence.LockModeType;
 import java.time.Instant;
 import java.util.Optional;

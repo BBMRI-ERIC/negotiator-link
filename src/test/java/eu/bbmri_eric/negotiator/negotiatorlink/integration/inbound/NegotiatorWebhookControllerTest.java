@@ -18,11 +18,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedPost;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedTransition;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.NegotiatorResourceEvent;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.OriginatedPost;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.OriginatedTransition;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketMapping;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;

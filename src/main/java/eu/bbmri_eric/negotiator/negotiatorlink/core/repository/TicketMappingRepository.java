@@ -1,7 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.repository;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketMapping;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketMappingId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
