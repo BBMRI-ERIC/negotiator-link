@@ -2,18 +2,21 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 @Entity
 @Table(name = "originated_transition")
+@EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -39,6 +42,7 @@ public class OriginatedTransition {
   @Column(name = "new_state", nullable = false)
   private String newState;
 
+  @CreatedDate
   @Column(name = "created_at", nullable = false, updatable = false)
   private Instant createdAt;
 
@@ -48,10 +52,5 @@ public class OriginatedTransition {
     this.ticketId = ticketId;
     this.expectedCount = expectedCount;
     this.newState = newState;
-  }
-
-  @PrePersist
-  void prePersist() {
-    createdAt = Instant.now();
   }
 }
