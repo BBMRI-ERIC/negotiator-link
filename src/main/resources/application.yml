@@ -24,4 +24,6 @@ negotiatorlink:
   negotiator:
     base-url: ${NEGOTIATOR_BASE_URL}
     issuer-uri: ${NEGOTIATOR_ISSUER_URI}
+    connect-timeout: PT5S
+    read-timeout: PT10S
   organizations: []

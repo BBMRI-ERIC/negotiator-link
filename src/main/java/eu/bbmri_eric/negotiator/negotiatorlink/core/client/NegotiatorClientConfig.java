@@ -16,7 +16,7 @@ class NegotiatorClientConfig {
       @Value("${negotiatorlink.negotiator.base-url}") String baseUrl,
       @Value("${negotiatorlink.negotiator.issuer-uri}") String issuerUri,
       @Value("${negotiatorlink.negotiator.connect-timeout:PT5S}") Duration connectTimeout,
-      @Value("${negotiatorlink.negotiator.read-timeout:PT30S}") Duration readTimeout) {
+      @Value("${negotiatorlink.negotiator.read-timeout:PT10S}") Duration readTimeout) {
     var httpClient = HttpClient.newBuilder().connectTimeout(connectTimeout).build();
     var requestFactory = new JdkClientHttpRequestFactory(httpClient);
     requestFactory.setReadTimeout(readTimeout);
