@@ -194,7 +194,7 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
     if (received >= expected) {
       originatedTransitionRepository.deleteById(locked.getRowId());
       log.debug(
-          "Consumed all {} webhooks for ticket '{}' — removed originated_transitions row",
+          "Consumed all {} webhooks for ticket '{}' — removed originated_transition row",
           expected,
           ticketId);
     }

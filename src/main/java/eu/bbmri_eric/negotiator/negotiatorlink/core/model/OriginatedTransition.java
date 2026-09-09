@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "originated_transitions")
+@Table(name = "originated_transition")
 @Getter
 @Setter
 @NoArgsConstructor

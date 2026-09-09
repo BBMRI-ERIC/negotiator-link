@@ -1,4 +1,4 @@
-CREATE TABLE originated_transitions (
+CREATE TABLE originated_transition (
     row_id          BIGSERIAL    PRIMARY KEY,
     negotiation_id  VARCHAR(255) NOT NULL,
     ticket_id       VARCHAR(255) NOT NULL,

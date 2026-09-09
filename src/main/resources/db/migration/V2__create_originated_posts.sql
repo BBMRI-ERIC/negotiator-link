@@ -1,4 +1,4 @@
-CREATE TABLE originated_posts (
+CREATE TABLE originated_post (
     row_id          BIGSERIAL    PRIMARY KEY,
     text_hash       VARCHAR(255) NOT NULL,
     organization_id VARCHAR(255) NOT NULL,
