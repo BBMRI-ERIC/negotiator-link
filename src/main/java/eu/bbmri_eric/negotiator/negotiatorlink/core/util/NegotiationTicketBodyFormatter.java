@@ -26,9 +26,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class NegotiationTicketBodyFormatter {
 
   private static final String EMPTY_VALUE = "\u2014";
@@ -48,8 +51,6 @@ public final class NegotiationTicketBodyFormatter {
           + "white-space:nowrap;width:1%;";
   private static final String VALUE_CELL_STYLE = "padding:4px 0;vertical-align:top;";
   private static final String MUTED_STYLE = "color:#9aa5b1;";
-
-  private NegotiationTicketBodyFormatter() {}
 
   // ------------
   // Public API

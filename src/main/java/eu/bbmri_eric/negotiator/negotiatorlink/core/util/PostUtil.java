@@ -1,10 +1,11 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.util;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class PostUtil {
-
-  private PostUtil() {}
 
   /**
    * Signs the given text with the sender's name and email if not already signed.
