@@ -300,7 +300,7 @@ class ZammadToNegotiatorE2ETest {
 
   private static String loadFile(String filename) {
     try {
-      return new ClassPathResource("api-tests/zammad/" + filename)
+      return new ClassPathResource("fixtures/zammad/" + filename)
           .getContentAsString(StandardCharsets.UTF_8);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
