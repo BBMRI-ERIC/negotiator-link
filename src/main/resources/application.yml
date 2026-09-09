@@ -27,3 +27,6 @@ negotiator-link:
     connect-timeout: PT5S
     read-timeout: PT10S
   organizations: []
+  cleanup:
+    cron: "0 0 0 * * *"
+    cutoff-age: PT24H
