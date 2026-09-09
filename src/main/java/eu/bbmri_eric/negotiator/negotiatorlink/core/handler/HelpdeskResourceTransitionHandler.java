@@ -16,12 +16,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class HelpdeskResourceTransitionHandler
     implements HelpdeskCallbackHandler<ResourceTransitionEvent> {
 
@@ -31,17 +33,6 @@ public class HelpdeskResourceTransitionHandler
   private final Map<HelpdeskType, HelpdeskClient> clients;
 
   private record InvalidResource(String resourceSourceId, Set<String> allowedEvents) {}
-
-  public HelpdeskResourceTransitionHandler(
-      TicketMappingRepository ticketMappingRepository,
-      OriginatedTransitionRepository originatedTransitionRepository,
-      NegotiatorClient negotiatorClient,
-      Map<HelpdeskType, HelpdeskClient> clients) {
-    this.ticketMappingRepository = ticketMappingRepository;
-    this.originatedTransitionRepository = originatedTransitionRepository;
-    this.negotiatorClient = negotiatorClient;
-    this.clients = clients;
-  }
 
   @Override
   public HelpdeskCallbackType getSupportedType() {

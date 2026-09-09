@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Optional;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.http.HttpHeaders;
@@ -31,6 +32,7 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class ZammadCallbackAdapter implements HelpdeskCallbackAdapter {
 
   private static final String HMAC_ALGORITHM = "HmacSHA1";
@@ -39,10 +41,6 @@ public class ZammadCallbackAdapter implements HelpdeskCallbackAdapter {
   private static final String DELIVERY_HEADER = "X-Zammad-Delivery";
 
   private final ObjectMapper objectMapper;
-
-  public ZammadCallbackAdapter(ObjectMapper objectMapper) {
-    this.objectMapper = objectMapper;
-  }
 
   @Override
   public HelpdeskType getType() {

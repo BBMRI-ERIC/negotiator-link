@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Slf4j
 @RestController
+@RequiredArgsConstructor
 public class HelpdeskCallbackController {
 
   private final OrganizationConfigRegistry registry;
@@ -33,19 +35,6 @@ public class HelpdeskCallbackController {
   private final ObjectMapper objectMapper;
   private final HelpdeskEventRouter helpdeskEventRouter;
   private final ReplayGuard replayGuard;
-
-  public HelpdeskCallbackController(
-      OrganizationConfigRegistry registry,
-      Map<HelpdeskType, HelpdeskCallbackAdapter> callbackAdapters,
-      ObjectMapper objectMapper,
-      HelpdeskEventRouter helpdeskEventRouter,
-      ReplayGuard replayGuard) {
-    this.registry = registry;
-    this.callbackAdapters = callbackAdapters;
-    this.objectMapper = objectMapper;
-    this.helpdeskEventRouter = helpdeskEventRouter;
-    this.replayGuard = replayGuard;
-  }
 
   @PostMapping("/webhooks/helpdesk/{organizationExternalId}")
   ResponseEntity<Void> receiveCallback(

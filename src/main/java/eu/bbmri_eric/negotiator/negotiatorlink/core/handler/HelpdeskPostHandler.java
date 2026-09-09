@@ -13,26 +13,19 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRep
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostCreateDTO;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class HelpdeskPostHandler implements HelpdeskCallbackHandler<PostMessageEvent> {
 
   private final TicketMappingRepository ticketMappingRepository;
   private final OriginatedPostRepository originatedPostRepository;
   private final NegotiatorClient negotiatorClient;
-
-  public HelpdeskPostHandler(
-      TicketMappingRepository ticketMappingRepository,
-      OriginatedPostRepository originatedPostRepository,
-      NegotiatorClient negotiatorClient) {
-    this.ticketMappingRepository = ticketMappingRepository;
-    this.originatedPostRepository = originatedPostRepository;
-    this.negotiatorClient = negotiatorClient;
-  }
 
   @Override
   public HelpdeskCallbackType getSupportedType() {

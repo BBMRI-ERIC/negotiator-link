@@ -14,12 +14,14 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepo
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.NegotiationResourceStateUpdatedWebhookEvent;
 import java.util.Map;
 import java.util.Optional;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class NegotiationResourceStateUpdatedHandler implements NegotiationEventHandler {
 
   private static final String EVENT_TYPE = "negotiation.resource.state.updated";
@@ -32,19 +34,6 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
 
   private record DispatchContext(
       String ticketId, OrganizationConfig config, HelpdeskClient client) {}
-
-  public NegotiationResourceStateUpdatedHandler(
-      TicketMappingRepository ticketMappingRepository,
-      OriginatedTransitionRepository originatedTransitionRepository,
-      OrganizationConfigRegistry registry,
-      Map<HelpdeskType, HelpdeskClient> clients,
-      ObjectMapper objectMapper) {
-    this.ticketMappingRepository = ticketMappingRepository;
-    this.originatedTransitionRepository = originatedTransitionRepository;
-    this.registry = registry;
-    this.clients = clients;
-    this.objectMapper = objectMapper;
-  }
 
   @Override
   public String getSupportedEventType() {

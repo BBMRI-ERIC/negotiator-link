@@ -2,6 +2,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.client;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -9,16 +10,11 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class NegotiatorBootstrapService implements ApplicationRunner {
 
   private final NegotiatorClient negotiatorClient;
   private final OrganizationConfigRegistry registry;
-
-  public NegotiatorBootstrapService(
-      NegotiatorClient negotiatorClient, OrganizationConfigRegistry registry) {
-    this.negotiatorClient = negotiatorClient;
-    this.registry = registry;
-  }
 
   @Override
   public void run(ApplicationArguments args) {

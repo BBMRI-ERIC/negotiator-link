@@ -26,6 +26,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -33,6 +34,7 @@ import org.springframework.web.client.RestClientResponseException;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
 
   private static final String EVENT_TYPE = "negotiation.state.updated";
@@ -51,19 +53,6 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
   /** The resolved per-organization context for creating tickets */
   private record OrgTicketContext(
       String negotiationId, String orgExtId, OrganizationConfig config, HelpdeskClient client) {}
-
-  public NegotiationStateUpdatedHandler(
-      NegotiatorClient negotiatorClient,
-      OrganizationConfigRegistry registry,
-      Map<HelpdeskType, HelpdeskClient> clients,
-      TicketMappingRepository ticketMappingRepository,
-      ObjectMapper objectMapper) {
-    this.negotiatorClient = negotiatorClient;
-    this.registry = registry;
-    this.clients = clients;
-    this.ticketMappingRepository = ticketMappingRepository;
-    this.objectMapper = objectMapper;
-  }
 
   @Override
   public String getSupportedEventType() {

@@ -20,11 +20,13 @@ import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.UserResponseModel
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class NegotiationPostAddedHandler implements NegotiationEventHandler {
 
   private static final String EVENT_TYPE = "negotiation.post.added";
@@ -37,21 +39,6 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
   private final ObjectMapper objectMapper;
 
   private record PostContent(String text, boolean isPublic, String textHash) {}
-
-  public NegotiationPostAddedHandler(
-      NegotiatorClient negotiatorClient,
-      OrganizationConfigRegistry registry,
-      Map<HelpdeskType, HelpdeskClient> clients,
-      TicketMappingRepository ticketMappingRepository,
-      OriginatedPostRepository originatedPostRepository,
-      ObjectMapper objectMapper) {
-    this.negotiatorClient = negotiatorClient;
-    this.registry = registry;
-    this.clients = clients;
-    this.ticketMappingRepository = ticketMappingRepository;
-    this.originatedPostRepository = originatedPostRepository;
-    this.objectMapper = objectMapper;
-  }
 
   @Override
   public String getSupportedEventType() {
