@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class DeduplicationCleanupJob {
+public class StaleOriginatedRecordsCleanupJob {
 
   private final OriginatedPostRepository originatedPostRepository;
   private final OriginatedTransitionRepository originatedTransitionRepository;

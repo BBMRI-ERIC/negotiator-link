@@ -3,7 +3,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.routing;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.core.job.DeduplicationCleanupJob;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.job.StaleOriginatedRecordsCleanupJob;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
 import java.time.Instant;
@@ -14,11 +14,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class DeduplicationCleanupJobTest {
+class StaleOriginatedRecordsCleanupJobTest {
 
   @Mock private OriginatedPostRepository originatedPostRepository;
   @Mock private OriginatedTransitionRepository originatedTransitionRepository;
-  @InjectMocks private DeduplicationCleanupJob job;
+  @InjectMocks private StaleOriginatedRecordsCleanupJob job;
 
   @Test
   void deleteStaleRows_whenCalled_deletesBothRepositoriesWithCutoff() {
