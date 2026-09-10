@@ -55,7 +55,7 @@ services:
 
   negotiator:
     container_name: negotiator
-    image: bbmrieric/negotiator:master
+    image: bbmrieric/negotiator:${NEGOTIATOR_TAG:-latest}
     depends_on:
       negotiator-postgresql:
         condition: service_healthy
@@ -82,7 +82,7 @@ services:
 
   negotiator-frontend:
     container_name: negotiator-frontend
-    image: bbmrieric/negotiator-frontend:master
+    image: bbmrieric/negotiator-frontend:${NEGOTIATOR_TAG:-latest}
     environment:
       DEV_MODE: "true"
       AUTH_URL: http://localhost:4011
