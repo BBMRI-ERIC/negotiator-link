@@ -11,13 +11,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "negotiator-link")
 public class OrganizationConfigProperties {
 
-  private NegotiatorProperties negotiator = new NegotiatorProperties();
   private List<OrgEntry> organizations = new ArrayList<>();
-
-  @Data
-  public static class NegotiatorProperties {
-    private String baseUrl;
-  }
 
   @Data
   public static class OrgEntry {
