@@ -9,9 +9,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @Data
 @ConfigurationProperties(prefix = "negotiator-link")
-public class OrganizationConfigProperties {
+public class NegotiatorLinkProperties {
 
   private List<OrgEntry> organizations = new ArrayList<>();
+  private Map<String, String> resourceEvents = new HashMap<>();
 
   @Data
   public static class OrgEntry {

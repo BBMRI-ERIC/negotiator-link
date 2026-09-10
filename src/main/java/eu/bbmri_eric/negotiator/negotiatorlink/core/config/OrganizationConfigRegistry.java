@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
-@EnableConfigurationProperties(OrganizationConfigProperties.class)
+@EnableConfigurationProperties(NegotiatorLinkProperties.class)
 public class OrganizationConfigRegistry {
 
   private static final Map<HelpdeskType, Set<String>> REQUIRED_PLATFORM_KEYS =
@@ -21,7 +21,7 @@ public class OrganizationConfigRegistry {
 
   private final List<OrganizationConfig> configs;
 
-  public OrganizationConfigRegistry(OrganizationConfigProperties properties) {
+  public OrganizationConfigRegistry(NegotiatorLinkProperties properties) {
     this.configs =
         properties.getOrganizations().stream().map(OrganizationConfigRegistry::toConfig).toList();
     validate(this.configs);
@@ -38,7 +38,7 @@ public class OrganizationConfigRegistry {
     return configs;
   }
 
-  private static OrganizationConfig toConfig(OrganizationConfigProperties.OrgEntry entry) {
+  private static OrganizationConfig toConfig(NegotiatorLinkProperties.OrgEntry entry) {
     var nc = entry.getNegotiatorCredentials();
     return new OrganizationConfig(
         entry.getOrganizationExternalId(),

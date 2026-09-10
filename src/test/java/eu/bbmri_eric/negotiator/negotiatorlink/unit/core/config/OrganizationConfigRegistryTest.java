@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigProperties;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorLinkProperties;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import java.util.HashMap;
@@ -94,7 +94,7 @@ class OrganizationConfigRegistryTest {
 
   @Test
   void constructor_whenOrganizationsListIsEmpty_succeeds() {
-    var props = new OrganizationConfigProperties();
+    var props = new NegotiatorLinkProperties();
     var registry = new OrganizationConfigRegistry(props);
     assertThat(registry.findAll()).isEmpty();
   }
@@ -127,8 +127,8 @@ class OrganizationConfigRegistryTest {
     assertThat(config.negotiatorCredentials().clientSecret()).isEqualTo(CLIENT_SECRET);
   }
 
-  private static OrganizationConfigProperties.OrgEntry zammadEntry() {
-    var entry = new OrganizationConfigProperties.OrgEntry();
+  private static NegotiatorLinkProperties.OrgEntry zammadEntry() {
+    var entry = new NegotiatorLinkProperties.OrgEntry();
     entry.setOrganizationExternalId(ORG_EXTERNAL_ID);
     entry.setType(HelpdeskType.ZAMMAD);
     entry.setTicketStrategy(TicketStrategy.PER_RESOURCE);
@@ -137,16 +137,15 @@ class OrganizationConfigRegistryTest {
     entry.setCallbackSecret("secret-callback");
     entry.setPlatformConfig(
         new HashMap<>(Map.of("group", "Sales", "botEmail", "some.email@test.com")));
-    var creds = new OrganizationConfigProperties.NegotiatorCredentialsEntry();
+    var creds = new NegotiatorLinkProperties.NegotiatorCredentialsEntry();
     creds.setClientId(CLIENT_ID);
     creds.setClientSecret(CLIENT_SECRET);
     entry.setNegotiatorCredentials(creds);
     return entry;
   }
 
-  private static OrganizationConfigProperties propsWithEntry(
-      OrganizationConfigProperties.OrgEntry entry) {
-    var props = new OrganizationConfigProperties();
+  private static NegotiatorLinkProperties propsWithEntry(NegotiatorLinkProperties.OrgEntry entry) {
+    var props = new NegotiatorLinkProperties();
     props.setOrganizations(List.of(entry));
     return props;
   }

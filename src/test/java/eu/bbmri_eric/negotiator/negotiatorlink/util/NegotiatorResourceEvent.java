@@ -1,8 +1,11 @@
-package eu.bbmri_eric.negotiator.negotiatorlink.core.model;
+package eu.bbmri_eric.negotiator.negotiatorlink.util;
 
 import java.util.Arrays;
-import java.util.Optional;
+import java.util.Map;
+import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 
+@RequiredArgsConstructor
 public enum NegotiatorResourceEvent {
   MARK_AS_CHECKING_AVAILABILITY("CHECKING_AVAILABILITY"),
   STEP_AWAY("RESOURCE_UNAVAILABLE"),
@@ -14,18 +17,12 @@ public enum NegotiatorResourceEvent {
 
   private final String targetState;
 
-  NegotiatorResourceEvent(String targetState) {
-    this.targetState = targetState;
-  }
-
   public String targetState() {
     return targetState;
   }
 
-  public static Optional<NegotiatorResourceEvent> fromEvent(String event) {
-    if (event == null) {
-      return Optional.empty();
-    }
-    return Arrays.stream(values()).filter(e -> e.name().equals(event)).findFirst();
+  public static Map<String, String> asMap() {
+    return Arrays.stream(values())
+        .collect(Collectors.toMap(Enum::name, NegotiatorResourceEvent::targetState));
   }
 }

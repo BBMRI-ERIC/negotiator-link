@@ -13,16 +13,17 @@ import static org.mockito.Mockito.when;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorLinkProperties;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedTransition;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HelpdeskResourceTransitionHandler;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.NegotiatorResourceEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorResourceEvent;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -65,7 +66,8 @@ class HelpdeskResourceTransitionHandlerTest {
             ticketMappingRepository,
             originatedTransitionRepository,
             negotiatorClient,
-            Map.of(HelpdeskType.ZAMMAD, helpdeskClient));
+            Map.of(HelpdeskType.ZAMMAD, helpdeskClient),
+            resourceEventsConfig());
   }
 
   @Test
@@ -205,5 +207,11 @@ class HelpdeskResourceTransitionHandlerTest {
 
   private ResourceTransitionEvent callbackEvent() {
     return new ResourceTransitionEvent(TICKET_ID, RESOURCE_STATE, REQUESTED_EVENT);
+  }
+
+  private static NegotiatorLinkProperties resourceEventsConfig() {
+    NegotiatorLinkProperties props = new NegotiatorLinkProperties();
+    props.setResourceEvents(NegotiatorResourceEvent.asMap());
+    return props;
   }
 }
