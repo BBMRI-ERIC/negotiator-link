@@ -4,6 +4,8 @@
 
 - **Comments**: Only add a comment when the WHY is non-obvious (hidden constraint, workaround, subtle invariant). No
   Javadoc on self-explanatory methods.
+- **Interfaces**: Every interface must have a Javadoc comment on the type itself explaining its contract and role.
+  Methods that are not self-explanatory from their signature must also have Javadoc.
 - **Error handling**: Do not add error handling for scenarios that cannot happen. Only validate at system boundaries (
   inbound HTTP controllers, external API clients).
 - **Records**: Use records for DTOs and all immutable data structures instead of traditional classes.
@@ -33,9 +35,15 @@ notation.
 
 - Every handler must have a unit test covering the happy path and the main failure branches.
 - Adapter implementations have integration tests using WireMock to stub the help desk HTTP API.
-- Prefer slice tests (`@WebMvcTest`, `@DataJpaTest`) for focused testing.
+- Use `@DataJpaTest` for repository slice tests — imports from `org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest` (Spring Boot 4.x moved it from `org.springframework.boot.test.autoconfigure.orm.jpa`). `TestEntityManager` is at `org.springframework.boot.jpa.test.autoconfigure.TestEntityManager`.
 - Test class names: `{SubjectUnderTest}Test`. One test file per production class.
+- Test method naming: `subject_when_outcome` — e.g. `constructor_whenCallbackSecretIsBlank_throws`, `findByExternalId_whenOrgUnknown_returnsEmpty`.
+- Unit tests live under `src/test/java/.../unit/` mirroring the production package beneath it.
+- Integration tests (those that load a Spring context) live under `src/test/java/.../integration/` mirroring the production package beneath it.
 - Arrange/Act/Assert structure, no blank lines between related assertions.
+- No section-divider comments (e.g. `// --- helpers ---`) inside test classes. Helper methods are self-evident from their names.
+- When asserting on large or structured objects, construct an explicit `expected` object and use `assertThat(actual).isEqualTo(expected)` rather than asserting each field individually.
+- Avoid `any()` in `verify()` calls when the argument is meaningful. Use `eq(concreteValue)` so the verification actually checks that the code built the object correctly. `any()` is acceptable only in `verify(..., never())` calls where no invocation is expected, or when the argument genuinely cannot be known upfront, or when you would comparing just the mocked object.
 
 ## Bug Patterns to Avoid
 
@@ -99,7 +107,7 @@ Make utility classes `final` with a private constructor to prevent instantiation
 After adding or modifying code, verify the build:
 
 ```
-./mvnw clean install
+./mvnw com.spotify.fmt:fmt-maven-plugin:format -q && ./mvnw clean install
 ```
 
 All tests must pass before considering a task complete.
