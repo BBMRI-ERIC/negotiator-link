@@ -1,3 +1,40 @@
 spring:
   application:
     name: negotiator-link
+  config:
+    import: "optional:file:${ORGANIZATIONS_CONFIG_PATH:}"
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+
+logging:
+  level:
+    eu.bbmri_eric.negotiator.negotiatorlink: DEBUG
+
+negotiator-link:
+  webhook:
+    secret: ${NEGOTIATOR_WEBHOOK_SECRET}
+  negotiator:
+    base-url: ${NEGOTIATOR_BASE_URL}
+    issuer-uri: ${NEGOTIATOR_ISSUER_URI}
+    connect-timeout: PT5S
+    read-timeout: PT10S
+  organizations: []
+  cleanup:
+    cron: "0 0 0 * * *"
+    cutoff-age: PT24H
+  resource-events:
+    MARK_AS_CHECKING_AVAILABILITY: CHECKING_AVAILABILITY
+    STEP_AWAY: RESOURCE_UNAVAILABLE
+    MARK_AS_UNAVAILABLE: RESOURCE_UNAVAILABLE
+    MARK_AS_CURRENTLY_UNAVAILABLE_BUT_WILLING_TO_COLLECT: RESOURCE_UNAVAILABLE_WILLING_TO_COLLECT
+    MARK_AS_AVAILABLE: RESOURCE_AVAILABLE
+    INDICATE_ACCESS_CONDITIONS: ACCESS_CONDITIONS_INDICATED
+    GRANT_ACCESS_TO_RESOURCE: RESOURCE_MADE_AVAILABLE

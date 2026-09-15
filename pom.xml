@@ -19,6 +19,15 @@
         <flyway.version>13.0.0</flyway.version>
         <postgresql.version>42.7.13</postgresql.version>
         <lombok.version>1.18.46</lombok.version>
+        <openapi-generator.version>7.23.0</openapi-generator.version>
+        <wiremock.version>3.13.0</wiremock.version>
+        <okhttp.version>5.1.0</okhttp.version>
+        <jsoup.version>1.18.1</jsoup.version>
+        <jackson-databind-nullable.version>0.2.6</jackson-databind-nullable.version>
+        <standardwebhooks.version>1.1.1</standardwebhooks.version>
+        <j2html.version>1.6.0</j2html.version>
+        <fmt-maven-plugin.version>2.29</fmt-maven-plugin.version>
+        <jacoco.version>0.8.15</jacoco.version>
     </properties>
     <dependencies>
         <!-- Spring Boot Starters -->
@@ -112,6 +121,38 @@
             <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.wiremock</groupId>
+            <artifactId>wiremock-standalone</artifactId>
+            <version>${wiremock.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>mockwebserver</artifactId>
+            <version>${okhttp.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+            <version>${jsoup.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- openapi-generator runtime deps (restclient library) -->
+        <dependency>
+            <groupId>org.openapitools</groupId>
+            <artifactId>jackson-databind-nullable</artifactId>
+            <version>${jackson-databind-nullable.version}</version>
+        </dependency>
+
+        <!-- Standard Webhooks verification -->
+        <dependency>
+            <groupId>com.standardwebhooks</groupId>
+            <artifactId>standardwebhooks</artifactId>
+            <version>${standardwebhooks.version}</version>
+        </dependency>
 
         <!-- Utilities -->
         <dependency>
@@ -120,14 +161,73 @@
             <version>${lombok.version}</version>
             <optional>true</optional>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.j2html</groupId>
+            <artifactId>j2html</artifactId>
+            <version>${j2html.version}</version>
+        </dependency>
     </dependencies>
 
     <build>
         <plugins>
             <plugin>
+                <groupId>org.openapitools</groupId>
+                <artifactId>openapi-generator-maven-plugin</artifactId>
+                <version>${openapi-generator.version}</version>
+                <executions>
+                    <execution>
+                        <id>generate-negotiator-client</id>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <inputSpec>
+                                ${project.basedir}/src/main/resources/openapi/negotiator/negotiator-openapi.json
+                            </inputSpec>
+                            <generatorName>java</generatorName>
+                            <library>restclient</library>
+                            <output>${project.build.directory}/generated-sources/openapi</output>
+                            <apiPackage>
+                                eu.bbmri_eric.negotiator.negotiatorlink.generated.api
+                            </apiPackage>
+                            <modelPackage>
+                                eu.bbmri_eric.negotiator.negotiatorlink.generated.model
+                            </modelPackage>
+                            <schemaMappings>
+                                HttpStatus=String,HttpStatusCode=String
+                            </schemaMappings>
+                            <configOptions>
+                                <useSpringBoot4>true</useSpringBoot4>
+                                <dateLibrary>java8-localdatetime</dateLibrary>
+                                <serializationLibrary>jackson</serializationLibrary>
+                                <openApiNullable>false</openApiNullable>
+                                <useBeanValidation>false</useBeanValidation>
+                                <generateBuilders>false</generateBuilders>
+                                <enumPropertyNaming>MACRO_CASE</enumPropertyNaming>
+                                <disallowAdditionalPropertiesIfNotPresent>false</disallowAdditionalPropertiesIfNotPresent>
+                                <hideGenerationTimestamp>true</hideGenerationTimestamp>
+                            </configOptions>
+                            <generateApiTests>false</generateApiTests>
+                            <generateModelTests>false</generateModelTests>
+                            <generateApiDocumentation>false</generateApiDocumentation>
+                            <generateModelDocumentation>false</generateModelDocumentation>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>com.spotify.fmt</groupId>
                 <artifactId>fmt-maven-plugin</artifactId>
-                <version>2.29</version>
+                <version>${fmt-maven-plugin.version}</version>
                 <executions>
                     <execution>
                         <goals>
@@ -151,7 +251,7 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.15</version>
+                <version>${jacoco.version}</version>
                 <executions>
                     <execution>
                         <id>prepare-agent</id>
@@ -184,6 +284,10 @@
                                     <groupId>org.projectlombok</groupId>
                                     <artifactId>lombok</artifactId>
                                 </path>
+                                <path>
+                                    <groupId>org.springframework.boot</groupId>
+                                    <artifactId>spring-boot-configuration-processor</artifactId>
+                                </path>
                             </annotationProcessorPaths>
                         </configuration>
                     </execution>
@@ -198,6 +302,10 @@
                                 <path>
                                     <groupId>org.projectlombok</groupId>
                                     <artifactId>lombok</artifactId>
+                                </path>
+                                <path>
+                                    <groupId>org.springframework.boot</groupId>
+                                    <artifactId>spring-boot-configuration-processor</artifactId>
                                 </path>
                             </annotationProcessorPaths>
                         </configuration>

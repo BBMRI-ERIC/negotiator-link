@@ -9,3 +9,45 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
+
+negotiator-link:
+  webhook:
+    secret: "whsec_dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaA=="
+  negotiator:
+    base-url: http://localhost:8081/api
+    issuer-uri: http://localhost:9999
+  organizations:
+    - organizationExternalId: "bbmri:DE:MHH"
+      type: "ZAMMAD"
+      ticketStrategy: "PER_RESOURCE"
+      baseUrl: "https://zammad.mhh.de"
+      credentials:
+        apiToken: "test-api-token"
+      callbackSecret: "test-callback-secret"
+      platformConfig:
+        group: "Sales"
+        botEmail: "negotiator-link@mhh.de"
+      negotiatorCredentials:
+        clientId: "test-client-id-mhh"
+        clientSecret: "test-client-secret-mhh"
+    - organizationExternalId: "bbmri:NL:LUMC"
+      type: "ZAMMAD"
+      ticketStrategy: "PER_NEGOTIATION"
+      baseUrl: "https://zammad.lumc.nl"
+      credentials:
+        apiToken: "test-api-token-lumc"
+      callbackSecret: "test-callback-secret-lumc"
+      platformConfig:
+        group: "Access"
+        botEmail: "negotiator-link@lumc.nl"
+      negotiatorCredentials:
+        clientId: "test-client-id-lumc"
+        clientSecret: "test-client-secret-lumc"
+  resource-events:
+    MARK_AS_CHECKING_AVAILABILITY: CHECKING_AVAILABILITY
+    STEP_AWAY: RESOURCE_UNAVAILABLE
+    MARK_AS_UNAVAILABLE: RESOURCE_UNAVAILABLE
+    MARK_AS_CURRENTLY_UNAVAILABLE_BUT_WILLING_TO_COLLECT: RESOURCE_UNAVAILABLE_WILLING_TO_COLLECT
+    MARK_AS_AVAILABLE: RESOURCE_AVAILABLE
+    INDICATE_ACCESS_CONDITIONS: ACCESS_CONDITIONS_INDICATED
+    GRANT_ACCESS_TO_RESOURCE: RESOURCE_MADE_AVAILABLE
