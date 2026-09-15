@@ -2091,6 +2091,150 @@
       }
     },
     "/v3/negotiations/{negotiationId}/posts/{postId}": {
+      "get": {
+        "tags": [
+          "Comments"
+        ],
+        "summary": "Find a post by an id",
+        "operationId": "getById",
+        "parameters": [
+          {
+            "name": "negotiationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "postId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/hal+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityModelPostDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request due to invalid input",
+            "content": {
+              "application/json": {
+                "example": {
+                  "type": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400",
+                  "title": "Wrong request",
+                  "status": 400,
+                  "detail": "Specific error message goes here",
+                  "instance": "/api/your-endpoint"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: Authentication is required to access this resource",
+            "content": {
+              "application/json+problem": {
+                "example": {
+                  "type": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401",
+                  "title": "Unauthorized",
+                  "status": 401,
+                  "detail": "Authentication is required to access this resource.",
+                  "instance": "/api/your-endpoint"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: You do not have permission to access this resource",
+            "content": {
+              "application/json+problem": {
+                "example": {
+                  "type": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403",
+                  "title": "Forbidden",
+                  "status": 403,
+                  "detail": "You do not have permission to access this resource.",
+                  "instance": "/api/your-endpoint"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - The requested resource does not exist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                },
+                "example": {
+                  "status": 404,
+                  "title": "Resource Not Found",
+                  "type": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404",
+                  "detail": "The resource you are looking for does not exist or could not be found."
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: The status of the resource is in conflict with the one requested",
+            "content": {
+              "application/json+problem": {
+                "example": {
+                  "type": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/409",
+                  "title": "Conflict",
+                  "status": 409,
+                  "detail": "The status of the resource is in conflict with the one requested.",
+                  "instance": "/api/your-endpoint"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload Too Large - Max file size exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                },
+                "example": {
+                  "status": 413,
+                  "title": "Max upload size exceeded",
+                  "type": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/413",
+                  "detail": "The maximum allowable file size is 1MB"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "example": {
+                  "type": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500",
+                  "title": "Internal Server Error",
+                  "status": 500,
+                  "detail": "Specific error message goes here",
+                  "instance": "/api/your-endpoint"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "security_auth": []
+          }
+        ]
+      },
       "put": {
         "tags": [
           "Comments"
@@ -15023,144 +15167,6 @@
         ]
       }
     },
-    "/v3/posts/{postId}": {
-      "get": {
-        "tags": [
-          "Comments"
-        ],
-        "summary": "Find a post by an id",
-        "operationId": "getById",
-        "parameters": [
-          {
-            "name": "postId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/hal+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EntityModelPostDTO"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request due to invalid input",
-            "content": {
-              "application/json": {
-                "example": {
-                  "type": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400",
-                  "title": "Wrong request",
-                  "status": 400,
-                  "detail": "Specific error message goes here",
-                  "instance": "/api/your-endpoint"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: Authentication is required to access this resource",
-            "content": {
-              "application/json+problem": {
-                "example": {
-                  "type": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401",
-                  "title": "Unauthorized",
-                  "status": 401,
-                  "detail": "Authentication is required to access this resource.",
-                  "instance": "/api/your-endpoint"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden: You do not have permission to access this resource",
-            "content": {
-              "application/json+problem": {
-                "example": {
-                  "type": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403",
-                  "title": "Forbidden",
-                  "status": 403,
-                  "detail": "You do not have permission to access this resource.",
-                  "instance": "/api/your-endpoint"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found - The requested resource does not exist",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                },
-                "example": {
-                  "status": 404,
-                  "title": "Resource Not Found",
-                  "type": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404",
-                  "detail": "The resource you are looking for does not exist or could not be found."
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict: The status of the resource is in conflict with the one requested",
-            "content": {
-              "application/json+problem": {
-                "example": {
-                  "type": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/409",
-                  "title": "Conflict",
-                  "status": 409,
-                  "detail": "The status of the resource is in conflict with the one requested.",
-                  "instance": "/api/your-endpoint"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Payload Too Large - Max file size exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                },
-                "example": {
-                  "status": 413,
-                  "title": "Max upload size exceeded",
-                  "type": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/413",
-                  "detail": "The maximum allowable file size is 1MB"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/json": {
-                "example": {
-                  "type": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500",
-                  "title": "Internal Server Error",
-                  "status": 500,
-                  "detail": "Specific error message goes here",
-                  "instance": "/api/your-endpoint"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "security_auth": []
-          }
-        ]
-      }
-    },
     "/v3/notifications/{id}": {
       "get": {
         "tags": [
@@ -19493,6 +19499,89 @@
   },
   "components": {
     "schemas": {
+      "NegotiationStateUpdatedWebhookEvent": {
+        "description": "Webhook data payload for a negotiation state transition.",
+        "properties": {
+          "negotiationId": {
+            "type": "string",
+            "description": "Identifier of the affected negotiation",
+            "example": "negotiation-2"
+          },
+          "fromState": {
+            "type": "string",
+            "description": "Source state before transition",
+            "enum": [
+              "DRAFT",
+              "SUBMITTED",
+              "APPROVED",
+              "DECLINED",
+              "IN_PROGRESS",
+              "PAUSED",
+              "CONCLUDED",
+              "ABANDONED"
+            ],
+            "example": "DRAFT"
+          },
+          "toState": {
+            "type": "string",
+            "description": "Target state after transition",
+            "enum": [
+              "DRAFT",
+              "SUBMITTED",
+              "APPROVED",
+              "DECLINED",
+              "IN_PROGRESS",
+              "PAUSED",
+              "CONCLUDED",
+              "ABANDONED"
+            ],
+            "example": "SUBMITTED"
+          },
+          "event": {
+            "type": "string",
+            "description": "State-machine event that triggered the transition",
+            "enum": [
+              "SUBMIT",
+              "APPROVE",
+              "DECLINE",
+              "START",
+              "PAUSE",
+              "UNPAUSE",
+              "ABANDON",
+              "CONCLUDE"
+            ],
+            "example": "SUBMIT"
+          }
+        }
+      },
+      "NegotiationStateUpdatedWebhookEventEnvelope": {
+        "type": "object",
+        "description": "Outbound webhook envelope for event type 'negotiation.state.updated'.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Semantic webhook event type",
+            "enum": [
+              "negotiation.state.updated"
+            ],
+            "example": "negotiation.state.updated"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "UTC timestamp describing when the source event happened",
+            "example": "2026-04-24T07:12:30Z"
+          },
+          "data": {
+            "$ref": "#/components/schemas/NegotiationStateUpdatedWebhookEvent"
+          }
+        },
+        "required": [
+          "data",
+          "timestamp",
+          "type"
+        ]
+      },
       "NegotiationResourceUpdatedWebhookEvent": {
         "description": "Webhook data payload for newly added negotiation resources.",
         "properties": {
@@ -19531,44 +19620,42 @@
           "type"
         ]
       },
-      "NegotiationPostAddedWebhookEvent": {
-        "description": "Webhook data payload for a newly created negotiation post.",
+      "NegotiationAddedWebhookEvent": {
+        "description": "Webhook data payload for a newly created negotiation.",
         "properties": {
-          "postId": {
-            "type": "string",
-            "description": "Identifier of the created post",
-            "example": "post-1"
-          },
           "negotiationId": {
             "type": "string",
-            "description": "Identifier of the parent negotiation",
-            "example": "ab222d9c-4567-4c9a-8f0e-123456789abc"
+            "description": "Identifier of the created negotiation",
+            "example": "negotiation-3"
           },
-          "userId": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Identifier of the user that created the post",
-            "example": 1000
-          },
-          "organizationId": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Optional identifier of the organization context",
-            "example": 2000
+          "currentState": {
+            "type": "string",
+            "description": "Current negotiation state",
+            "enum": [
+              "DRAFT",
+              "SUBMITTED",
+              "APPROVED",
+              "DECLINED",
+              "IN_PROGRESS",
+              "PAUSED",
+              "CONCLUDED",
+              "ABANDONED"
+            ],
+            "example": "SUBMITTED"
           }
         }
       },
-      "NegotiationPostAddedWebhookEventEnvelope": {
+      "NegotiationAddedWebhookEventEnvelope": {
         "type": "object",
-        "description": "Outbound webhook envelope for event type 'negotiation.post.added'.",
+        "description": "Outbound webhook envelope for event type 'negotiation.added'.",
         "properties": {
           "type": {
             "type": "string",
             "description": "Semantic webhook event type",
             "enum": [
-              "negotiation.post.added"
+              "negotiation.added"
             ],
-            "example": "negotiation.post.added"
+            "example": "negotiation.added"
           },
           "timestamp": {
             "type": "string",
@@ -19577,7 +19664,7 @@
             "example": "2026-04-24T07:12:30Z"
           },
           "data": {
-            "$ref": "#/components/schemas/NegotiationPostAddedWebhookEvent"
+            "$ref": "#/components/schemas/NegotiationAddedWebhookEvent"
           }
         },
         "required": [
@@ -19725,6 +19812,61 @@
           "type"
         ]
       },
+      "NegotiationPostAddedWebhookEvent": {
+        "description": "Webhook data payload for a newly created negotiation post.",
+        "properties": {
+          "postId": {
+            "type": "string",
+            "description": "Identifier of the created post",
+            "example": "post-1"
+          },
+          "negotiationId": {
+            "type": "string",
+            "description": "Identifier of the parent negotiation",
+            "example": "ab222d9c-4567-4c9a-8f0e-123456789abc"
+          },
+          "userId": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Identifier of the user that created the post",
+            "example": 1000
+          },
+          "organizationId": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Optional identifier of the organization context",
+            "example": 2000
+          }
+        }
+      },
+      "NegotiationPostAddedWebhookEventEnvelope": {
+        "type": "object",
+        "description": "Outbound webhook envelope for event type 'negotiation.post.added'.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Semantic webhook event type",
+            "enum": [
+              "negotiation.post.added"
+            ],
+            "example": "negotiation.post.added"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "UTC timestamp describing when the source event happened",
+            "example": "2026-04-24T07:12:30Z"
+          },
+          "data": {
+            "$ref": "#/components/schemas/NegotiationPostAddedWebhookEvent"
+          }
+        },
+        "required": [
+          "data",
+          "timestamp",
+          "type"
+        ]
+      },
       "PingWebhookEvent": {
         "description": "Webhook data payload for a ping delivery.",
         "properties": {
@@ -19756,142 +19898,6 @@
           },
           "data": {
             "$ref": "#/components/schemas/PingWebhookEvent"
-          }
-        },
-        "required": [
-          "data",
-          "timestamp",
-          "type"
-        ]
-      },
-      "NegotiationAddedWebhookEvent": {
-        "description": "Webhook data payload for a newly created negotiation.",
-        "properties": {
-          "negotiationId": {
-            "type": "string",
-            "description": "Identifier of the created negotiation",
-            "example": "negotiation-3"
-          },
-          "currentState": {
-            "type": "string",
-            "description": "Current negotiation state",
-            "enum": [
-              "DRAFT",
-              "SUBMITTED",
-              "APPROVED",
-              "DECLINED",
-              "IN_PROGRESS",
-              "PAUSED",
-              "CONCLUDED",
-              "ABANDONED"
-            ],
-            "example": "SUBMITTED"
-          }
-        }
-      },
-      "NegotiationAddedWebhookEventEnvelope": {
-        "type": "object",
-        "description": "Outbound webhook envelope for event type 'negotiation.added'.",
-        "properties": {
-          "type": {
-            "type": "string",
-            "description": "Semantic webhook event type",
-            "enum": [
-              "negotiation.added"
-            ],
-            "example": "negotiation.added"
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time",
-            "description": "UTC timestamp describing when the source event happened",
-            "example": "2026-04-24T07:12:30Z"
-          },
-          "data": {
-            "$ref": "#/components/schemas/NegotiationAddedWebhookEvent"
-          }
-        },
-        "required": [
-          "data",
-          "timestamp",
-          "type"
-        ]
-      },
-      "NegotiationStateUpdatedWebhookEvent": {
-        "description": "Webhook data payload for a negotiation state transition.",
-        "properties": {
-          "negotiationId": {
-            "type": "string",
-            "description": "Identifier of the affected negotiation",
-            "example": "negotiation-2"
-          },
-          "fromState": {
-            "type": "string",
-            "description": "Source state before transition",
-            "enum": [
-              "DRAFT",
-              "SUBMITTED",
-              "APPROVED",
-              "DECLINED",
-              "IN_PROGRESS",
-              "PAUSED",
-              "CONCLUDED",
-              "ABANDONED"
-            ],
-            "example": "DRAFT"
-          },
-          "toState": {
-            "type": "string",
-            "description": "Target state after transition",
-            "enum": [
-              "DRAFT",
-              "SUBMITTED",
-              "APPROVED",
-              "DECLINED",
-              "IN_PROGRESS",
-              "PAUSED",
-              "CONCLUDED",
-              "ABANDONED"
-            ],
-            "example": "SUBMITTED"
-          },
-          "event": {
-            "type": "string",
-            "description": "State-machine event that triggered the transition",
-            "enum": [
-              "SUBMIT",
-              "APPROVE",
-              "DECLINE",
-              "START",
-              "PAUSE",
-              "UNPAUSE",
-              "ABANDON",
-              "CONCLUDE"
-            ],
-            "example": "SUBMIT"
-          }
-        }
-      },
-      "NegotiationStateUpdatedWebhookEventEnvelope": {
-        "type": "object",
-        "description": "Outbound webhook envelope for event type 'negotiation.state.updated'.",
-        "properties": {
-          "type": {
-            "type": "string",
-            "description": "Semantic webhook event type",
-            "enum": [
-              "negotiation.state.updated"
-            ],
-            "example": "negotiation.state.updated"
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time",
-            "description": "UTC timestamp describing when the source event happened",
-            "example": "2026-04-24T07:12:30Z"
-          },
-          "data": {
-            "$ref": "#/components/schemas/NegotiationStateUpdatedWebhookEvent"
           }
         },
         "required": [
@@ -20344,6 +20350,9 @@
           "id": {
             "type": "string"
           },
+          "negotiationId": {
+            "type": "string"
+          },
           "text": {
             "type": "string"
           },
@@ -20402,13 +20411,13 @@
           "representativeOfAnyResource": {
             "type": "boolean"
           },
+          "serviceAccount": {
+            "type": "boolean"
+          },
           "admin": {
             "type": "boolean"
           },
           "networkManager": {
-            "type": "boolean"
-          },
-          "serviceAccount": {
             "type": "boolean"
           }
         }
@@ -20814,10 +20823,10 @@
       "JsonNullableString": {
         "type": "object",
         "properties": {
-          "present": {
+          "undefined": {
             "type": "boolean"
           },
-          "undefined": {
+          "present": {
             "type": "boolean"
           }
         }
@@ -21028,7 +21037,7 @@
           "accessFormId": {
             "type": "integer",
             "format": "int64",
-            "description": "ID of the access form related to the resource",
+            "description": "Optional ID of the access form related to the resource",
             "example": 42
           },
           "discoveryServiceId": {
@@ -21049,7 +21058,6 @@
           }
         },
         "required": [
-          "accessFormId",
           "description",
           "discoveryServiceId",
           "name",
@@ -22032,13 +22040,13 @@
           "representativeOfAnyResource": {
             "type": "boolean"
           },
+          "serviceAccount": {
+            "type": "boolean"
+          },
           "admin": {
             "type": "boolean"
           },
           "networkManager": {
-            "type": "boolean"
-          },
-          "serviceAccount": {
             "type": "boolean"
           },
           "_links": {
@@ -22212,13 +22220,13 @@
           "representativeOfAnyResource": {
             "type": "boolean"
           },
+          "serviceAccount": {
+            "type": "boolean"
+          },
           "admin": {
             "type": "boolean"
           },
           "networkManager": {
-            "type": "boolean"
-          },
-          "serviceAccount": {
             "type": "boolean"
           },
           "_links": {
@@ -22426,17 +22434,29 @@
       "EntityModelNetworkStatistics": {
         "type": "object",
         "properties": {
-          "totalNumberOfNegotiations": {
+          "numberOfNewRequesters": {
             "type": "integer",
             "format": "int32",
-            "description": "Total number of negotiations in the network",
-            "example": 150
+            "description": "Number of new requesters in the network",
+            "example": 30
+          },
+          "numberOfActiveRepresentatives": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Number of active representatives in the network",
+            "example": 25
           },
           "networkId": {
             "type": "integer",
             "format": "int64",
             "description": "Unique identifier of the network",
             "example": 101
+          },
+          "totalNumberOfNegotiations": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Total number of negotiations in the network",
+            "example": 150
           },
           "numberOfIgnoredNegotiations": {
             "type": "integer",
@@ -22477,18 +22497,6 @@
                 "type": "string"
               }
             }
-          },
-          "numberOfNewRequesters": {
-            "type": "integer",
-            "format": "int32",
-            "description": "Number of new requesters in the network",
-            "example": 30
-          },
-          "numberOfActiveRepresentatives": {
-            "type": "integer",
-            "format": "int32",
-            "description": "Number of active representatives in the network",
-            "example": 25
           },
           "_links": {
             "$ref": "#/components/schemas/Links"
