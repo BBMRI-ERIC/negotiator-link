@@ -309,8 +309,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     }
 
     ticketToOrgExtId.forEach(
-        (ticketId, orgExtId) ->
-            updateNegotiationStateInTicket(negotiationId, ticketId, orgExtId, toState));
+            (ticketId, orgExtId) -> updateTicketState(negotiationId, ticketId, orgExtId, toState));
   }
 
   private Map<String, String> getTicketIdByOrgExtId(String negotiationId) {
@@ -321,8 +320,8 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     return ticketToOrgExtId;
   }
 
-  private void updateNegotiationStateInTicket(
-      String negotiationId, String ticketId, String orgExtId, String toState) {
+  private void updateTicketState(
+          String negotiationId, String ticketId, String orgExtId, String toState) {
     OrgTicketContext context = resolveOrgContext(negotiationId, orgExtId);
     if (context == null) {
       return;
@@ -330,27 +329,8 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     try {
       context.client().updateNegotiationState(ticketId, toState, context.config());
       log.info("Updated negotiation state '{}' on ticket '{}'", toState, ticketId);
-      applyTicketStateMapping(ticketId, toState, context);
     } catch (Exception e) {
       log.error("Failed to update negotiation state on ticket '{}'", ticketId, e);
-    }
-  }
-
-  /** Maps the negotiation state to a configured platform-native ticket state and applies it. */
-  private void applyTicketStateMapping(String ticketId, String toState, OrgTicketContext context) {
-    String ticketState = context.config().negotiationStateToTicketState().get(toState);
-    if (ticketState == null) {
-      return;
-    }
-    try {
-      context.client().updateTicketState(ticketId, ticketState, context.config());
-      log.info(
-          "Set ticket '{}' state to '{}' for negotiation state '{}'",
-          ticketId,
-          ticketState,
-          toState);
-    } catch (Exception e) {
-      log.error("Failed to update ticket state on ticket '{}'", ticketId, e);
     }
   }
 }
