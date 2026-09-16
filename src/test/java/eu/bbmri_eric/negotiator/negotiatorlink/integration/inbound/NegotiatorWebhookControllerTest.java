@@ -280,6 +280,42 @@ class NegotiatorWebhookControllerTest {
     verify(helpdeskClient, never()).updateTicketState(any(), any(), any());
   }
 
+  @Test
+  void receiveWebhook_negotiationStateChanged_callsUpdateNegotiationStateOnAllTickets()
+      throws Exception {
+    String negotiationId = "state-change-neg-1";
+    String ticketA = "state-ticket-a";
+    String ticketB = "state-ticket-b";
+    String orgExtId = "bbmri:DE:MHH";
+    long orgId = 10L;
+
+    ticketMappingRepository.save(
+        new TicketMapping(
+            new TicketMappingId(negotiationId, ticketA, "r-1"),
+            "src-1",
+            String.valueOf(orgId),
+            orgExtId));
+    ticketMappingRepository.save(
+        new TicketMapping(
+            new TicketMappingId(negotiationId, ticketB, "r-2"),
+            "src-2",
+            String.valueOf(orgId),
+            orgExtId));
+
+    String body =
+        negotiationStateChangedPayload(
+            negotiationId,
+            NegotiatorNegotiationEvent.UNPAUSE.toState(),
+            NegotiatorNegotiationEvent.PAUSE.toState(),
+            NegotiatorNegotiationEvent.PAUSE.name());
+    performWebhook("state-change-w1", Instant.now(), body).andExpect(status().isOk());
+
+    verify(helpdeskClient)
+        .updateNegotiationState(eq(ticketA), eq(NegotiatorNegotiationEvent.PAUSE.toState()), any());
+    verify(helpdeskClient)
+        .updateNegotiationState(eq(ticketB), eq(NegotiatorNegotiationEvent.PAUSE.toState()), any());
+  }
+
   private void sendResourceStateWebhook(
       String webhookId, String negotiationId, String resourceId, String toState) throws Exception {
     var timestamp = Instant.now();
