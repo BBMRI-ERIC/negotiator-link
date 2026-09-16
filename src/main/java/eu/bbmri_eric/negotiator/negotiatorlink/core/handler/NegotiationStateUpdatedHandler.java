@@ -309,7 +309,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     }
 
     ticketToOrgExtId.forEach(
-            (ticketId, orgExtId) -> updateTicketState(negotiationId, ticketId, orgExtId, toState));
+        (ticketId, orgExtId) -> updateTicketState(negotiationId, ticketId, orgExtId, toState));
   }
 
   private Map<String, String> getTicketIdByOrgExtId(String negotiationId) {
@@ -321,7 +321,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
   }
 
   private void updateTicketState(
-          String negotiationId, String ticketId, String orgExtId, String toState) {
+      String negotiationId, String ticketId, String orgExtId, String toState) {
     OrgTicketContext context = resolveOrgContext(negotiationId, orgExtId);
     if (context == null) {
       return;
