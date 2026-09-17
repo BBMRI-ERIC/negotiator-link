@@ -16,6 +16,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFormatter;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.util.TicketStateUpdater;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
@@ -333,24 +334,12 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     } catch (Exception e) {
       log.error("Failed to update negotiation state on ticket '{}'", ticketId, e);
     }
-    applyTicketStateMapping(ticketId, toState, context);
-  }
-
-  /** Maps the negotiation state to a configured platform-native ticket state and applies it. */
-  private void applyTicketStateMapping(String ticketId, String toState, OrgTicketContext context) {
-    String ticketState = context.config().negotiationStateToTicketState().get(toState);
-    if (ticketState == null) {
-      return;
-    }
-    try {
-      context.client().updateTicketState(ticketId, ticketState, context.config());
-      log.info(
-          "Set ticket '{}' state to '{}' for negotiation state '{}'",
-          ticketId,
-          ticketState,
-          toState);
-    } catch (Exception e) {
-      log.error("Failed to update ticket state on ticket '{}'", ticketId, e);
-    }
+    TicketStateUpdater.applyTicketStateMapping(
+        context.client(),
+        context.config(),
+        ticketId,
+        context.config().negotiationStateToTicketState(),
+        toState,
+        "negotiation");
   }
 }
