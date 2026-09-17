@@ -232,6 +232,14 @@ class NegotiatorWebhookControllerTest {
   @Test
   void receiveWebhook_negotiationStateMappedToTicketState_callsUpdateTicketStateOnAllTickets()
       throws Exception {
+    Mockito.doNothing()
+        .when(helpdeskClient)
+        .updateNegotiationState(
+            eq(TICKET_A), eq(NegotiatorNegotiationEvent.CONCLUDE.toState()), any());
+    Mockito.doNothing()
+        .when(helpdeskClient)
+        .updateNegotiationState(
+            eq(TICKET_B), eq(NegotiatorNegotiationEvent.CONCLUDE.toState()), any());
     String body =
         negotiationStateChangedPayload(
             NEGOTIATION_ID,
@@ -248,6 +256,28 @@ class NegotiatorWebhookControllerTest {
             eq(TICKET_B), eq(NegotiatorNegotiationEvent.CONCLUDE.toState()), any());
     verify(helpdeskClient).updateTicketState(eq(TICKET_A), eq("closed"), any());
     verify(helpdeskClient).updateTicketState(eq(TICKET_B), eq("closed"), any());
+  }
+
+  @Test
+  void receiveWebhook_negotiationStateUpdateFails_doesNotUpdateTicketState() throws Exception {
+    Mockito.doThrow(new RuntimeException("help desk unavailable"))
+        .when(helpdeskClient)
+        .updateNegotiationState(any(), eq(NegotiatorNegotiationEvent.CONCLUDE.toState()), any());
+    String body =
+        negotiationStateChangedPayload(
+            NEGOTIATION_ID,
+            NegotiatorNegotiationEvent.UNPAUSE.toState(),
+            NegotiatorNegotiationEvent.CONCLUDE.toState(),
+            NegotiatorNegotiationEvent.CONCLUDE.name());
+    performWebhook("state-close-fail-w1", Instant.now(), body).andExpect(status().isOk());
+
+    verify(helpdeskClient)
+        .updateNegotiationState(
+            eq(TICKET_A), eq(NegotiatorNegotiationEvent.CONCLUDE.toState()), any());
+    verify(helpdeskClient)
+        .updateNegotiationState(
+            eq(TICKET_B), eq(NegotiatorNegotiationEvent.CONCLUDE.toState()), any());
+    verify(helpdeskClient, never()).updateTicketState(any(), any(), any());
   }
 
   @Test
