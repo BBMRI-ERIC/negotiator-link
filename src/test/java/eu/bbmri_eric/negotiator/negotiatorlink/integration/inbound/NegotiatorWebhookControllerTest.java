@@ -232,6 +232,14 @@ class NegotiatorWebhookControllerTest {
   @Test
   void receiveWebhook_negotiationStateMappedToTicketState_callsUpdateTicketStateOnAllTickets()
       throws Exception {
+    Mockito.doNothing()
+        .when(helpdeskClient)
+        .updateNegotiationState(
+            eq(TICKET_A), eq(NegotiatorNegotiationEvent.CONCLUDE.toState()), any());
+    Mockito.doNothing()
+        .when(helpdeskClient)
+        .updateNegotiationState(
+            eq(TICKET_B), eq(NegotiatorNegotiationEvent.CONCLUDE.toState()), any());
     String body =
         negotiationStateChangedPayload(
             NEGOTIATION_ID,
