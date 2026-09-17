@@ -61,6 +61,7 @@ class ZammadClientTest {
             Map.of("apiToken", API_TOKEN),
             CALLBACK_SECRET,
             Map.of("group", "Sales", "botEmail", "negotiator-link@mhh.de"),
+            Map.of(),
             new NegotiatorCredentials("test-client-id", "test-client-secret"));
   }
 
@@ -233,6 +234,25 @@ class ZammadClientTest {
                     """,
                     true,
                     false)));
+  }
+
+  @Test
+  void updateTicketState_sendsCorrectPut() {
+    var ticketId = "42";
+    wireMock.stubFor(
+        put(urlEqualTo(TICKETS_URL + "/" + ticketId))
+            .willReturn(
+                aResponse()
+                    .withStatus(200)
+                    .withHeader("Content-Type", "application/json")
+                    .withBody("{}")));
+
+    client.updateTicketState(ticketId, "closed", config);
+
+    wireMock.verify(
+        putRequestedFor(urlEqualTo(TICKETS_URL + "/" + ticketId))
+            .withHeader("Authorization", equalTo("Token token=" + API_TOKEN))
+            .withRequestBody(equalToJson("{\"state\": \"closed\"}", true, false)));
   }
 
   @Test
