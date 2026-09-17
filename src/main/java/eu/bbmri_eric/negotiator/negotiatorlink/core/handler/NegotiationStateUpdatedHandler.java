@@ -16,6 +16,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFormatter;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.util.TicketStateUpdater;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
@@ -333,5 +334,12 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     } catch (Exception e) {
       log.error("Failed to update negotiation state on ticket '{}'", ticketId, e);
     }
+    TicketStateUpdater.applyTicketStateMapping(
+        context.client(),
+        context.config(),
+        ticketId,
+        context.config().negotiationStateToTicketState(),
+        toState,
+        "negotiation");
   }
 }
