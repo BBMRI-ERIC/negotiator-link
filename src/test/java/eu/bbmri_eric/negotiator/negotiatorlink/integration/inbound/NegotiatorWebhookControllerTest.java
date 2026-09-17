@@ -278,6 +278,25 @@ class NegotiatorWebhookControllerTest {
     verify(helpdeskClient).updateTicketState(eq(TICKET_RESOURCE), eq("closed"), any());
   }
 
+  @Test
+  void receiveWebhook_resourceStateUpdateFails_doesNotUpdateTicketState() throws Exception {
+    String toState = NegotiatorResourceEvent.GRANT_ACCESS_TO_RESOURCE.targetState();
+    Mockito.doThrow(new RuntimeException("help desk unavailable"))
+        .when(helpdeskClient)
+        .updateResourceState(eq(TICKET_RESOURCE), eq(toState), any());
+    String body =
+        resourceStateUpdatedPayload(
+            NEGOTIATION_ID,
+            RESOURCE_SOURCE_ID,
+            "ACCESS_CONDITIONS_MET",
+            toState,
+            NegotiatorResourceEvent.GRANT_ACCESS_TO_RESOURCE.toString());
+    performWebhook("resource-close-fail-w1", Instant.now(), body).andExpect(status().isOk());
+
+    verify(helpdeskClient).updateResourceState(eq(TICKET_RESOURCE), eq(toState), any());
+    verify(helpdeskClient, never()).updateTicketState(any(), any(), any());
+  }
+
   private void sendResourceStateWebhook(
       String webhookId, String negotiationId, String resourceId, String toState) throws Exception {
     var timestamp = Instant.now();
