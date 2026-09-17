@@ -232,14 +232,6 @@ class NegotiatorWebhookControllerTest {
   @Test
   void receiveWebhook_negotiationStateMappedToTicketState_callsUpdateTicketStateOnAllTickets()
       throws Exception {
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .updateNegotiationState(
-            eq(TICKET_A), eq(NegotiatorNegotiationEvent.CONCLUDE.toState()), any());
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .updateNegotiationState(
-            eq(TICKET_B), eq(NegotiatorNegotiationEvent.CONCLUDE.toState()), any());
     String body =
         negotiationStateChangedPayload(
             NEGOTIATION_ID,
@@ -259,61 +251,23 @@ class NegotiatorWebhookControllerTest {
   }
 
   @Test
-  void receiveWebhook_negotiationStateUpdateFails_doesNotUpdateTicketState() throws Exception {
-    Mockito.doThrow(new RuntimeException("help desk unavailable"))
-        .when(helpdeskClient)
-        .updateNegotiationState(any(), eq(NegotiatorNegotiationEvent.CONCLUDE.toState()), any());
-    String body =
-        negotiationStateChangedPayload(
-            NEGOTIATION_ID,
-            NegotiatorNegotiationEvent.UNPAUSE.toState(),
-            NegotiatorNegotiationEvent.CONCLUDE.toState(),
-            NegotiatorNegotiationEvent.CONCLUDE.name());
-    performWebhook("state-close-fail-w1", Instant.now(), body).andExpect(status().isOk());
-
-    verify(helpdeskClient)
-        .updateNegotiationState(
-            eq(TICKET_A), eq(NegotiatorNegotiationEvent.CONCLUDE.toState()), any());
-    verify(helpdeskClient)
-        .updateNegotiationState(
-            eq(TICKET_B), eq(NegotiatorNegotiationEvent.CONCLUDE.toState()), any());
-    verify(helpdeskClient, never()).updateTicketState(any(), any(), any());
-  }
-
-  @Test
-  void receiveWebhook_negotiationStateChanged_callsUpdateNegotiationStateOnAllTickets()
+  void receiveWebhook_resourceStateMappedToTicketState_updatesResourceStateThenTicketState()
       throws Exception {
-    String negotiationId = "state-change-neg-1";
-    String ticketA = "state-ticket-a";
-    String ticketB = "state-ticket-b";
-    String orgExtId = "bbmri:DE:MHH";
-    long orgId = 10L;
-
-    ticketMappingRepository.save(
-        new TicketMapping(
-            new TicketMappingId(negotiationId, ticketA, "r-1"),
-            "src-1",
-            String.valueOf(orgId),
-            orgExtId));
-    ticketMappingRepository.save(
-        new TicketMapping(
-            new TicketMappingId(negotiationId, ticketB, "r-2"),
-            "src-2",
-            String.valueOf(orgId),
-            orgExtId));
-
+    String toState = NegotiatorResourceEvent.GRANT_ACCESS_TO_RESOURCE.targetState();
+    Mockito.doNothing()
+        .when(helpdeskClient)
+        .updateResourceState(eq(TICKET_RESOURCE), eq(toState), any());
     String body =
-        negotiationStateChangedPayload(
-            negotiationId,
-            NegotiatorNegotiationEvent.UNPAUSE.toState(),
-            NegotiatorNegotiationEvent.PAUSE.toState(),
-            NegotiatorNegotiationEvent.PAUSE.name());
-    performWebhook("state-change-w1", Instant.now(), body).andExpect(status().isOk());
+        resourceStateUpdatedPayload(
+            NEGOTIATION_ID,
+            RESOURCE_SOURCE_ID,
+            "ACCESS_CONDITIONS_MET",
+            toState,
+            NegotiatorResourceEvent.GRANT_ACCESS_TO_RESOURCE.toString());
+    performWebhook("resource-close-w1", Instant.now(), body).andExpect(status().isOk());
 
-    verify(helpdeskClient)
-        .updateNegotiationState(eq(ticketA), eq(NegotiatorNegotiationEvent.PAUSE.toState()), any());
-    verify(helpdeskClient)
-        .updateNegotiationState(eq(ticketB), eq(NegotiatorNegotiationEvent.PAUSE.toState()), any());
+    verify(helpdeskClient).updateResourceState(eq(TICKET_RESOURCE), eq(toState), any());
+    verify(helpdeskClient).updateTicketState(eq(TICKET_RESOURCE), eq("closed"), any());
   }
 
   private void sendResourceStateWebhook(
