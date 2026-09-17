@@ -331,15 +331,15 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     try {
       context.client().updateNegotiationState(ticketId, toState, context.config());
       log.info("Updated negotiation state '{}' on ticket '{}'", toState, ticketId);
+      TicketStateUpdater.applyTicketStateMapping(
+          context.client(),
+          context.config(),
+          ticketId,
+          context.config().negotiationStateToTicketState(),
+          toState,
+          "negotiation");
     } catch (Exception e) {
       log.error("Failed to update negotiation state on ticket '{}'", ticketId, e);
     }
-    TicketStateUpdater.applyTicketStateMapping(
-        context.client(),
-        context.config(),
-        ticketId,
-        context.config().negotiationStateToTicketState(),
-        toState,
-        "negotiation");
   }
 }
