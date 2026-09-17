@@ -30,6 +30,8 @@ negotiator-link:
       negotiationStateToTicketState:
         CONCLUDED: "closed"
         ABANDONED: "closed"
+      resourceStateToTicketState:
+        RESOURCE_MADE_AVAILABLE: "closed"
       negotiatorCredentials:
         clientId: "test-client-id-mhh"
         clientSecret: "test-client-secret-mhh"

@@ -3,6 +3,8 @@ package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.handler;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -187,7 +189,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
     when(originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
             NEGOTIATION_ID, TICKET_ID, NEW_STATE))
         .thenReturn(Optional.empty());
-    org.mockito.Mockito.doThrow(new RuntimeException("adapter down"))
+    doThrow(new RuntimeException("adapter down"))
         .when(helpdeskClient)
         .updateResourceState(any(), any(), any());
 
@@ -204,6 +206,59 @@ class NegotiationResourceStateUpdatedHandlerTest {
 
     verify(ticketMappingRepository, never()).findByIdNegotiationIdAndResourceSourceId(any(), any());
     verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
+  }
+
+  @Test
+  void handle_resourceStateHasTicketMapping_updatesResourceStateThenTicketState() {
+    var config = createConfig(TicketStrategy.PER_RESOURCE, Map.of(NEW_STATE, "closed"));
+    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
+            NEGOTIATION_ID, RESOURCE_ID))
+        .thenReturn(Optional.of(mapping()));
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+    when(originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
+            NEGOTIATION_ID, TICKET_ID, NEW_STATE))
+        .thenReturn(Optional.empty());
+
+    handler.handle(eventData(NEW_STATE));
+
+    var order = inOrder(helpdeskClient);
+    order.verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
+    order.verify(helpdeskClient).updateTicketState(eq(TICKET_ID), eq("closed"), eq(config));
+  }
+
+  @Test
+  void handle_resourceStateHasNoTicketMapping_doesNotUpdateTicketState() {
+    var config = createConfig(TicketStrategy.PER_RESOURCE, Map.of("OTHER_STATE", "closed"));
+    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
+            NEGOTIATION_ID, RESOURCE_ID))
+        .thenReturn(Optional.of(mapping()));
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+    when(originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
+            NEGOTIATION_ID, TICKET_ID, NEW_STATE))
+        .thenReturn(Optional.empty());
+
+    handler.handle(eventData(NEW_STATE));
+
+    verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
+    verify(helpdeskClient, never()).updateTicketState(any(), any(), any());
+  }
+
+  @Test
+  void handle_updateTicketStateThrows_doesNotPropagateException() {
+    var config = createConfig(TicketStrategy.PER_RESOURCE, Map.of(NEW_STATE, "closed"));
+    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
+            NEGOTIATION_ID, RESOURCE_ID))
+        .thenReturn(Optional.of(mapping()));
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+    when(originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
+            NEGOTIATION_ID, TICKET_ID, NEW_STATE))
+        .thenReturn(Optional.empty());
+    doThrow(new RuntimeException("adapter down"))
+        .when(helpdeskClient)
+        .updateTicketState(any(), any(), any());
+
+    assertDoesNotThrow(() -> handler.handle(eventData(NEW_STATE)));
+    verify(helpdeskClient).updateTicketState(eq(TICKET_ID), eq("closed"), eq(config));
   }
 
   private JsonNode eventData(String toState) {
@@ -223,6 +278,11 @@ class NegotiationResourceStateUpdatedHandlerTest {
 
   private OrganizationConfig createConfig(TicketStrategy strategy) {
     return TestUtil.organizationConfig(ORG_EXT_ID, strategy);
+  }
+
+  private OrganizationConfig createConfig(
+      TicketStrategy strategy, Map<String, String> resourceStateToTicketState) {
+    return TestUtil.organizationConfig(ORG_EXT_ID, strategy, Map.of(), resourceStateToTicketState);
   }
 
   private OriginatedTransition transition(int expected, int received) {
