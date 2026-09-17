@@ -155,6 +155,11 @@ public final class TestUtil {
   }
 
   public static OrganizationConfig organizationConfig(String orgExtId, TicketStrategy strategy) {
+    return organizationConfig(orgExtId, strategy, Map.of());
+  }
+
+  public static OrganizationConfig organizationConfig(
+      String orgExtId, TicketStrategy strategy, Map<String, String> negotiationStateToTicketState) {
     return new OrganizationConfig(
         orgExtId,
         HelpdeskType.ZAMMAD,
@@ -163,6 +168,7 @@ public final class TestUtil {
         Map.of("apiToken", "tok"),
         "secret",
         Map.of("group", "3"),
+        negotiationStateToTicketState,
         new NegotiatorCredentials("test-client-id", "test-client-secret"));
   }
 }
