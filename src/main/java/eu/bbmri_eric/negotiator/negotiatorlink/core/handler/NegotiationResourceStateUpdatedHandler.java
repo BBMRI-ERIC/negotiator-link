@@ -11,6 +11,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedTransition;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.util.TicketStateUpdater;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.NegotiationResourceStateUpdatedWebhookEvent;
 import java.util.Map;
 import java.util.Optional;
@@ -128,6 +129,7 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
             toState,
             context.ticketId());
         context.client().updateResourceState(context.ticketId(), toState, context.config());
+        applyTicketStateMapping(toState, context);
       }
     } catch (Exception e) {
       log.error(
@@ -165,6 +167,7 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
           toState);
       try {
         context.client().updateResourceState(ticketId, toState, context.config());
+        applyTicketStateMapping(toState, context);
       } catch (Exception e) {
         log.error(
             "Failed to update resource state to '{}' on ticket '{}' for originated transition",
@@ -187,5 +190,15 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
           expected,
           ticketId);
     }
+  }
+
+  private void applyTicketStateMapping(String toState, DispatchContext context) {
+    TicketStateUpdater.applyTicketStateMapping(
+        context.client(),
+        context.config(),
+        context.ticketId(),
+        context.config().resourceStateToTicketState(),
+        toState,
+        "resource");
   }
 }
