@@ -26,6 +26,7 @@ public class NegotiatorLinkProperties {
     private Map<String, Object> platformConfig = new HashMap<>();
     private Map<String, String> negotiationStateToTicketState = new HashMap<>();
     private Map<String, String> resourceStateToTicketState = new HashMap<>();
+    private Map<String, String> ticketStateToResourceEvent = new HashMap<>();
     private NegotiatorCredentialsEntry negotiatorCredentials = new NegotiatorCredentialsEntry();
   }
 

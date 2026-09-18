@@ -50,6 +50,7 @@ public class OrganizationConfigRegistry {
         entry.getPlatformConfig(),
         entry.getNegotiationStateToTicketState(),
         entry.getResourceStateToTicketState(),
+        entry.getTicketStateToResourceEvent(),
         new NegotiatorCredentials(nc.getClientId(), nc.getClientSecret()));
   }
 

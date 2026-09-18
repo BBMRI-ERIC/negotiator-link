@@ -28,13 +28,24 @@ class NegotiatorLinkPropertiesTest {
     assertThat(config.get().negotiationStateToTicketState()).containsEntry("CONCLUDED", "closed");
     assertThat(config.get().resourceStateToTicketState())
         .containsEntry("RESOURCE_MADE_AVAILABLE", "closed");
+    assertThat(config.get().ticketStateToResourceEvent())
+        .containsEntry("open", "MARK_AS_CHECKING_AVAILABILITY");
     assertThat(config.get().negotiatorCredentials().clientId()).isEqualTo("test-client-id-mhh");
     assertThat(config.get().negotiatorCredentials().clientSecret())
         .isEqualTo("test-client-secret-mhh");
   }
 
   @Test
-  void findAll_whenTestYamlLoaded_returnsBothTestOrgs() {
-    assertThat(registry.findAll()).hasSize(2);
+  void stateMaps_whenOmittedFromYaml_defaultToEmptyMaps() {
+    var config = registry.findByExternalId("bbmri:CZ:MMCI");
+    assertThat(config).isPresent();
+    assertThat(config.get().negotiationStateToTicketState()).isEmpty();
+    assertThat(config.get().resourceStateToTicketState()).isEmpty();
+    assertThat(config.get().ticketStateToResourceEvent()).isEmpty();
+  }
+
+  @Test
+  void findAll_whenTestYamlLoaded_returnsAllTestOrgs() {
+    assertThat(registry.findAll()).hasSize(3);
   }
 }
