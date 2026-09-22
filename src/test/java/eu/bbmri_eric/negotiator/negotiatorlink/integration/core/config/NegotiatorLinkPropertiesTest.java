@@ -36,7 +36,7 @@ class NegotiatorLinkPropertiesTest {
   }
 
   @Test
-  void stateMaps_whenOmittedFromYaml_defaultToEmptyMaps() {
+  void stateMaps_whenExplicitlyEmpty_resolveToEmptyMaps() {
     var config = registry.findByExternalId("bbmri:CZ:MMCI");
     assertThat(config).isPresent();
     assertThat(config.get().negotiationStateToTicketState()).isEmpty();
@@ -45,7 +45,21 @@ class NegotiatorLinkPropertiesTest {
   }
 
   @Test
+  void stateMaps_whenAbsentFromOrg_inheritsTypeDefaults() {
+    var config = registry.findByExternalId("bbmri:FI:FIMM");
+    assertThat(config).isPresent();
+    assertThat(config.get().negotiationStateToTicketState())
+        .containsEntry("ABANDONED", "closed")
+        .containsEntry("CONCLUDED", "closed");
+    assertThat(config.get().resourceStateToTicketState())
+        .containsEntry("RESOURCE_NOT_MADE_AVAILABLE", "closed")
+        .containsEntry("RESOURCE_MADE_AVAILABLE", "closed");
+    assertThat(config.get().ticketStateToResourceEvent())
+        .containsEntry("open", "MARK_AS_CHECKING_AVAILABILITY");
+  }
+
+  @Test
   void findAll_whenTestYamlLoaded_returnsAllTestOrgs() {
-    assertThat(registry.findAll()).hasSize(3);
+    assertThat(registry.findAll()).hasSize(4);
   }
 }
