@@ -430,7 +430,8 @@ the help desk article's `created_by` field. Actor identity propagation as a dedi
 
 **OPEN QUESTION:** Does we want to allow post messages also for CONCLUDED negotiation state? Currently negotiator
 disable posts when state changed IN_PROGRESS → ABANDONED, however not for PAUSED → ABANDONED which is probably the
-implementation bug
+implementation bug.
+**RESPONSE:** the messages will not be allowed for ABANDONED state.
 
 Overview of allowed post visibility types by negotiation state:
 
@@ -1463,20 +1464,38 @@ To support this flow, a new `TicketStateChangedEvent` is added to `HelpdeskCallb
 this event type. A new trigger must be configured in the help desk (Trigger 3) that fires when the ticket state
 changes; the middleware bot account must be excluded from this trigger to prevent loops.
 
-**Access form payload updates:** When the researcher updates the negotiation access form, the help desk ticket
-description should be refreshed to reflect the new content, and any attachments uploaded during the edit must also be
-forwarded to the help desk. This requires a new webhook event to be introduced in Negotiator — currently no such event
-exists. The existing `negotiation.info.updated` event (`WebhookEventType.NEGOTIATION_INFO_UPDATED`) is **not** suitable
-for this purpose: it is fired by `InformationSubmissionServiceImpl` when a representative submits an
-`InformationSubmission` (the Information Requirements feature), not when the researcher edits the negotiation payload.
-`NegotiationServiceImpl.updateNegotiation()` updates `negotiation.payload` at line 195 but publishes no application
-event and dispatches no webhook. A new `NegotiationPayloadUpdatedEvent` Spring application event must therefore be
-introduced in Negotiator, published from `NegotiationServiceImpl` after the payload is saved, and wired into the webhook
-dispatch system following the same pattern as existing events — a new `WebhookEventType` constant (e.g.
-`NEGOTIATION_PAYLOAD_UPDATED`), a new webhook payload DTO carrying `negotiationId`, and a new `WebhookMappingStrategy`
-registration. On the middleware side a new `NegotiationPayloadUpdatedHandler` fetches the updated negotiation from
-Negotiator via a secondary REST call, posts the refreshed content as a new comment to all mapped tickets, and forwards
-any new attachments that have not yet been forwarded (see attachment handling below).
+**Access form payload updates:** When a researcher or admin updates the access form payload, change the negotiation 
+display ID or transfer the negotiation to a different researcher, the middleware receives a `negotiation.updated` webhook,
+which contains the negotiation ID of the updated negotiation. The middleware needs to fetch the full negottiation with
+the attachments and put the message to the helpdesk ticket with new negotiation body, as it is done after the ticket creation
+and it needs to also transfer the attachments if they were added during the access form update.
+
+**Propagate timeline logs:** when the negotiation state or resource state changes, the Negotiator saves a timeline log entry,
+which is visible in the Negotiator UI. The middleware should fetch the timeline log entry and add it as a system comment to
+the corresponding help desk ticket. This ensures that representatives have a complete view of the negotiation's history.
+The timeline log entry can be fetched via `GET /v3/negotiations/{negotiationId}/timeline` endpoint (returned
+timelines are sorted from oldest to newest). However, there is no ID of the timeline in the response and the middleware 
+needs to know which timeline entry is new. It needs to store for example the timestamp of the last timeline entry that was added
+to the ticket. Here is the example of the Negotiator response when fetching timelines:
+
+```json
+{
+  "_embedded": {
+    "timelineEvents": [
+      {
+        "triggeredBy": "TheResearcher",
+        "text": "TheResearcher changed the status of the Negotiation to Draft",
+        "timestamp": "2024-01-03T08:00:00"
+      },
+      {
+        "triggeredBy": "TheResearcher",
+        "text": "TheResearcher changed the status of the Negotiation to Under review",
+        "timestamp": "2024-01-03T11:00:00"
+      }
+    ]
+  }
+}
+```
 
 **Attachments:** Attachment forwarding in milestone 2 is intentionally scoped to two triggers: ticket creation
 (`NegotiationStateUpdatedHandler`) and access form payload updates (`NegotiationPayloadUpdatedHandler`). Forwarding
