@@ -2,6 +2,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.e2e;
 
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.negotiation;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.negotiationApprovedPayload;
+import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.negotiationStateChangedPayload;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.postAddedPayload;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.resource;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.resourceStateUpdatedPayload;
@@ -23,6 +24,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
+import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorNegotiationEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorResourceEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.time.Instant;
@@ -73,7 +75,8 @@ class NegotiatorToZammadE2ETest {
     var resource = resource(10L, "src-1", "Resource A", ORG_EXT_ID, ORG_ID);
 
     when(negotiatorClient.getNegotiation(eq(negotiationId), any(OrganizationConfig.class)))
-        .thenReturn(negotiation(negotiationId, "E2E-1", "IN_PROGRESS"));
+        .thenReturn(
+            negotiation(negotiationId, "E2E-1", NegotiatorNegotiationEvent.APPROVE.toState()));
     when(negotiatorClient.getResources(eq(negotiationId), any(OrganizationConfig.class)))
         .thenReturn(List.of(resource));
 
@@ -83,7 +86,8 @@ class NegotiatorToZammadE2ETest {
         .andExpect(jsonPath("$.title").value("[NEGO-E2E-1] Access Request — Resource A"))
         .andExpect(jsonPath("$.group").value("Sales"))
         .andExpect(jsonPath("$.customer").value("negotiator-link@mhh.de"))
-        .andExpect(jsonPath("$.negotiation_state").value("IN_PROGRESS"))
+        .andExpect(
+            jsonPath("$.negotiation_state").value(NegotiatorNegotiationEvent.APPROVE.toState()))
         .andExpect(jsonPath("$.negotiator_resource_state").value("SUBMITTED"))
         .andRespond(withSuccess("{\"id\":1,\"number\":\"1001\"}", MediaType.APPLICATION_JSON));
 
@@ -160,6 +164,51 @@ class NegotiatorToZammadE2ETest {
         .andRespond(withSuccess());
 
     postWebhook("msg-e2e-post", body);
+
+    zammadServer.verify();
+  }
+
+  @Test
+  void negotiationStateChanged_updatesNegotiationStateOnAllZammadTickets() throws Exception {
+    String negotiationId = "neg-e2e-state-1";
+    String ticketId1 = "t-state-1";
+    String ticketId2 = "t-state-2";
+
+    ticketMappingRepository.save(
+        new TicketMapping(
+            new TicketMappingId(negotiationId, ticketId1, "res-state-1"),
+            "src-state-1",
+            String.valueOf(ORG_ID),
+            ORG_EXT_ID));
+    ticketMappingRepository.save(
+        new TicketMapping(
+            new TicketMappingId(negotiationId, ticketId2, "res-state-2"),
+            "src-state-2",
+            String.valueOf(ORG_ID),
+            ORG_EXT_ID));
+
+    var body =
+        negotiationStateChangedPayload(
+            negotiationId,
+            NegotiatorNegotiationEvent.UNPAUSE.toState(),
+            NegotiatorNegotiationEvent.PAUSE.toState(),
+            NegotiatorNegotiationEvent.PAUSE.name());
+
+    zammadServer
+        .expect(requestTo(ZAMMAD_BASE + "/api/v1/tickets/" + ticketId1))
+        .andExpect(method(HttpMethod.PUT))
+        .andExpect(
+            jsonPath("$.negotiation_state").value(NegotiatorNegotiationEvent.PAUSE.toState()))
+        .andRespond(withSuccess());
+
+    zammadServer
+        .expect(requestTo(ZAMMAD_BASE + "/api/v1/tickets/" + ticketId2))
+        .andExpect(method(HttpMethod.PUT))
+        .andExpect(
+            jsonPath("$.negotiation_state").value(NegotiatorNegotiationEvent.PAUSE.toState()))
+        .andRespond(withSuccess());
+
+    postWebhook("msg-e2e-state", body);
 
     zammadServer.verify();
   }

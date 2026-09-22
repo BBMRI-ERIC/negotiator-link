@@ -29,6 +29,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFo
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
+import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorNegotiationEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -45,7 +46,7 @@ class NegotiationStateUpdatedHandlerTest {
 
   private static final String NEGOTIATION_ID = "neg-1";
   private static final String DISPLAY_ID = "NEGO-1";
-  private static final String NEGOTIATION_STATE = "IN_PROGRESS";
+  private static final String NEGOTIATION_STATE = NegotiatorNegotiationEvent.APPROVE.toState();
   private static final String ORG_EXT_ID = "bbmri:DE:MHH";
   private static final Long ORG_INTERNAL_ID = 10L;
   private static final String TICKET_ID = "ticket-42";
@@ -147,7 +148,7 @@ class NegotiationStateUpdatedHandlerTest {
 
   @Test
   void handle_nonApproveEvent_doesNotCreateTickets() {
-    handler.handle(eventData("PAUSE", "IN_PROGRESS", "PAUSED"));
+    handler.handle(eventData(NegotiatorNegotiationEvent.PAUSE));
 
     verify(negotiatorClient, never()).getResources(any(), any());
     verify(helpdeskClient, never()).createTicket(any(), any());
@@ -410,16 +411,20 @@ class NegotiationStateUpdatedHandlerTest {
   }
 
   private JsonNode approveEventData() {
-    return eventData("APPROVE", "SUBMITTED", "IN_PROGRESS");
+    return eventData(NegotiatorNegotiationEvent.APPROVE);
   }
 
-  private JsonNode eventData(String event, String fromState, String toState) {
+  private JsonNode eventData(NegotiatorNegotiationEvent event) {
     return objectMapper.valueToTree(
         Map.of(
-            "negotiationId", NEGOTIATION_ID,
-            "event", event,
-            "fromState", fromState,
-            "toState", toState));
+            "negotiationId",
+            NEGOTIATION_ID,
+            "event",
+            event.name(),
+            "fromState",
+            "SUBMITTED",
+            "toState",
+            event.toState()));
   }
 
   private EntityModelNegotiationDTO createNegotiation() {
@@ -436,5 +441,181 @@ class NegotiationStateUpdatedHandlerTest {
 
   private OrganizationConfig createConfig(TicketStrategy strategy) {
     return TestUtil.organizationConfig(ORG_EXT_ID, strategy);
+  }
+
+  // --- handleStateChange tests ---
+
+  @Test
+  void handleStateChange_callsUpdateNegotiationStateOnAllMappedTickets() {
+    var config = createConfig(TicketStrategy.PER_RESOURCE);
+    var mapping1 =
+        new TicketMapping(
+            new TicketMappingId(NEGOTIATION_ID, "ticket-1", "r-1"),
+            "src-1",
+            String.valueOf(ORG_INTERNAL_ID),
+            ORG_EXT_ID);
+    var mapping2 =
+        new TicketMapping(
+            new TicketMappingId(NEGOTIATION_ID, "ticket-2", "r-2"),
+            "src-2",
+            String.valueOf(ORG_INTERNAL_ID),
+            ORG_EXT_ID);
+
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID))
+        .thenReturn(List.of(mapping1, mapping2));
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+
+    handler.handle(eventData(NegotiatorNegotiationEvent.PAUSE));
+
+    verify(helpdeskClient)
+        .updateNegotiationState(
+            eq("ticket-1"), eq(NegotiatorNegotiationEvent.PAUSE.toState()), eq(config));
+    verify(helpdeskClient)
+        .updateNegotiationState(
+            eq("ticket-2"), eq(NegotiatorNegotiationEvent.PAUSE.toState()), eq(config));
+  }
+
+  @Test
+  void handleStateChange_perNegotiation_singleTicketMultipleResources_callsOnce() {
+    var config = createConfig(TicketStrategy.PER_NEGOTIATION);
+    var mapping1 =
+        new TicketMapping(
+            new TicketMappingId(NEGOTIATION_ID, TICKET_ID, "r-1"),
+            "src-1",
+            String.valueOf(ORG_INTERNAL_ID),
+            ORG_EXT_ID);
+    var mapping2 =
+        new TicketMapping(
+            new TicketMappingId(NEGOTIATION_ID, TICKET_ID, "r-2"),
+            "src-2",
+            String.valueOf(ORG_INTERNAL_ID),
+            ORG_EXT_ID);
+
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID))
+        .thenReturn(List.of(mapping1, mapping2));
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+
+    handler.handle(eventData(NegotiatorNegotiationEvent.PAUSE));
+
+    verify(helpdeskClient, times(1))
+        .updateNegotiationState(
+            eq(TICKET_ID), eq(NegotiatorNegotiationEvent.PAUSE.toState()), eq(config));
+  }
+
+  @Test
+  void handleStateChange_noMappedTickets_doesNothing() {
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(List.of());
+
+    handler.handle(eventData(NegotiatorNegotiationEvent.PAUSE));
+
+    verify(helpdeskClient, never()).updateNegotiationState(any(), any(), any());
+  }
+
+  @Test
+  void handleStateChange_missingNegotiationId_discards() {
+    JsonNode data =
+        objectMapper.valueToTree(
+            Map.of(
+                "event",
+                NegotiatorNegotiationEvent.PAUSE.name(),
+                "fromState",
+                NegotiatorNegotiationEvent.UNPAUSE.toState(),
+                "toState",
+                NegotiatorNegotiationEvent.PAUSE.toState()));
+
+    assertDoesNotThrow(() -> handler.handle(data));
+
+    verify(ticketMappingRepository, never()).findByIdNegotiationId(any());
+    verify(helpdeskClient, never()).updateNegotiationState(any(), any(), any());
+  }
+
+  @Test
+  void handleStateChange_missingToState_discards() {
+    JsonNode data =
+        objectMapper.valueToTree(
+            Map.of(
+                "negotiationId",
+                NEGOTIATION_ID,
+                "event",
+                NegotiatorNegotiationEvent.PAUSE.name(),
+                "fromState",
+                NegotiatorNegotiationEvent.UNPAUSE.toState()));
+
+    assertDoesNotThrow(() -> handler.handle(data));
+
+    verify(ticketMappingRepository, never()).findByIdNegotiationId(any());
+    verify(helpdeskClient, never()).updateNegotiationState(any(), any(), any());
+  }
+
+  @Test
+  void handleStateChange_orgNotInConfig_skipsTicket() {
+    var mapping =
+        new TicketMapping(
+            new TicketMappingId(NEGOTIATION_ID, TICKET_ID, "r-1"),
+            "src-1",
+            String.valueOf(ORG_INTERNAL_ID),
+            ORG_EXT_ID);
+
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID))
+        .thenReturn(List.of(mapping));
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.empty());
+
+    handler.handle(eventData(NegotiatorNegotiationEvent.PAUSE));
+
+    verify(helpdeskClient, never()).updateNegotiationState(any(), any(), any());
+  }
+
+  @Test
+  void handleStateChange_adapterThrows_continuesRemainingTickets() {
+    var config = createConfig(TicketStrategy.PER_RESOURCE);
+    var mapping1 =
+        new TicketMapping(
+            new TicketMappingId(NEGOTIATION_ID, "ticket-1", "r-1"),
+            "src-1",
+            String.valueOf(ORG_INTERNAL_ID),
+            ORG_EXT_ID);
+    var mapping2 =
+        new TicketMapping(
+            new TicketMappingId(NEGOTIATION_ID, "ticket-2", "r-2"),
+            "src-2",
+            String.valueOf(ORG_INTERNAL_ID),
+            ORG_EXT_ID);
+
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID))
+        .thenReturn(List.of(mapping1, mapping2));
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+    doThrow(new RuntimeException("adapter down"))
+        .when(helpdeskClient)
+        .updateNegotiationState(eq("ticket-1"), any(), any());
+
+    assertDoesNotThrow(() -> handler.handle(eventData(NegotiatorNegotiationEvent.PAUSE)));
+
+    verify(helpdeskClient)
+        .updateNegotiationState(
+            eq("ticket-2"), eq(NegotiatorNegotiationEvent.PAUSE.toState()), eq(config));
+  }
+
+  @Test
+  void handleStateChange_unknownAdapterType_skipsTicket() {
+    var config = createConfig(TicketStrategy.PER_RESOURCE);
+    var mapping =
+        new TicketMapping(
+            new TicketMappingId(NEGOTIATION_ID, TICKET_ID, "r-1"),
+            "src-1",
+            String.valueOf(ORG_INTERNAL_ID),
+            ORG_EXT_ID);
+
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID))
+        .thenReturn(List.of(mapping));
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+
+    var handlerWithNoAdapters =
+        new NegotiationStateUpdatedHandler(
+            negotiatorClient, registry, Map.of(), ticketMappingRepository, objectMapper);
+
+    assertDoesNotThrow(
+        () -> handlerWithNoAdapters.handle(eventData(NegotiatorNegotiationEvent.PAUSE)));
+
+    verify(helpdeskClient, never()).updateNegotiationState(any(), any(), any());
   }
 }

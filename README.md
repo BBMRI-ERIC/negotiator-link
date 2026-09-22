@@ -226,6 +226,14 @@ Set for each of the following resource states: SUBMITTED, REPRESENTATIVE_UNREACH
   - `negotiator_resource_transition_event` → **Set fixed to** *(read-only)*
 - Priority: 510 (then 520, 530 for the other two workflows)
 
+And set it to read-only also when the negotiation state is not IN_PROGRESS:
+- **Name**: `negotiator-link: lock resource transition when negotiatio state is not IN_PROGRESS`
+- **Object**: Ticket
+- **Conditions**: Negotiation State → is not → IN_PROGRESS
+- **Actions**:
+  - `negotiator_resource_transition_event` → **Set fixed to** *(read-only)*
+- Priority: 505
+
 **Create trigger for resource state transitions:**
 In Zammad: **Admin → Manage → Triggers → New Trigger**
 

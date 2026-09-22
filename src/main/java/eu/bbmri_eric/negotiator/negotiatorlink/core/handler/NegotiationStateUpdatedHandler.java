@@ -140,14 +140,6 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     return new OrgTicketContext(negotiationId, orgExtId, config, client);
   }
 
-  private void handleStateChange(NegotiationStateUpdatedWebhookEvent event) {
-    // TODO: milestone 2 — update negotiation_state field on all mapped tickets
-    log.info(
-        "Ignoring negotiation state change '{}' for negotiation '{}' — not yet implemented",
-        event.getEvent(),
-        event.getNegotiationId());
-  }
-
   private void handlePerNegotiation(
       EntityModelNegotiationDTO negotiation,
       List<EntityModelResourceWithStatusDTO> resources,
@@ -177,8 +169,6 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
 
     List<CreatedTicket> createdTickets = new ArrayList<>();
 
-    // The post list is negotiation-wide and identical for every resource ticket, so fetch it once
-    // rather than once per created ticket.
     List<EntityModelPostDTO> posts =
         negotiatorClient.getPosts(context.negotiationId(), context.config());
 
@@ -301,5 +291,47 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       }
     }
     return null;
+  }
+
+  private void handleStateChange(NegotiationStateUpdatedWebhookEvent event) {
+    String negotiationId = event.getNegotiationId();
+    String toState = event.getToState() != null ? event.getToState().getValue() : null;
+
+    if (negotiationId == null || toState == null) {
+      log.warn("negotiation.state.updated missing negotiationId or toState — discarding");
+      return;
+    }
+
+    Map<String, String> ticketToOrgExtId = getTicketIdByOrgExtId(negotiationId);
+    if (ticketToOrgExtId.isEmpty()) {
+      log.debug("No mapped tickets for negotiation '{}' — skipping state update", negotiationId);
+      return;
+    }
+
+    ticketToOrgExtId.forEach(
+        (ticketId, orgExtId) ->
+            updateNegotiationStateInTicket(negotiationId, ticketId, orgExtId, toState));
+  }
+
+  private Map<String, String> getTicketIdByOrgExtId(String negotiationId) {
+    Map<String, String> ticketToOrgExtId = new LinkedHashMap<>();
+    for (TicketMapping m : ticketMappingRepository.findByIdNegotiationId(negotiationId)) {
+      ticketToOrgExtId.putIfAbsent(m.getId().getHelpdeskTicketId(), m.getOrganizationExtId());
+    }
+    return ticketToOrgExtId;
+  }
+
+  private void updateNegotiationStateInTicket(
+      String negotiationId, String ticketId, String orgExtId, String toState) {
+    OrgTicketContext context = resolveOrgContext(negotiationId, orgExtId);
+    if (context == null) {
+      return;
+    }
+    try {
+      context.client().updateNegotiationState(ticketId, toState, context.config());
+      log.info("Updated negotiation state '{}' on ticket '{}'", toState, ticketId);
+    } catch (Exception e) {
+      log.error("Failed to update negotiation state on ticket '{}'", ticketId, e);
+    }
   }
 }
