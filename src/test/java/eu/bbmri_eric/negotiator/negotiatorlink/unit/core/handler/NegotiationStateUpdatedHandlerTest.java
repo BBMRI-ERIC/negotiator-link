@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
@@ -226,7 +227,11 @@ class NegotiationStateUpdatedHandlerTest {
     handler.handle(approveEventData());
 
     verify(helpdeskClient)
-        .addComment(eq(TICKET_ID), startsWith("From: Alice <alice@example.com>"), eq(config));
+        .addComment(
+            eq(TICKET_ID),
+            startsWith("From: Alice <alice@example.com>"),
+            eq(CommentType.PLAIN_TEXT),
+            eq(config));
   }
 
   @Test
@@ -248,8 +253,12 @@ class NegotiationStateUpdatedHandlerTest {
     handler.handle(approveEventData());
 
     var order = inOrder(helpdeskClient);
-    order.verify(helpdeskClient).addComment(eq(TICKET_ID), startsWith("first"), eq(config));
-    order.verify(helpdeskClient).addComment(eq(TICKET_ID), startsWith("second"), eq(config));
+    order
+        .verify(helpdeskClient)
+        .addComment(eq(TICKET_ID), startsWith("first"), eq(CommentType.PLAIN_TEXT), eq(config));
+    order
+        .verify(helpdeskClient)
+        .addComment(eq(TICKET_ID), startsWith("second"), eq(CommentType.PLAIN_TEXT), eq(config));
   }
 
   @Test
@@ -268,8 +277,8 @@ class NegotiationStateUpdatedHandlerTest {
 
     handler.handle(approveEventData());
 
-    verify(helpdeskClient).addComment(eq("ticket-1"), any(), eq(config));
-    verify(helpdeskClient).addComment(eq("ticket-2"), any(), eq(config));
+    verify(helpdeskClient).addComment(eq("ticket-1"), any(), any(), eq(config));
+    verify(helpdeskClient).addComment(eq("ticket-2"), any(), any(), eq(config));
   }
 
   @Test
@@ -285,7 +294,7 @@ class NegotiationStateUpdatedHandlerTest {
 
     handler.handle(approveEventData());
 
-    verify(helpdeskClient, never()).addComment(any(), any(), any());
+    verify(helpdeskClient, never()).addComment(any(), any(), any(), any());
   }
 
   @Test
@@ -302,7 +311,8 @@ class NegotiationStateUpdatedHandlerTest {
 
     handler.handle(approveEventData());
 
-    verify(helpdeskClient).addComment(eq(TICKET_ID), eq("Anonymous text"), eq(config));
+    verify(helpdeskClient)
+        .addComment(eq(TICKET_ID), eq("Anonymous text"), eq(CommentType.PLAIN_TEXT), eq(config));
   }
 
   @Test
@@ -319,7 +329,7 @@ class NegotiationStateUpdatedHandlerTest {
 
     handler.handle(approveEventData());
 
-    verify(helpdeskClient, never()).addComment(any(), any(), any());
+    verify(helpdeskClient, never()).addComment(any(), any(), any(), any());
   }
 
   @Test
@@ -339,10 +349,11 @@ class NegotiationStateUpdatedHandlerTest {
     stubPosts(config, List.of(post1, post2));
     doThrow(new RuntimeException("adapter down"))
         .when(helpdeskClient)
-        .addComment(eq(TICKET_ID), startsWith("first"), eq(config));
+        .addComment(eq(TICKET_ID), startsWith("first"), eq(CommentType.PLAIN_TEXT), eq(config));
 
     assertDoesNotThrow(() -> handler.handle(approveEventData()));
-    verify(helpdeskClient).addComment(eq(TICKET_ID), startsWith("second"), eq(config));
+    verify(helpdeskClient)
+        .addComment(eq(TICKET_ID), startsWith("second"), eq(CommentType.PLAIN_TEXT), eq(config));
   }
 
   @Test
@@ -358,7 +369,7 @@ class NegotiationStateUpdatedHandlerTest {
     stubPosts(config, List.of(post));
     doThrow(new RuntimeException("adapter down"))
         .when(helpdeskClient)
-        .addComment(any(), any(), any());
+        .addComment(any(), any(), any(), any());
 
     handler.handle(approveEventData());
 

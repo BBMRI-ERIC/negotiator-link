@@ -20,6 +20,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedPost;
@@ -204,8 +205,9 @@ class NegotiatorWebhookControllerTest {
         .andExpect(status().isOk());
 
     // ticketB must receive the comment; ticketA must be excluded
-    verify(helpdeskClient).addComment(eq(ticketB), contains(postText), any());
-    verify(helpdeskClient, never()).addComment(eq(ticketA), any(), any());
+    verify(helpdeskClient)
+        .addComment(eq(ticketB), contains(postText), eq(CommentType.PLAIN_TEXT), any());
+    verify(helpdeskClient, never()).addComment(eq(ticketA), any(), any(), any());
   }
 
   @Test
@@ -249,7 +251,7 @@ class NegotiatorWebhookControllerTest {
     performWebhook("upd-w1", Instant.now(), negotiationUpdatedPayload("upd-neg-0"))
         .andExpect(status().isOk());
 
-    verify(helpdeskClient, never()).addComment(anyString(), anyString(), any());
+    verify(helpdeskClient, never()).addComment(anyString(), anyString(), any(), any());
   }
 
   @Test
@@ -284,8 +286,10 @@ class NegotiatorWebhookControllerTest {
     performWebhook("upd-w2", Instant.now(), negotiationUpdatedPayload(negotiationId))
         .andExpect(status().isOk());
 
-    verify(helpdeskClient, times(1)).addComment(eq(ticketA), contains("updated"), any());
-    verify(helpdeskClient, times(1)).addComment(eq(ticketB), contains("updated"), any());
+    verify(helpdeskClient, times(1))
+        .addComment(eq(ticketA), contains("updated"), eq(CommentType.HTML), any());
+    verify(helpdeskClient, times(1))
+        .addComment(eq(ticketB), contains("updated"), eq(CommentType.HTML), any());
   }
 
   @Test
@@ -320,7 +324,8 @@ class NegotiatorWebhookControllerTest {
     performWebhook("upd-w3", Instant.now(), negotiationUpdatedPayload(negotiationId))
         .andExpect(status().isOk());
 
-    verify(helpdeskClient, times(1)).addComment(eq(ticketId), contains("updated"), any());
+    verify(helpdeskClient, times(1))
+        .addComment(eq(ticketId), contains("updated"), eq(CommentType.HTML), any());
   }
 
   @Test
@@ -354,12 +359,13 @@ class NegotiatorWebhookControllerTest {
                 TestUtil.resource(2L, "src-2", "Collection B", orgExtId, orgId)));
     doThrow(new RuntimeException("helpdesk down"))
         .when(helpdeskClient)
-        .addComment(eq(ticketA), anyString(), any());
+        .addComment(eq(ticketA), anyString(), any(), any());
 
     performWebhook("upd-w4", Instant.now(), negotiationUpdatedPayload(negotiationId))
         .andExpect(status().isOk());
 
-    verify(helpdeskClient, times(1)).addComment(eq(ticketB), contains("updated"), any());
+    verify(helpdeskClient, times(1))
+        .addComment(eq(ticketB), contains("updated"), eq(CommentType.HTML), any());
   }
 
   private void sendResourceStateWebhook(

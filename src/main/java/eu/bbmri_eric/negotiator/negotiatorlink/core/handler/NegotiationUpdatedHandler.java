@@ -2,6 +2,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
@@ -100,7 +101,7 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
     String body =
         buildBody(ticketId, config.ticketStrategy(), negotiation, resourceById, allMappings);
     try {
-      client.addComment(ticketId, body, config);
+      client.addComment(ticketId, body, CommentType.HTML, config);
       log.info(
           "Posted negotiation update comment to ticket '{}' (negotiation '{}')",
           ticketId,

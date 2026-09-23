@@ -2,6 +2,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
@@ -218,7 +219,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
                   createdBy != null ? new Sender(createdBy.getName(), createdBy.getEmail()) : null;
               String signedText = PostUtil.signPost(post.getText(), sender);
               try {
-                context.client().addComment(ticketId, signedText, config);
+                context.client().addComment(ticketId, signedText, CommentType.PLAIN_TEXT, config);
                 log.info("Posted comment '{}' to ticket '{}'", post.getId(), ticketId);
               } catch (Exception e) {
                 log.error("Failed to post comment '{}' to ticket '{}'", post.getId(), ticketId, e);

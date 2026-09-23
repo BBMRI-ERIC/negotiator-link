@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
@@ -67,14 +68,14 @@ class NegotiationUpdatedHandlerTest {
 
     handler.handle(updatedEventNode(NEGOTIATION_ID));
 
-    verify(helpdeskClient, never()).addComment(anyString(), anyString(), any());
+    verify(helpdeskClient, never()).addComment(anyString(), anyString(), any(), any());
   }
 
   @Test
   void handle_nullNegotiationId_doesNotAddComment() throws Exception {
     handler.handle(updatedEventNode(null));
 
-    verify(helpdeskClient, never()).addComment(anyString(), anyString(), any());
+    verify(helpdeskClient, never()).addComment(anyString(), anyString(), any(), any());
     verify(ticketMappingRepository, never()).findByIdNegotiationId(anyString());
   }
 
@@ -94,7 +95,8 @@ class NegotiationUpdatedHandlerTest {
 
     handler.handle(updatedEventNode(NEGOTIATION_ID));
 
-    verify(helpdeskClient, times(1)).addComment(eq(TICKET_ID), contains("updated"), eq(config));
+    verify(helpdeskClient, times(1))
+        .addComment(eq(TICKET_ID), contains("updated"), eq(CommentType.HTML), eq(config));
   }
 
   @Test
@@ -120,8 +122,10 @@ class NegotiationUpdatedHandlerTest {
 
     handler.handle(updatedEventNode(NEGOTIATION_ID));
 
-    verify(helpdeskClient, times(1)).addComment(eq(TICKET_ID), contains("updated"), eq(config1));
-    verify(helpdeskClient, times(1)).addComment(eq(ticketId2), contains("updated"), eq(config2));
+    verify(helpdeskClient, times(1))
+        .addComment(eq(TICKET_ID), contains("updated"), eq(CommentType.HTML), eq(config1));
+    verify(helpdeskClient, times(1))
+        .addComment(eq(ticketId2), contains("updated"), eq(CommentType.HTML), eq(config2));
   }
 
   @Test
@@ -143,7 +147,8 @@ class NegotiationUpdatedHandlerTest {
 
     handler.handle(updatedEventNode(NEGOTIATION_ID));
 
-    verify(helpdeskClient, times(1)).addComment(eq(TICKET_ID), contains("updated"), eq(config));
+    verify(helpdeskClient, times(1))
+        .addComment(eq(TICKET_ID), contains("updated"), eq(CommentType.HTML), eq(config));
   }
 
   @Test
@@ -168,12 +173,13 @@ class NegotiationUpdatedHandlerTest {
         .thenReturn(List.of(resource1, resource2));
     doThrow(new RuntimeException("helpdesk down"))
         .when(helpdeskClient)
-        .addComment(eq(TICKET_ID), anyString(), eq(config1));
+        .addComment(eq(TICKET_ID), anyString(), any(), eq(config1));
 
     handler.handle(updatedEventNode(NEGOTIATION_ID));
 
     // First ticket failed but second must still be attempted.
-    verify(helpdeskClient, times(1)).addComment(eq(ticketId2), contains("updated"), eq(config2));
+    verify(helpdeskClient, times(1))
+        .addComment(eq(ticketId2), contains("updated"), eq(CommentType.HTML), eq(config2));
   }
 
   private JsonNode updatedEventNode(String negotiationId) throws Exception {

@@ -5,6 +5,7 @@ import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil.signPos
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
@@ -176,7 +177,7 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
     HelpdeskClient client = clients.get(config.type());
 
     try {
-      client.addComment(ticketId, postText, config);
+      client.addComment(ticketId, postText, CommentType.PLAIN_TEXT, config);
       log.info("Forwarded post '{}' to ticket '{}'", postId, ticketId);
     } catch (Exception e) {
       log.error("Failed to add comment to ticket '{}' for post '{}'", ticketId, postId, e);
