@@ -132,11 +132,6 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     }
 
     HelpdeskClient client = clients.get(config.type());
-    if (client == null) {
-      log.error("No adapter for help desk type '{}' (org '{}')", config.type(), orgExtId);
-      return null;
-    }
-
     return new OrgTicketContext(negotiationId, orgExtId, config, client);
   }
 
@@ -302,7 +297,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       return;
     }
 
-    Map<String, String> ticketToOrgExtId = getTicketIdByOrgExtId(negotiationId);
+    Map<String, String> ticketToOrgExtId = getDistinctTicketIdToOrgExtId(negotiationId);
     if (ticketToOrgExtId.isEmpty()) {
       log.debug("No mapped tickets for negotiation '{}' — skipping state update", negotiationId);
       return;
@@ -313,7 +308,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
             updateNegotiationStateInTicket(negotiationId, ticketId, orgExtId, toState));
   }
 
-  private Map<String, String> getTicketIdByOrgExtId(String negotiationId) {
+  private Map<String, String> getDistinctTicketIdToOrgExtId(String negotiationId) {
     Map<String, String> ticketToOrgExtId = new LinkedHashMap<>();
     for (TicketMapping m : ticketMappingRepository.findByIdNegotiationId(negotiationId)) {
       ticketToOrgExtId.putIfAbsent(m.getId().getHelpdeskTicketId(), m.getOrganizationExtId());

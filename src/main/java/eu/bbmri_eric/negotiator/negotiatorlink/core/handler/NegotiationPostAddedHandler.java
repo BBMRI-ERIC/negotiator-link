@@ -174,10 +174,6 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
   private void forwardToTicket(String ticketId, String orgExtId, String postText, String postId) {
     OrganizationConfig config = registry.findByExternalId(orgExtId).orElseThrow();
     HelpdeskClient client = clients.get(config.type());
-    if (client == null) {
-      log.error("No adapter for type '{}' (org '{}')", config.type(), orgExtId);
-      return;
-    }
 
     try {
       client.addComment(ticketId, postText, config);
