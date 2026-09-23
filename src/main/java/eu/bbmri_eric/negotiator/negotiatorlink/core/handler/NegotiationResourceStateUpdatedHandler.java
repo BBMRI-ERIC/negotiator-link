@@ -11,6 +11,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedTransition;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.service.TimelinePropagationService;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.NegotiationResourceStateUpdatedWebhookEvent;
 import java.util.Map;
 import java.util.Optional;
@@ -31,6 +32,7 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
   private final OrganizationConfigRegistry registry;
   private final Map<HelpdeskType, HelpdeskClient> clients;
   private final ObjectMapper objectMapper;
+  private final TimelinePropagationService timelinePropagationService;
 
   private record DispatchContext(
       String ticketId, OrganizationConfig config, HelpdeskClient client) {}
@@ -138,6 +140,8 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
           resourceId,
           e);
     }
+
+    timelinePropagationService.propagate(negotiationId, context.ticketId(), context.config());
   }
 
   private void handleOriginatedTransition(

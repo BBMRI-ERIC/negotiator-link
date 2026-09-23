@@ -14,6 +14,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreatedTicket;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.service.TimelinePropagationService;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFormatter;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
@@ -46,6 +47,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
   private final Map<HelpdeskType, HelpdeskClient> clients;
   private final TicketMappingRepository ticketMappingRepository;
   private final ObjectMapper objectMapper;
+  private final TimelinePropagationService timelinePropagationService;
 
   private record NegotiationWithConfig(
       EntityModelNegotiationDTO negotiation, OrganizationConfig config) {}
@@ -160,6 +162,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
         context.negotiationId());
     resources.forEach(resource -> saveMapping(created, resource, context));
     postNegotiationCommentsToTicket(created.ticketId(), context);
+    timelinePropagationService.seed(context.negotiationId(), created.ticketId(), context.config());
   }
 
   private void handlePerResource(
@@ -191,6 +194,8 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       createdTickets.add(created);
 
       postCommentsToTicket(created.ticketId(), posts, context);
+      timelinePropagationService.seed(
+          context.negotiationId(), created.ticketId(), context.config());
     }
 
     if (createdTickets.size() > 1) {
@@ -333,5 +338,6 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     } catch (Exception e) {
       log.error("Failed to update negotiation state on ticket '{}'", ticketId, e);
     }
+    timelinePropagationService.propagate(negotiationId, ticketId, context.config());
   }
 }
