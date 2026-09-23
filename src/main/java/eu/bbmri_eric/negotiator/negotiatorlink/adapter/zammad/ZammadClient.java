@@ -125,6 +125,7 @@ public class ZammadClient implements HelpdeskClient {
     Map<String, Object> body = new HashMap<>();
     body.put("ticket_id", Long.parseLong(ticketId));
     body.put("body", text);
+    body.put("content_type", "text/html");
     body.put("type", ARTICLE_TYPE_NOTE);
     body.put("internal", internal);
     return body;

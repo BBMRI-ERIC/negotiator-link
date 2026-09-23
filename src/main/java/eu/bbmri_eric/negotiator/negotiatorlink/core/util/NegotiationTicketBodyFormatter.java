@@ -63,6 +63,16 @@ public final class NegotiationTicketBodyFormatter {
         .render();
   }
 
+  public static String getUpdatedTicketBodyWithSingleResource(
+      EntityModelNegotiationDTO negotiation, EntityModelResourceWithStatusDTO resource) {
+    return updateNote() + getTicketBodyWithSingleResource(negotiation, resource);
+  }
+
+  public static String getUpdatedTicketBodyWithMultipleResources(
+      EntityModelNegotiationDTO negotiation, List<EntityModelResourceWithStatusDTO> resources) {
+    return updateNote() + getTicketBodyWithMultipleResources(negotiation, resources);
+  }
+
   public static String getTicketBodyWithMultipleResources(
       EntityModelNegotiationDTO negotiation, List<EntityModelResourceWithStatusDTO> resources) {
     return wrapper(
@@ -235,6 +245,10 @@ public final class NegotiationTicketBodyFormatter {
     String titleStr = title.toString().trim();
     if (!titleStr.isBlank() && resourceName != null) titleStr = titleStr + " — " + resourceName;
     return titleStr.isEmpty() ? Optional.empty() : Optional.of(titleStr);
+  }
+
+  private static String updateNote() {
+    return "<p><strong>&#8505; The negotiation has been updated. Current details are shown below.</strong></p>";
   }
 
   // -----------
