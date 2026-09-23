@@ -10,6 +10,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegoti
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelUserInfoModel;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.NegotiationTimelineEventDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostCreateDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.UpdateResourcesDTO;
 import java.util.List;
@@ -170,6 +171,22 @@ public class NegotiatorClient {
       return List.of();
     }
     return Objects.requireNonNullElse(result.getEmbedded().getPosts(), List.of());
+  }
+
+  /**
+   * Get the timeline log entries for a negotiation, sorted oldest to newest.
+   *
+   * @param negotiationId the ID of the negotiation
+   * @param config organization configuration to use for this request
+   * @return list of timeline entries, empty if none
+   */
+  public List<NegotiationTimelineEventDTO> getTimeline(
+      String negotiationId, OrganizationConfig config) {
+    var result = getOrCreateClient(config).negotiations().retrieveTimeline(negotiationId);
+    if (result == null || result.getEmbedded() == null) {
+      return List.of();
+    }
+    return Objects.requireNonNullElse(result.getEmbedded().getTimelineEvents(), List.of());
   }
 
   /**
