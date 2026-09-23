@@ -255,6 +255,7 @@ class ZammadClientTest {
                     {
                       "ticket_id": 7,
                       "body": "Hello representative",
+                      "content_type": "text/html",
                       "type": "note",
                       "internal": false
                     }
@@ -283,6 +284,7 @@ class ZammadClientTest {
                     {
                       "ticket_id": 7,
                       "body": "Transition rejected",
+                      "content_type": "text/html",
                       "type": "note",
                       "internal": true
                     }

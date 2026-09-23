@@ -2,14 +2,17 @@ package eu.bbmri_eric.negotiator.negotiatorlink.integration.inbound;
 
 import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.HashUtil.sha256Hex;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.negotiationStateChangedPayload;
+import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.negotiationUpdatedPayload;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.postAddedPayload;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.resourceStateUpdatedPayload;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.signedWebhookPayload;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.utf8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -31,6 +34,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorNegotiationEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorResourceEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.time.Instant;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -238,6 +242,124 @@ class NegotiatorWebhookControllerTest {
         .updateNegotiationState(eq(ticketA), eq(NegotiatorNegotiationEvent.PAUSE.toState()), any());
     verify(helpdeskClient)
         .updateNegotiationState(eq(ticketB), eq(NegotiatorNegotiationEvent.PAUSE.toState()), any());
+  }
+
+  @Test
+  void receiveWebhook_negotiationUpdated_noMappedTickets_doesNotAddComment() throws Exception {
+    performWebhook("upd-w1", Instant.now(), negotiationUpdatedPayload("upd-neg-0"))
+        .andExpect(status().isOk());
+
+    verify(helpdeskClient, never()).addComment(anyString(), anyString(), any());
+  }
+
+  @Test
+  void receiveWebhook_negotiationUpdated_postsUpdateCommentToAllMappedTickets() throws Exception {
+    String negotiationId = "upd-neg-1";
+    String ticketA = "upd-ticket-a";
+    String ticketB = "upd-ticket-b";
+    String orgExtId = "bbmri:DE:MHH";
+    long orgId = 10L;
+
+    ticketMappingRepository.save(
+        new TicketMapping(
+            new TicketMappingId(negotiationId, ticketA, "1"),
+            "src-1",
+            String.valueOf(orgId),
+            orgExtId));
+    ticketMappingRepository.save(
+        new TicketMapping(
+            new TicketMappingId(negotiationId, ticketB, "2"),
+            "src-2",
+            String.valueOf(orgId),
+            orgExtId));
+
+    when(negotiatorClient.getNegotiation(eq(negotiationId), any()))
+        .thenReturn(TestUtil.negotiation(negotiationId, "NEG-1", "IN_PROGRESS"));
+    when(negotiatorClient.getResources(eq(negotiationId), any()))
+        .thenReturn(
+            List.of(
+                TestUtil.resource(1L, "src-1", "Collection A", orgExtId, orgId),
+                TestUtil.resource(2L, "src-2", "Collection B", orgExtId, orgId)));
+
+    performWebhook("upd-w2", Instant.now(), negotiationUpdatedPayload(negotiationId))
+        .andExpect(status().isOk());
+
+    verify(helpdeskClient, times(1)).addComment(eq(ticketA), contains("updated"), any());
+    verify(helpdeskClient, times(1)).addComment(eq(ticketB), contains("updated"), any());
+  }
+
+  @Test
+  void receiveWebhook_negotiationUpdated_perNegotiationStrategy_postsOneCommentWithAllResources()
+      throws Exception {
+    String negotiationId = "upd-neg-2";
+    String ticketId = "upd-ticket-perneg";
+    String orgExtId = "bbmri:NL:LUMC";
+    long orgId = 20L;
+
+    ticketMappingRepository.save(
+        new TicketMapping(
+            new TicketMappingId(negotiationId, ticketId, "1"),
+            "src-1",
+            String.valueOf(orgId),
+            orgExtId));
+    ticketMappingRepository.save(
+        new TicketMapping(
+            new TicketMappingId(negotiationId, ticketId, "2"),
+            "src-2",
+            String.valueOf(orgId),
+            orgExtId));
+
+    when(negotiatorClient.getNegotiation(eq(negotiationId), any()))
+        .thenReturn(TestUtil.negotiation(negotiationId, "NEG-2", "IN_PROGRESS"));
+    when(negotiatorClient.getResources(eq(negotiationId), any()))
+        .thenReturn(
+            List.of(
+                TestUtil.resource(1L, "src-1", "Collection A", orgExtId, orgId),
+                TestUtil.resource(2L, "src-2", "Collection B", orgExtId, orgId)));
+
+    performWebhook("upd-w3", Instant.now(), negotiationUpdatedPayload(negotiationId))
+        .andExpect(status().isOk());
+
+    verify(helpdeskClient, times(1)).addComment(eq(ticketId), contains("updated"), any());
+  }
+
+  @Test
+  void receiveWebhook_negotiationUpdated_oneTicketFails_otherTicketStillReceivesComment()
+      throws Exception {
+    String negotiationId = "upd-neg-3";
+    String ticketA = "upd-ticket-fail";
+    String ticketB = "upd-ticket-ok";
+    String orgExtId = "bbmri:DE:MHH";
+    long orgId = 10L;
+
+    ticketMappingRepository.save(
+        new TicketMapping(
+            new TicketMappingId(negotiationId, ticketA, "1"),
+            "src-1",
+            String.valueOf(orgId),
+            orgExtId));
+    ticketMappingRepository.save(
+        new TicketMapping(
+            new TicketMappingId(negotiationId, ticketB, "2"),
+            "src-2",
+            String.valueOf(orgId),
+            orgExtId));
+
+    when(negotiatorClient.getNegotiation(eq(negotiationId), any()))
+        .thenReturn(TestUtil.negotiation(negotiationId, "NEG-3", "IN_PROGRESS"));
+    when(negotiatorClient.getResources(eq(negotiationId), any()))
+        .thenReturn(
+            List.of(
+                TestUtil.resource(1L, "src-1", "Collection A", orgExtId, orgId),
+                TestUtil.resource(2L, "src-2", "Collection B", orgExtId, orgId)));
+    doThrow(new RuntimeException("helpdesk down"))
+        .when(helpdeskClient)
+        .addComment(eq(ticketA), anyString(), any());
+
+    performWebhook("upd-w4", Instant.now(), negotiationUpdatedPayload(negotiationId))
+        .andExpect(status().isOk());
+
+    verify(helpdeskClient, times(1)).addComment(eq(ticketB), contains("updated"), any());
   }
 
   private void sendResourceStateWebhook(
