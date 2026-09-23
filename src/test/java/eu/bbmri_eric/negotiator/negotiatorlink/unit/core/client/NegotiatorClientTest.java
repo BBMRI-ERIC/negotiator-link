@@ -20,6 +20,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDT
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostCreateDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -259,5 +260,41 @@ class NegotiatorClientTest {
                 MediaType.APPLICATION_JSON));
 
     assertThat(client.getPosts("neg-1", config)).isEmpty();
+  }
+
+  @Test
+  void getTimeline_unwrapsHateoasEmbedded() {
+    server
+        .expect(requestTo(BASE_URL + "/v3/negotiations/neg-1/timeline"))
+        .andExpect(method(HttpMethod.GET))
+        .andExpect(header("Authorization", "Bearer " + BEARER_TOKEN))
+        .andRespond(
+            withSuccess(
+                """
+                {"_embedded":{"timelineEvents":[
+                  {"triggeredBy":"TheResearcher","text":"changed to Draft",
+                   "timestamp":"2024-01-03T08:00:00"},
+                  {"triggeredBy":"TheResearcher","text":"changed to Under review",
+                   "timestamp":"2024-01-03T11:00:00"}
+                ]}}
+                """,
+                MediaType.APPLICATION_JSON));
+
+    var timeline = client.getTimeline("neg-1", config);
+
+    assertThat(timeline).hasSize(2);
+    assertThat(timeline.get(0).getText()).isEqualTo("changed to Draft");
+    assertThat(timeline.get(1).getTimestamp())
+        .isEqualTo(LocalDateTime.parse("2024-01-03T11:00:00"));
+  }
+
+  @Test
+  void getTimeline_whenEmbeddedNull_returnsEmptyList() {
+    server
+        .expect(requestTo(BASE_URL + "/v3/negotiations/neg-1/timeline"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+
+    assertThat(client.getTimeline("neg-1", config)).isEmpty();
   }
 }

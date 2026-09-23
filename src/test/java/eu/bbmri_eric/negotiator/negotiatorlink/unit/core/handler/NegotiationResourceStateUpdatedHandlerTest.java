@@ -20,6 +20,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationResourceStateUpdatedHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.service.TimelinePropagationService;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.util.Map;
 import java.util.Optional;
@@ -42,6 +43,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
   @Mock private OriginatedTransitionRepository originatedTransitionRepository;
   @Mock private OrganizationConfigRegistry registry;
   @Mock private HelpdeskClient helpdeskClient;
+  @Mock private TimelinePropagationService timelinePropagationService;
 
   private final ObjectMapper objectMapper = new ObjectMapper();
   private NegotiationResourceStateUpdatedHandler handler;
@@ -54,7 +56,8 @@ class NegotiationResourceStateUpdatedHandlerTest {
             originatedTransitionRepository,
             registry,
             Map.of(HelpdeskType.ZAMMAD, helpdeskClient),
-            objectMapper);
+            objectMapper,
+            timelinePropagationService);
   }
 
   @Test
@@ -66,6 +69,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
     handler.handle(eventData(NEW_STATE));
 
     verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
+    verify(timelinePropagationService, never()).propagate(any(), any(), any());
   }
 
   @Test
@@ -82,6 +86,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
     handler.handle(eventData(NEW_STATE));
 
     verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
+    verify(timelinePropagationService).propagate(eq(NEGOTIATION_ID), eq(TICKET_ID), eq(config));
   }
 
   @Test
@@ -98,10 +103,11 @@ class NegotiationResourceStateUpdatedHandlerTest {
     handler.handle(eventData(NEW_STATE));
 
     verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
+    verify(timelinePropagationService).propagate(eq(NEGOTIATION_ID), eq(TICKET_ID), eq(config));
   }
 
   @Test
-  void handle_originatedTransition_firstWebhook_updatesStateAndKeepsRow() {
+  void handle_originatedTransition_firstWebhook_appliedAndCountIncremented() {
     var config = createConfig(TicketStrategy.PER_NEGOTIATION);
     var transition = transition(2, 0);
 
@@ -120,6 +126,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
     verify(originatedTransitionRepository).save(transition);
     verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
     verify(originatedTransitionRepository, never()).deleteById(any());
+    verify(timelinePropagationService).propagate(eq(NEGOTIATION_ID), eq(TICKET_ID), eq(config));
   }
 
   @Test
@@ -142,6 +149,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
     verify(originatedTransitionRepository).save(transition);
     verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
     verify(originatedTransitionRepository).deleteById(eq(transition.getRowId()));
+    verify(timelinePropagationService).propagate(eq(NEGOTIATION_ID), eq(TICKET_ID), eq(config));
   }
 
   @Test
@@ -154,6 +162,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
     handler.handle(eventData(NEW_STATE));
 
     verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
+    verify(timelinePropagationService, never()).propagate(any(), any(), any());
   }
 
   @Test
@@ -170,7 +179,8 @@ class NegotiationResourceStateUpdatedHandlerTest {
             originatedTransitionRepository,
             registry,
             Map.of(),
-            objectMapper);
+            objectMapper,
+            timelinePropagationService);
 
     handlerWithNoAdapters.handle(eventData(NEW_STATE));
 
@@ -193,6 +203,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
 
     assertDoesNotThrow(() -> handler.handle(eventData(NEW_STATE)));
     verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
+    verify(timelinePropagationService).propagate(eq(NEGOTIATION_ID), eq(TICKET_ID), eq(config));
   }
 
   @Test
@@ -204,6 +215,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
 
     verify(ticketMappingRepository, never()).findByIdNegotiationIdAndResourceSourceId(any(), any());
     verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
+    verify(timelinePropagationService, never()).propagate(any(), any(), any());
   }
 
   private JsonNode eventData(String toState) {

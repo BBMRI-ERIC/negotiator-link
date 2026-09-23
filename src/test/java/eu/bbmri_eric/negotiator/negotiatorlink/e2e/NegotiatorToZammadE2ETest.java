@@ -8,6 +8,7 @@ import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.resource;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.resourceStateUpdatedPayload;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.signedWebhookPayload;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.utf8;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -20,15 +21,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.ForwardedTimelineWatermark;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.ForwardedTimelineWatermarkId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.ForwardedTimelineWatermarkRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.NegotiationTimelineEventDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorNegotiationEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorResourceEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,9 +58,11 @@ class NegotiatorToZammadE2ETest {
   private static final String ZAMMAD_BASE = "https://zammad.mhh.de";
   private static final String ORG_EXT_ID = "bbmri:DE:MHH";
   private static final Long ORG_ID = 1L;
+  private static final String TIMELINE_MSG = "Timeline message";
 
   @Autowired private MockMvc mockMvc;
   @Autowired private TicketMappingRepository ticketMappingRepository;
+  @Autowired private ForwardedTimelineWatermarkRepository watermarkRepository;
   @Autowired private RestClient.Builder restClientBuilder;
 
   @Value("${negotiator-link.webhook.secret}")
@@ -80,6 +89,21 @@ class NegotiatorToZammadE2ETest {
     when(negotiatorClient.getResources(eq(negotiationId), any(OrganizationConfig.class)))
         .thenReturn(List.of(resource));
 
+    LocalDateTime timelineTail = LocalDateTime.parse("2024-01-03T11:00:00");
+    when(negotiatorClient.getTimeline(eq(negotiationId), any(OrganizationConfig.class)))
+        .thenReturn(List.of(timelineEvent(TIMELINE_MSG, timelineTail)));
+
+    when(negotiatorClient.getPosts(eq(negotiationId), any(OrganizationConfig.class)))
+        .thenReturn(
+            List.of(
+                TestUtil.post(
+                    "post-e2e-approve",
+                    "Hello from Negotiator",
+                    EntityModelPostDTO.TypeEnum.PUBLIC,
+                    String.valueOf(ORG_ID),
+                    "Jane Doe",
+                    "jane@example.com")));
+
     zammadServer
         .expect(requestTo(ZAMMAD_BASE + "/api/v1/tickets"))
         .andExpect(method(HttpMethod.POST))
@@ -91,16 +115,26 @@ class NegotiatorToZammadE2ETest {
         .andExpect(jsonPath("$.negotiator_resource_state").value("SUBMITTED"))
         .andRespond(withSuccess("{\"id\":1,\"number\":\"1001\"}", MediaType.APPLICATION_JSON));
 
+    zammadServer
+        .expect(requestTo(ZAMMAD_BASE + "/api/v1/ticket_articles"))
+        .andExpect(method(HttpMethod.POST))
+        .andExpect(jsonPath("$.ticket_id").value(1))
+        .andExpect(
+            jsonPath("$.body").value("From: Jane Doe <jane@example.com>\n\nHello from Negotiator"))
+        .andExpect(jsonPath("$.internal").value(false))
+        .andRespond(withSuccess());
+
     postWebhook("msg-e2e-approve", body);
 
     zammadServer.verify();
+    assertWatermark(negotiationId, "1", timelineTail);
   }
 
   @Test
   void resourceStateUpdated_updatesTicketInZammad() throws Exception {
     String negotiationId = "neg-e2e-2";
     String resourceSourceId = "src-e2e-1";
-    String ticketId = "t-2";
+    String ticketId = "2";
     var body =
         resourceStateUpdatedPayload(
             negotiationId,
@@ -116,6 +150,10 @@ class NegotiatorToZammadE2ETest {
             String.valueOf(ORG_ID),
             ORG_EXT_ID));
 
+    LocalDateTime timelineTail = LocalDateTime.parse("2024-01-03T11:00:00");
+    when(negotiatorClient.getTimeline(eq(negotiationId), any(OrganizationConfig.class)))
+        .thenReturn(List.of(timelineEvent(TIMELINE_MSG, timelineTail)));
+
     zammadServer
         .expect(requestTo(ZAMMAD_BASE + "/api/v1/tickets/" + ticketId))
         .andExpect(method(HttpMethod.PUT))
@@ -124,9 +162,18 @@ class NegotiatorToZammadE2ETest {
                 .value(NegotiatorResourceEvent.MARK_AS_CHECKING_AVAILABILITY.targetState()))
         .andRespond(withSuccess());
 
+    zammadServer
+        .expect(requestTo(ZAMMAD_BASE + "/api/v1/ticket_articles"))
+        .andExpect(method(HttpMethod.POST))
+        .andExpect(jsonPath("$.ticket_id").value(Integer.parseInt(ticketId)))
+        .andExpect(jsonPath("$.body").value(TIMELINE_MSG))
+        .andExpect(jsonPath("$.internal").value(true))
+        .andRespond(withSuccess());
+
     postWebhook("msg-e2e-rsu", body);
 
     zammadServer.verify();
+    assertWatermark(negotiationId, ticketId, timelineTail);
   }
 
   @Test
@@ -171,8 +218,8 @@ class NegotiatorToZammadE2ETest {
   @Test
   void negotiationStateChanged_updatesNegotiationStateOnAllZammadTickets() throws Exception {
     String negotiationId = "neg-e2e-state-1";
-    String ticketId1 = "t-state-1";
-    String ticketId2 = "t-state-2";
+    String ticketId1 = "101";
+    String ticketId2 = "102";
 
     ticketMappingRepository.save(
         new TicketMapping(
@@ -194,11 +241,23 @@ class NegotiatorToZammadE2ETest {
             NegotiatorNegotiationEvent.PAUSE.toState(),
             NegotiatorNegotiationEvent.PAUSE.name());
 
+    LocalDateTime timelineTail = LocalDateTime.parse("2024-01-03T11:00:00");
+    when(negotiatorClient.getTimeline(eq(negotiationId), any(OrganizationConfig.class)))
+        .thenReturn(List.of(timelineEvent(TIMELINE_MSG, timelineTail)));
+
     zammadServer
         .expect(requestTo(ZAMMAD_BASE + "/api/v1/tickets/" + ticketId1))
         .andExpect(method(HttpMethod.PUT))
         .andExpect(
             jsonPath("$.negotiation_state").value(NegotiatorNegotiationEvent.PAUSE.toState()))
+        .andRespond(withSuccess());
+
+    zammadServer
+        .expect(requestTo(ZAMMAD_BASE + "/api/v1/ticket_articles"))
+        .andExpect(method(HttpMethod.POST))
+        .andExpect(jsonPath("$.ticket_id").value(Integer.parseInt(ticketId1)))
+        .andExpect(jsonPath("$.body").value(TIMELINE_MSG))
+        .andExpect(jsonPath("$.internal").value(true))
         .andRespond(withSuccess());
 
     zammadServer
@@ -208,9 +267,35 @@ class NegotiatorToZammadE2ETest {
             jsonPath("$.negotiation_state").value(NegotiatorNegotiationEvent.PAUSE.toState()))
         .andRespond(withSuccess());
 
+    zammadServer
+        .expect(requestTo(ZAMMAD_BASE + "/api/v1/ticket_articles"))
+        .andExpect(method(HttpMethod.POST))
+        .andExpect(jsonPath("$.ticket_id").value(Integer.parseInt(ticketId2)))
+        .andExpect(jsonPath("$.body").value(TIMELINE_MSG))
+        .andExpect(jsonPath("$.internal").value(true))
+        .andRespond(withSuccess());
+
     postWebhook("msg-e2e-state", body);
 
     zammadServer.verify();
+    assertWatermark(negotiationId, ticketId1, timelineTail);
+    assertWatermark(negotiationId, ticketId2, timelineTail);
+  }
+
+  private void assertWatermark(String negotiationId, String ticketId, LocalDateTime expectedTail) {
+    Optional<ForwardedTimelineWatermark> watermark =
+        watermarkRepository.findById(new ForwardedTimelineWatermarkId(negotiationId, ticketId));
+    assertThat(watermark).isPresent();
+    assertThat(watermark.get().getLastTimestamp()).isEqualTo(expectedTail);
+    assertThat(watermark.get().getLastTimestampCount()).isEqualTo(1);
+  }
+
+  private NegotiationTimelineEventDTO timelineEvent(String text, LocalDateTime timestamp) {
+    NegotiationTimelineEventDTO event = new NegotiationTimelineEventDTO();
+    event.setTriggeredBy("actor");
+    event.setText(text);
+    event.setTimestamp(timestamp);
+    return event;
   }
 
   private void postWebhook(String webhookId, String body) throws Exception {
