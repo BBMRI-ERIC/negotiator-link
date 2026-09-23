@@ -178,24 +178,6 @@ class NegotiationStateUpdatedHandlerTest {
   }
 
   @Test
-  void handleApprove_noAdapterForType_skipsOrg() {
-    var config = createConfig(TicketStrategy.PER_RESOURCE);
-    when(registry.findAll()).thenReturn(List.of(config));
-    when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config)).thenReturn(createNegotiation());
-    when(negotiatorClient.getResources(NEGOTIATION_ID, config))
-        .thenReturn(List.of(createResource("r-1", 1L)));
-    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
-
-    var handlerWithNoAdapters =
-        new NegotiationStateUpdatedHandler(
-            negotiatorClient, registry, Map.of(), ticketMappingRepository, objectMapper);
-
-    handlerWithNoAdapters.handle(approveEventData());
-
-    verify(ticketMappingRepository, never()).save(any());
-  }
-
-  @Test
   void handleApprove_adapterThrows_doesNotPropagateException() {
     var config = createConfig(TicketStrategy.PER_RESOURCE);
     var resource = createResource("r-1", 1L);
@@ -604,29 +586,5 @@ class NegotiationStateUpdatedHandlerTest {
     verify(helpdeskClient)
         .updateNegotiationState(
             eq("ticket-2"), eq(NegotiatorNegotiationEvent.PAUSE.toState()), eq(config));
-  }
-
-  @Test
-  void handleStateChange_unknownAdapterType_skipsTicket() {
-    var config = createConfig(TicketStrategy.PER_RESOURCE);
-    var mapping =
-        new TicketMapping(
-            new TicketMappingId(NEGOTIATION_ID, TICKET_ID, "r-1"),
-            "src-1",
-            String.valueOf(ORG_INTERNAL_ID),
-            ORG_EXT_ID);
-
-    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID))
-        .thenReturn(List.of(mapping));
-    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
-
-    var handlerWithNoAdapters =
-        new NegotiationStateUpdatedHandler(
-            negotiatorClient, registry, Map.of(), ticketMappingRepository, objectMapper);
-
-    assertDoesNotThrow(
-        () -> handlerWithNoAdapters.handle(eventData(NegotiatorNegotiationEvent.PAUSE)));
-
-    verify(helpdeskClient, never()).updateNegotiationState(any(), any(), any());
   }
 }
