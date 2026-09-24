@@ -929,7 +929,8 @@ handler. For Negotiator-side events it resolves the handler by event type. For h
 the handler based on the concrete `HelpdeskCallbackEvent` subtype: `ResourceTransitionEvent` →
 `HelpdeskResourceTransitionHandler`; `PostMessageEvent` → `HelpdeskPostHandler`;
 `ResourceTransitionWithPostMessageEvent` → `HelpdeskResourceTransitionHandler` first (projecting the combined event
-into a `ResourceTransitionEvent`), then `HelpdeskPostHandler` (projecting it into a `PostMessageEvent`), in that order.
+into a `ResourceTransitionEvent`), then `HelpdeskPostHandler` (projecting it into a `PostMessageEvent`), in that order;
+`TicketStateChangedEvent` → `HelpdeskTicketStateChangedHandler`.
 
 Uses the **Strategy pattern**: each event type has a dedicated handler registered in the router via a
 `Map<HelpdeskCallbackType, HelpdeskCallbackHandler<?>>`. Adding support for a new event type means adding a new handler
@@ -980,7 +981,7 @@ operations — the resolved `HelpdeskClient` instance, and performs exactly the 
   `NegotiatorClient.createPost()` with visibility type always set to `PRIVATE`
 
 Each handler has a single, testable responsibility. No handler contains routing logic. Routing is always resolved before
-the handler is called. Some other handlers like NegotiationInfoUpdatedHandler, etc. will added during milestone 2 and 3 (see
+the handler is called. Some other handlers like NegotiationInfoUpdatedHandler, `HelpdeskTicketStateChangedHandler`, etc. will be added during milestone 2 and 3 (see
 section 7).
 
 ---
@@ -998,7 +999,7 @@ following the Interface Segregation Principle, sharing a small `HelpdeskTyped` m
 - **`HelpdeskCallbackAdapter extends HelpdeskTyped`** — inbound side: `verifyCallback`, `extractCallbackId`,
   `parseCallback`.
 - **`HelpdeskClient extends HelpdeskTyped`** — outbound side: `createTicket`, `updateNegotiationState`,
-  `updateResourceState`, `addComment`, `addSystemComment`, `linkRelatedTickets`.
+  `updateResourceState`, `updateTicketState`, `addComment`, `addSystemComment`, `linkRelatedTickets`.
 
 The inbound methods are kept together in one interface (not split further) because the callback controller always uses
 them as a set. Each platform provides **two concrete components** — one implementing the inbound
@@ -1041,6 +1042,13 @@ public interface HelpdeskClient extends HelpdeskTyped {
 
   /** Update negotiator_resource_state and clear negotiator_resource_transition_event back to null. */
   void updateResourceState(String ticketId, String resourceState, OrganizationConfig config);
+
+  /**
+   * Update the ticket state in the help desk (e.g. close the ticket).
+   * Called when a negotiation state or resource state maps to a configured ticket state.
+   * Implementations should log and swallow HTTP failures rather than propagating them.
+   */
+  void updateTicketState(String ticketId, String ticketState, OrganizationConfig config);
 
   /** Add an external comment to a ticket relaying a Negotiator post. */
   void addComment(String ticketId, String commentText, OrganizationConfig config);
@@ -1132,7 +1140,7 @@ record CreatedTicket(
                              // (e.g. Zammad links API requires the source ticket number, not ID)
 )
 
-sealed interface HelpdeskCallbackEvent // permits ResourceTransitionEvent, PostMessageEvent, ResourceTransitionWithPostMessageEvent
+sealed interface HelpdeskCallbackEvent // permits ResourceTransitionEvent, PostMessageEvent, ResourceTransitionWithPostMessageEvent, TicketStateChangedEvent
                                       // common accessors: ticketId(), type()
 
 record ResourceTransitionEvent(
@@ -1155,6 +1163,11 @@ record ResourceTransitionWithPostMessageEvent(
         Sender sender
 )
 
+record TicketStateChangedEvent(
+        String ticketId,
+        String newTicketState  // platform-native ticket state value (e.g. "in_progress", "closed")
+)
+
 record Sender(
         String name,   // full name of the sender as provided by the help desk platform
         String email   // email of the sender as provided by the help desk platform
@@ -1163,7 +1176,8 @@ record Sender(
 enum HelpdeskCallbackType {
     RESOURCE_TRANSITION,
     POST_MESSAGE,
-    RESOURCE_TRANSITION_WITH_POST_MESSAGE
+    RESOURCE_TRANSITION_WITH_POST_MESSAGE,
+    TICKET_STATE_CHANGED
 }
 ```
 
@@ -1200,7 +1214,8 @@ eu.bbmri_eric.negotiator.negotiator-link
 │   │   ├── ResourceStateUpdatedHandler
 │   │   ├── ...
 │   │   ├── HelpdeskResourceTransitionHandler
-│   │   └── HelpdeskPostHandler
+│   │   ├── HelpdeskPostHandler
+│   │   └── HelpdeskTicketStateChangedHandler
 │   └── model
 │       ├── CreateTicketRequest
 │       ├── HelpdeskCallbackEvent
@@ -1371,16 +1386,82 @@ unimplemented stub returning `null`. Two targeted changes are required:
 
 ### Milestone 2
 
-**Scope:** Milestone 2 extends the integration to cover three additional Negotiator events that were intentionally deferred
-from milestone 1: negotiation state changes, access form payload updates, and attachments. By the end of milestone 2 the help
-desk ticket stays fully in sync with the negotiation throughout its lifecycle, not only during the initial resource
-workflow, but also when the negotiation is paused, concluded, or abandoned, when the researcher updates the access form,
-and when files are exchanged in either direction.
+**Scope:** Milestone 2 extends the integration to cover additional Negotiator events that were intentionally deferred
+from milestone 1: negotiation state changes (including mapping them to ticket state changes), resource state changes
+(including mapping them to ticket state changes), ticket state changes in the help desk (mapped back to resource state
+transitions in Negotiator), access form payload updates, and attachments. By the end of milestone 2 the help desk ticket
+stays fully in sync with the negotiation throughout its lifecycle, not only during the initial resource workflow, but
+also when the negotiation is paused, concluded, or abandoned, when the researcher updates the access form, and when
+files are exchanged in either direction.
 
 **Negotiation state changes (`negotiation.state.updated` for states other than `IN_PROGRESS`):** When a negotiation
-moves to `PAUSED`, `CONCLUDED`, or `ABANDONED`, all tickets for that negotiation must be updated. This requires a handling in
-`NegotiationStateUpdatedHandler` and a `updateNegotiationState()` method on the `HelpdeskClient` interface. It needs to be
-confirmed if the Zammad should map the negotiation state to the ticket state.
+moves to `PAUSED`, `CONCLUDED`, or `ABANDONED`, all tickets for that negotiation must be updated. This requires handling in
+`NegotiationStateUpdatedHandler` and a `updateNegotiationState()` method on the `HelpdeskClient` interface.
+
+**Mapping negotiation state changes to ticket state changes:** In addition to updating the `negotiation_state` display
+field, the middleware can also close (or otherwise update) the help desk ticket when a negotiation reaches a terminal or
+significant state. For example, when a negotiation is `ABANDONED` or `CONCLUDED`, the corresponding ticket state in the
+help desk should be set to `Closed` (or any state configured per organization). The target ticket state for each
+negotiation state is specified in the organization config. `NegotiationStateUpdatedHandler` calls a new
+`updateTicketState(String ticketId, String ticketState, OrganizationConfig config)` method on `HelpdeskClient` to
+perform this update. If the HTTP call to the help desk fails, the handler logs the error and continues without retrying
+or propagating the failure.
+
+The organization config is extended with an optional `negotiationStateToTicketState` map:
+
+```yaml
+negotiationStateToTicketState:
+  ABANDONED: "closed"
+  CONCLUDED: "closed"
+```
+
+If a negotiation state has no entry in the map, no ticket state update is performed for that transition.
+
+**Mapping resource state changes to ticket state changes:** Similarly, when a resource reaches a specific state in
+Negotiator, the middleware can update the help desk ticket state accordingly. For example,
+`DECLINE_ACCESS_CONDITIONS` could map to a `Closed` ticket state. The target ticket state for each resource state is
+specified per organization in the config. `ResourceStateUpdatedHandler` calls the same
+`updateTicketState(String ticketId, String ticketState, OrganizationConfig config)` method on `HelpdeskClient` after
+updating the `negotiator_resource_state` display field. If the HTTP call fails, the handler logs the error and
+continues without retrying or propagating the failure.
+
+The organization config is extended with an optional `resourceStateToTicketState` map:
+
+```yaml
+resourceStateToTicketState:
+  RESOURCE_NOT_MADE_AVAILABLE: "closed"
+  RESOURCE_MADE_AVAILABLE: "closed"
+```
+
+If a resource state has no entry in the map, no ticket state update is performed.
+
+Both `negotiationStateToTicketState` and `resourceStateToTicketState` are optional in the config. If absent, no ticket
+state changes are made for state transitions in that category.
+
+**Mapping ticket state changes to resource state transitions (help desk → Negotiator):** When a representative changes
+the ticket state in the help desk (e.g. from `new` to `in_progress`), the middleware maps this ticket state to a
+Negotiator resource lifecycle event and applies the transition. For example, setting the ticket to `in_progress` could
+send the `MARK_AS_CHECKING_AVAILABILITY` event to all resources covered by that ticket.
+
+The mapping from ticket state to Negotiator lifecycle event is specified per organization in the config:
+
+```yaml
+ticketStateToResourceEvent:
+  in_progress: "MARK_AS_CHECKING_AVAILABILITY"
+  pending_reminder: "INDICATE_ACCESS_CONDITIONS_NOT_MET"
+```
+
+When a help desk callback carrying a ticket state change arrives, the middleware routes it to a new
+`HelpdeskTicketStateChangedHandler`. This handler looks up the lifecycle event from the map and then delegates to
+`HelpdeskResourceTransitionHandler` to apply the transition, reusing the existing validation and fan-out logic
+(including lifecycle validation via `NegotiatorClient.getPossibleResourceEvents()`, rejection comments on invalid
+transitions, and `PER_NEGOTIATION` deduplication via `originated_transitions`). If no entry exists in the map for the
+new ticket state, the handler silently discards the callback.
+
+To support this flow, a new `TicketStateChangedEvent` is added to `HelpdeskCallbackEvent` and to
+`HelpdeskCallbackType`. `ZammadCallbackAdapter.parseCallback()` is extended to detect ticket state changes and emit
+this event type. A new trigger must be configured in the help desk (Trigger 3) that fires when the ticket state
+changes; the middleware bot account must be excluded from this trigger to prevent loops.
 
 **Access form payload updates:** When the researcher updates the negotiation access form, the help desk ticket
 description should be refreshed to reflect the new content, and any attachments uploaded during the edit must also be
@@ -1395,13 +1476,16 @@ dispatch system following the same pattern as existing events — a new `Webhook
 `NEGOTIATION_PAYLOAD_UPDATED`), a new webhook payload DTO carrying `negotiationId`, and a new `WebhookMappingStrategy`
 registration. On the middleware side a new `NegotiationPayloadUpdatedHandler` fetches the updated negotiation from
 Negotiator via a secondary REST call, posts the refreshed content as a new comment to all mapped tickets, and forwards
-any standalone attachments that have not yet been forwarded (see attachment deduplication below).
+any new attachments that have not yet been forwarded (see attachment handling below).
 
-**Attachments:** No changes to the Negotiator data model, frontend, or webhook payload are required. The middleware
-handles attachment forwarding autonomously using a deduplication table that tracks which attachments have already been
-transferred for each negotiation.
+**Attachments:** Attachment forwarding in milestone 2 is intentionally scoped to two triggers: ticket creation
+(`NegotiationStateUpdatedHandler`) and access form payload updates (`NegotiationPayloadUpdatedHandler`). Forwarding
+attachments from posts is deferred until the Negotiator team extends the `negotiation.post.added` webhook payload to
+include the attachments linked to that post; once that change is available, post-attachment forwarding will be added in
+a later milestone.
 
-The middleware maintains a `forwarded_attachments` table:
+The middleware maintains a `forwarded_attachments` table to track which attachments have already been transferred for
+each negotiation, so that each attachment is forwarded at most once regardless of how many forwarding triggers fire:
 
 | Column           | Type      | Constraints  |
 |------------------|-----------|--------------|
@@ -1409,21 +1493,17 @@ The middleware maintains a `forwarded_attachments` table:
 | `attachment_id`  | VARCHAR   | composite PK |
 | `forwarded_at`   | TIMESTAMP | NOT NULL     |
 
-When any handler that may trigger attachment forwarding fires — `NegotiationPostAddedHandler`,
-`NegotiationApprovedHandler`, or `NegotiationPayloadUpdatedHandler` — it fetches the full list of attachments for the
-negotiation from Negotiator via `GET /v3/negotiations/{negotiationId}/attachments`, subtracts the IDs already present in
-`forwarded_attachments`, and forwards only the delta. For each new attachment the binary content is fetched from
-`GET /attachments/{id}` and uploaded to the corresponding help desk ticket. A row is inserted into
-`forwarded_attachments` after each successful upload.
+When ticket creation or `NegotiationPayloadUpdatedHandler` fires, it fetches the full list of attachments
+for the negotiation from Negotiator via `GET /v3/negotiations/{negotiationId}/attachments`, subtracts the IDs already
+present in `forwarded_attachments`, and forwards only the delta. Before forwarding, each attachment is filtered: only
+attachments with no `organizationId` set are forwarded. Attachments that carry an `organizationId` were added in a
+private post scoped to a specific organization; these are not forwarded in milestone 2 and will instead be forwarded
+alongside the originating post once the Negotiator team includes attachment references in the
+`negotiation.post.added` webhook payload. For each attachment that passes the filter, the binary content is fetched
+from `GET /attachments/{id}` and uploaded to the corresponding help desk ticket as a standalone attachment. A row is
+inserted into `forwarded_attachments` after each successful upload.
 
-A new `addComment()` overload (or an extended `addComment()` signature) on `HelpdeskClient` accepts an optional list of
-attachment binaries alongside the comment text, so the adapter can attach the files to the help desk ticket article in
-the same API call when a post is being forwarded. When attachments are forwarded outside of a post (e.g. from
-`NegotiationApprovedHandler` or `NegotiationPayloadUpdatedHandler`), they are uploaded as standalone ticket attachments.
-
-For the reverse direction (help desk → Negotiator), `HelpdeskPostHandler` is extended to detect attachments in the
-callback payload. If attachments are present, each file is uploaded to Negotiator via
-`POST /v3/negotiations/{negotiationId}/attachments` before the post is created.
+Attachment forwarding from the help desk to Negotiator (reverse direction) is also deferred to a later milestone.
 
 All changes in milestone 2 follow the established patterns from milestone 1. No architectural changes are required.
 
@@ -1683,3 +1763,10 @@ includes the `organizationExternalId` so the middleware can route the callback t
 Each organization has its own `callbackSecret` used to sign outbound webhook calls (e.g. HMAC-SHA1 for Zammad); this
 secret must be configured both in the help desk webhook settings and in the middleware YAML config as
 `callbackSecret` (injected from an environment variable).
+
+**Trigger 3 — Ticket state change (milestone 2):**
+Fires when the help desk ticket state changes. The middleware maps the new ticket state to a Negotiator resource
+lifecycle event using the `ticketStateToResourceEvent` map in the organization config (see Milestone 2). The trigger
+condition must exclude the middleware bot account to prevent loops caused by state changes the middleware itself makes
+(e.g. when closing a ticket in response to a negotiation state change). If the organization config has no
+`ticketStateToResourceEvent` entry for the new state, the middleware silently discards the callback.
