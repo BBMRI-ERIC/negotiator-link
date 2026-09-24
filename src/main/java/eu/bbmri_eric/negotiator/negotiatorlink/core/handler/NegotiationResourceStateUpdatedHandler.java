@@ -13,6 +13,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransit
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.TimelinePropagationService;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.NegotiationResourceStateUpdatedWebhookEvent;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -51,11 +52,11 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
     }
 
     DispatchContext context = resolveDispatchContext(event);
-    if (context == null) {
-      return;
+    if (context != null) {
+      dispatchStateUpdate(event, context);
     }
 
-    dispatchStateUpdate(event, context);
+    propagateTimelineToAllTickets(event.getNegotiationId());
   }
 
   /** Parses and validates the webhook event, or returns {@code null} if it is incomplete. */
@@ -140,8 +141,29 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
           resourceId,
           e);
     }
+  }
 
-    timelinePropagationService.propagate(negotiationId, context.ticketId(), context.config());
+  /** Propagates the negotiation timeline to every distinct ticket mapped to the negotiation. */
+  private void propagateTimelineToAllTickets(String negotiationId) {
+    Map<String, String> ticketToOrgExtId = getDistinctTicketIdToOrgExtId(negotiationId);
+    if (ticketToOrgExtId.isEmpty()) {
+      log.debug(
+          "No mapped tickets for negotiation '{}' — skipping timeline propagation", negotiationId);
+      return;
+    }
+
+    ticketToOrgExtId.forEach(
+        (ticketId, orgExtId) -> {
+          OrganizationConfig config = registry.findByExternalId(orgExtId).orElse(null);
+          if (config == null) {
+            log.warn(
+                "Org '{}' not in config for ticket '{}' — skipping timeline propagation",
+                orgExtId,
+                ticketId);
+            return;
+          }
+          timelinePropagationService.propagate(negotiationId, ticketId, config);
+        });
   }
 
   private void handleOriginatedTransition(
@@ -191,5 +213,13 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
           expected,
           ticketId);
     }
+  }
+
+  private Map<String, String> getDistinctTicketIdToOrgExtId(String negotiationId) {
+    Map<String, String> result = new LinkedHashMap<>();
+    for (TicketMapping m : ticketMappingRepository.findByIdNegotiationId(negotiationId)) {
+      result.putIfAbsent(m.getId().getHelpdeskTicketId(), m.getOrganizationExtId());
+    }
+    return result;
   }
 }

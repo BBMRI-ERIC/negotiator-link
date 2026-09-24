@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -22,6 +23,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransit
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.TimelinePropagationService;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,7 +38,9 @@ class NegotiationResourceStateUpdatedHandlerTest {
   private static final String NEGOTIATION_ID = "neg-1";
   private static final String RESOURCE_ID = "res-1";
   private static final String TICKET_ID = "ticket-42";
+  private static final String SECOND_TICKET_ID = "ticket-43";
   private static final String ORG_EXT_ID = "bbmri:DE:MHH";
+  private static final String OTHER_ORG_EXT_ID = "bbmri:CZ:MMCI";
   private static final String NEW_STATE = "RESOURCE_AVAILABLE";
 
   @Mock private TicketMappingRepository ticketMappingRepository;
@@ -66,7 +70,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
             NEGOTIATION_ID, RESOURCE_ID))
         .thenReturn(Optional.empty());
 
-    handler.handle(eventData(NEW_STATE));
+    handler.handle(eventData());
 
     verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
     verify(timelinePropagationService, never()).propagate(any(), any(), any());
@@ -83,10 +87,9 @@ class NegotiationResourceStateUpdatedHandlerTest {
             NEGOTIATION_ID, TICKET_ID, NEW_STATE))
         .thenReturn(Optional.empty());
 
-    handler.handle(eventData(NEW_STATE));
+    handler.handle(eventData());
 
     verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
-    verify(timelinePropagationService).propagate(eq(NEGOTIATION_ID), eq(TICKET_ID), eq(config));
   }
 
   @Test
@@ -100,10 +103,9 @@ class NegotiationResourceStateUpdatedHandlerTest {
             NEGOTIATION_ID, TICKET_ID, NEW_STATE))
         .thenReturn(Optional.empty());
 
-    handler.handle(eventData(NEW_STATE));
+    handler.handle(eventData());
 
     verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
-    verify(timelinePropagationService).propagate(eq(NEGOTIATION_ID), eq(TICKET_ID), eq(config));
   }
 
   @Test
@@ -121,12 +123,11 @@ class NegotiationResourceStateUpdatedHandlerTest {
     when(originatedTransitionRepository.findByIdForUpdate(transition.getRowId()))
         .thenReturn(Optional.of(transition));
 
-    handler.handle(eventData(NEW_STATE));
+    handler.handle(eventData());
 
     verify(originatedTransitionRepository).save(transition);
     verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
     verify(originatedTransitionRepository, never()).deleteById(any());
-    verify(timelinePropagationService).propagate(eq(NEGOTIATION_ID), eq(TICKET_ID), eq(config));
   }
 
   @Test
@@ -144,12 +145,11 @@ class NegotiationResourceStateUpdatedHandlerTest {
     when(originatedTransitionRepository.findByIdForUpdate(transition.getRowId()))
         .thenReturn(Optional.of(transition));
 
-    handler.handle(eventData(NEW_STATE));
+    handler.handle(eventData());
 
     verify(originatedTransitionRepository).save(transition);
     verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
     verify(originatedTransitionRepository).deleteById(eq(transition.getRowId()));
-    verify(timelinePropagationService).propagate(eq(NEGOTIATION_ID), eq(TICKET_ID), eq(config));
   }
 
   @Test
@@ -159,7 +159,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
         .thenReturn(Optional.of(mapping()));
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.empty());
 
-    handler.handle(eventData(NEW_STATE));
+    handler.handle(eventData());
 
     verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
     verify(timelinePropagationService, never()).propagate(any(), any(), any());
@@ -182,7 +182,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
             objectMapper,
             timelinePropagationService);
 
-    handlerWithNoAdapters.handle(eventData(NEW_STATE));
+    handlerWithNoAdapters.handle(eventData());
 
     verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
   }
@@ -201,9 +201,8 @@ class NegotiationResourceStateUpdatedHandlerTest {
         .when(helpdeskClient)
         .updateResourceState(any(), any(), any());
 
-    assertDoesNotThrow(() -> handler.handle(eventData(NEW_STATE)));
+    assertDoesNotThrow(() -> handler.handle(eventData()));
     verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
-    verify(timelinePropagationService).propagate(eq(NEGOTIATION_ID), eq(TICKET_ID), eq(config));
   }
 
   @Test
@@ -218,19 +217,109 @@ class NegotiationResourceStateUpdatedHandlerTest {
     verify(timelinePropagationService, never()).propagate(any(), any(), any());
   }
 
-  private JsonNode eventData(String toState) {
+  @Test
+  void handle_multipleTicketsForNegotiation_propagatesTimelineToEachTicket() {
+    var config = createConfig(TicketStrategy.PER_RESOURCE);
+    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
+            NEGOTIATION_ID, RESOURCE_ID))
+        .thenReturn(Optional.of(mapping()));
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+    when(originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
+            NEGOTIATION_ID, TICKET_ID, NEW_STATE))
+        .thenReturn(Optional.empty());
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID))
+        .thenReturn(
+            List.of(
+                mapping(TICKET_ID, RESOURCE_ID, ORG_EXT_ID),
+                mapping(SECOND_TICKET_ID, "res-2", ORG_EXT_ID)));
+
+    handler.handle(eventData());
+
+    verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
+    verify(timelinePropagationService).propagate(eq(NEGOTIATION_ID), eq(TICKET_ID), eq(config));
+    verify(timelinePropagationService)
+        .propagate(eq(NEGOTIATION_ID), eq(SECOND_TICKET_ID), eq(config));
+  }
+
+  @Test
+  void handle_duplicateTicketRows_propagatesOncePerTicket() {
+    var config = createConfig(TicketStrategy.PER_NEGOTIATION);
+    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
+            NEGOTIATION_ID, RESOURCE_ID))
+        .thenReturn(Optional.of(mapping()));
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+    when(originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
+            NEGOTIATION_ID, TICKET_ID, NEW_STATE))
+        .thenReturn(Optional.empty());
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID))
+        .thenReturn(
+            List.of(
+                mapping(TICKET_ID, RESOURCE_ID, ORG_EXT_ID),
+                mapping(TICKET_ID, "res-2", ORG_EXT_ID)));
+
+    handler.handle(eventData());
+
+    verify(timelinePropagationService, times(1))
+        .propagate(eq(NEGOTIATION_ID), eq(TICKET_ID), eq(config));
+  }
+
+  @Test
+  void handle_resourceOrgNotOptedIn_stillPropagatesTimelineToMappedTickets() {
+    var optedInConfig = TestUtil.organizationConfig(ORG_EXT_ID, TicketStrategy.PER_RESOURCE);
+    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
+            NEGOTIATION_ID, RESOURCE_ID))
+        .thenReturn(Optional.empty());
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(optedInConfig));
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID))
+        .thenReturn(List.of(mapping(TICKET_ID, "res-2", ORG_EXT_ID)));
+
+    handler.handle(eventData());
+
+    verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
+    verify(timelinePropagationService)
+        .propagate(eq(NEGOTIATION_ID), eq(TICKET_ID), eq(optedInConfig));
+  }
+
+  @Test
+  void handle_mappedTicketOrgNotInRegistry_skipsThatTicket() {
+    var optedInConfig = TestUtil.organizationConfig(ORG_EXT_ID, TicketStrategy.PER_RESOURCE);
+    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
+            NEGOTIATION_ID, RESOURCE_ID))
+        .thenReturn(Optional.empty());
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(optedInConfig));
+    when(registry.findByExternalId(OTHER_ORG_EXT_ID)).thenReturn(Optional.empty());
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID))
+        .thenReturn(
+            List.of(
+                mapping(TICKET_ID, RESOURCE_ID, ORG_EXT_ID),
+                mapping(SECOND_TICKET_ID, "res-2", OTHER_ORG_EXT_ID)));
+
+    handler.handle(eventData());
+
+    verify(timelinePropagationService)
+        .propagate(eq(NEGOTIATION_ID), eq(TICKET_ID), eq(optedInConfig));
+    verify(timelinePropagationService, never())
+        .propagate(eq(NEGOTIATION_ID), eq(SECOND_TICKET_ID), any());
+  }
+
+  private JsonNode eventData() {
     return objectMapper.valueToTree(
         Map.of(
             "negotiationId", NEGOTIATION_ID,
             "resourceId", RESOURCE_ID,
-            "fromState", "SUBMITTED",
-            "toState", toState,
+            "fromState", "CHECKING_AVAILABILITY",
+            "toState", NEW_STATE,
             "event", "MARK_AS_AVAILABLE"));
   }
 
   private TicketMapping mapping() {
     return new TicketMapping(
         new TicketMappingId(NEGOTIATION_ID, TICKET_ID, RESOURCE_ID), "src-1", "100", ORG_EXT_ID);
+  }
+
+  private TicketMapping mapping(String ticketId, String resourceId, String orgExtId) {
+    return new TicketMapping(
+        new TicketMappingId(NEGOTIATION_ID, ticketId, resourceId), "src-1", "100", orgExtId);
   }
 
   private OrganizationConfig createConfig(TicketStrategy strategy) {
