@@ -10,10 +10,12 @@ public record OrganizationConfig(
     Map<String, String> credentials,
     String callbackSecret,
     Map<String, Object> platformConfig,
+    Map<String, String> negotiationStateToTicketState,
     NegotiatorCredentials negotiatorCredentials) {
 
   public OrganizationConfig {
     credentials = Map.copyOf(credentials);
     platformConfig = Map.copyOf(platformConfig);
+    negotiationStateToTicketState = Map.copyOf(negotiationStateToTicketState);
   }
 }

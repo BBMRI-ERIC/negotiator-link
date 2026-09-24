@@ -27,6 +27,9 @@ negotiator-link:
       platformConfig:
         group: "Sales"
         botEmail: "negotiator-link@mhh.de"
+      negotiationStateToTicketState:
+        CONCLUDED: "closed"
+        ABANDONED: "closed"
       negotiatorCredentials:
         clientId: "test-client-id-mhh"
         clientSecret: "test-client-secret-mhh"

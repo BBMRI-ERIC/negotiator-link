@@ -26,6 +26,12 @@ public interface HelpdeskClient extends HelpdeskTyped {
   void updateResourceState(String ticketId, String resourceState, OrganizationConfig config);
 
   /**
+   * Update the platform-native ticket state (e.g. close the ticket). Called when a negotiation
+   * state maps to a configured ticket state.
+   */
+  void updateTicketState(String ticketId, String ticketState, OrganizationConfig config);
+
+  /**
    * Add an external comment to a ticket relaying a Negotiator post (from a researcher, admin, or
    * another organization's representative). Visible to all ticket participants.
    */
