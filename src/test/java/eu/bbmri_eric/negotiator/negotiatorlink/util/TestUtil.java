@@ -61,6 +61,22 @@ public final class TestUtil {
         + "\"}}";
   }
 
+  public static String negotiationStateChangedPayload(
+      String negotiationId, String fromState, String toState, String event, String postId) {
+    return "{\"type\":\"negotiation.state.updated\","
+        + "\"data\":{\"negotiationId\":\""
+        + negotiationId
+        + "\",\"fromState\":\""
+        + fromState
+        + "\",\"toState\":\""
+        + toState
+        + "\",\"event\":\""
+        + event
+        + "\",\"postId\":\""
+        + postId
+        + "\"}}";
+  }
+
   public static String postAddedPayload(String negotiationId, String postId, long organizationId) {
     return "{\"type\":\"negotiation.post.added\","
         + "\"data\":{\"postId\":\""
