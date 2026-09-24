@@ -1429,7 +1429,7 @@ The organization config is extended with an optional `resourceStateToTicketState
 
 ```yaml
 resourceStateToTicketState:
-  DECLINE_ACCESS_CONDITIONS: "closed"
+  RESOURCE_NOT_MADE_AVAILABLE: "closed"
   RESOURCE_MADE_AVAILABLE: "closed"
 ```
 

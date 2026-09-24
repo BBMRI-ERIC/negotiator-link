@@ -328,29 +328,18 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       return;
     }
     try {
-      context.client().updateNegotiationState(ticketId, toState, context.config());
-      log.info("Updated negotiation state '{}' on ticket '{}'", toState, ticketId);
-      applyTicketStateMapping(ticketId, toState, context);
-    } catch (Exception e) {
-      log.error("Failed to update negotiation state on ticket '{}'", ticketId, e);
-    }
-  }
+      log.info("Updating negotiation state on ticket '{}' to state '{}'", ticketId, toState);
+      HelpdeskClient client = context.client();
+      OrganizationConfig config = context.config();
+      client.updateNegotiationState(ticketId, toState, context.config());
 
-  /** Maps the negotiation state to a configured platform-native ticket state and applies it. */
-  private void applyTicketStateMapping(String ticketId, String toState, OrgTicketContext context) {
-    String ticketState = context.config().negotiationStateToTicketState().get(toState);
-    if (ticketState == null) {
-      return;
-    }
-    try {
-      context.client().updateTicketState(ticketId, ticketState, context.config());
-      log.info(
-          "Set ticket '{}' state to '{}' for negotiation state '{}'",
-          ticketId,
-          ticketState,
-          toState);
+      String ticketState = config.negotiationStateToTicketState().get(toState);
+      if (ticketState == null) {
+        return;
+      }
+      client.updateTicketState(ticketId, ticketState, config);
     } catch (Exception e) {
-      log.error("Failed to update ticket state on ticket '{}'", ticketId, e);
+      log.error("fail in updating negotiation state on ticket '{}'", ticketId, e);
     }
   }
 }
