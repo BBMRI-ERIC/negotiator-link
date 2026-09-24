@@ -519,6 +519,8 @@ class NegotiationStateUpdatedHandlerTest {
     verify(helpdeskClient)
         .updateNegotiationState(
             eq("ticket-2"), eq(NegotiatorNegotiationEvent.PAUSE.toState()), eq(config));
+      verify(negotiatorClient, never()).getPost(any(), any(), any());
+      verify(helpdeskClient, never()).addComment(any(), any(), any(), any());
   }
 
   @Test
@@ -668,4 +670,52 @@ class NegotiationStateUpdatedHandlerTest {
 
     verify(helpdeskClient).updateTicketState(eq("ticket-2"), eq("closed"), eq(config));
   }
+
+    @Test
+    void handleStateChange_withPostId_fetchesPostOnceAndAddsSignedCommentToEachTicket() {
+        var config = createConfig(TicketStrategy.PER_RESOURCE);
+        var mapping1 =
+                new TicketMapping(
+                        new TicketMappingId(NEGOTIATION_ID, "ticket-1", "r-1"),
+                        "src-1",
+                        String.valueOf(ORG_INTERNAL_ID),
+                        ORG_EXT_ID);
+        var mapping2 =
+                new TicketMapping(
+                        new TicketMappingId(NEGOTIATION_ID, "ticket-2", "r-2"),
+                        "src-2",
+                        String.valueOf(ORG_INTERNAL_ID),
+                        ORG_EXT_ID);
+        var post =
+                TestUtil.post(
+                        "p-1",
+                        "Hello world",
+                        EntityModelPostDTO.TypeEnum.PUBLIC,
+                        null,
+                        "Alice",
+                        "alice@example.com");
+
+        when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID))
+                .thenReturn(List.of(mapping1, mapping2));
+        when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+        when(negotiatorClient.getPost(NEGOTIATION_ID, "p-1", config)).thenReturn(post);
+
+        handler.handle(eventDataWithPost(NegotiatorNegotiationEvent.PAUSE, "p-1"));
+
+        verify(negotiatorClient, times(1)).getPost(NEGOTIATION_ID, "p-1", config);
+
+        var order = inOrder(timelinePropagationService, helpdeskClient);
+        order
+                .verify(timelinePropagationService)
+                .propagate(eq(NEGOTIATION_ID), eq("ticket-1"), eq(config));
+        order
+                .verify(helpdeskClient)
+                .addComment(eq("ticket-1"), startsWith("From: Alice <alice@example.com>"), eq(config));
+        order
+                .verify(timelinePropagationService)
+                .propagate(eq(NEGOTIATION_ID), eq("ticket-2"), eq(config));
+        order
+                .verify(helpdeskClient)
+                .addComment(eq("ticket-2"), startsWith("From: Alice <alice@example.com>"), eq(config));
+    }
 }

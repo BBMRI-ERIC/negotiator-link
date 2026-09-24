@@ -247,19 +247,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
             Comparator.comparing(
                 EntityModelPostDTO::getCreationDate,
                 Comparator.nullsLast(Comparator.naturalOrder())))
-        .forEach(
-            post -> {
-              UserResponseModel createdBy = post.getCreatedBy();
-              Sender sender =
-                  createdBy != null ? new Sender(createdBy.getName(), createdBy.getEmail()) : null;
-              String signedText = PostUtil.signPost(post.getText(), sender);
-              try {
-                client.addComment(ticketId, signedText, CommentType.PLAIN_TEXT, config);
-                log.info("Posted comment '{}' to ticket '{}'", post.getId(), ticketId);
-              } catch (Exception e) {
-                log.error("Failed to post comment '{}' to ticket '{}'", post.getId(), ticketId, e);
-              }
-            });
+            .forEach(post -> addPostAsComment(ticketId, post, context));
   }
 
   private void saveMapping(
@@ -352,6 +340,8 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       return;
     }
 
+    EntityModelPostDTO post = fetchPost(negotiationId, event.getPostId(), ticketToOrgExtId);
+
     ticketToOrgExtId.forEach(
         (ticketId, orgExtId) -> updateNegotiationStateInTicket(ticketId, orgExtId, toState));
   }
@@ -364,7 +354,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     return ticketToOrgExtId;
   }
 
-  private void updateNegotiationStateInTicket(String ticketId, String orgExtId, String toState) {
+  private void updateNegotiationStateInTicket(String ticketId, String orgExtId, String toState, EntityModelPostDTO post) {
     OrganizationConfig config = registry.findByExternalId(orgExtId).orElse(null);
     if (config == null) {
       log.debug("Organization '{}' not in config — skipping", orgExtId);
@@ -374,14 +364,53 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     try {
       log.info("Updating negotiation state on ticket '{}' to state '{}'", ticketId, toState);
       client.updateNegotiationState(ticketId, toState, config);
+      addPostAsComment(ticketId, post, context);
 
       String ticketState = config.negotiationStateToTicketState().get(toState);
-      if (ticketState == null) {
-        return;
+      if (ticketState != null) {
+          client.updateTicketState(ticketId, ticketState, config);
       }
-      client.updateTicketState(ticketId, ticketState, config);
     } catch (Exception e) {
       log.error("fail in updating negotiation state on ticket '{}'", ticketId, e);
     }
+
   }
+
+    private EntityModelPostDTO fetchPost(
+            String negotiationId, String postId, Map<String, String> ticketToOrgExtId) {
+        if (postId == null) {
+            return null;
+        }
+        String orgExtId = ticketToOrgExtId.values().stream().findFirst().orElseThrow();
+        OrgTicketContext context = resolveOrgContext(negotiationId, orgExtId);
+        if (context == null) {
+            return null;
+        }
+        try {
+            return negotiatorClient.getPost(negotiationId, postId, context.config());
+        } catch (Exception e) {
+            log.error("Failed to fetch post '{}' for negotiation '{}'", postId, negotiationId, e);
+            return null;
+        }
+    }
+
+    /** Posts the given post as a comment on the ticket, if present. */
+    private void addPostAsComment(
+            String ticketId, EntityModelPostDTO post, OrgTicketContext context) {
+        if (post == null || post.getText() == null) {
+            return;
+        }
+        UserResponseModel createdBy = post.getCreatedBy();
+        String postText = post.getText();
+        String postId = post.getId();
+        Sender sender =
+                createdBy != null ? new Sender(createdBy.getName(), createdBy.getEmail()) : null;
+        String signedText = PostUtil.signPost(postText, sender);
+        try {
+            context.client().addComment(ticketId, signedText, context.config());
+            log.info("Posted comment '{}' to ticket '{}'", postId, ticketId);
+        } catch (Exception e) {
+            log.error("Failed to post comment '{}' to ticket '{}'", postId, ticketId, e);
+        }
+    }
 }

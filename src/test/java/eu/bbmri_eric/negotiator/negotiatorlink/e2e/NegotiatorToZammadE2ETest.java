@@ -182,8 +182,9 @@ class NegotiatorToZammadE2ETest {
   @Test
   void negotiationStateChanged_updatesNegotiationStateOnAllZammadTickets() throws Exception {
     String negotiationId = "neg-e2e-state-1";
-    String ticketId1 = "t-state-1";
-    String ticketId2 = "t-state-2";
+    String ticketId1 = "101";
+    String ticketId2 = "102";
+    String postId = "post-e2e-state-1";
 
     ticketMappingRepository.save(
         new TicketMapping(
@@ -203,7 +204,18 @@ class NegotiatorToZammadE2ETest {
             negotiationId,
             NegotiatorNegotiationEvent.UNPAUSE.toState(),
             NegotiatorNegotiationEvent.PAUSE.toState(),
-            NegotiatorNegotiationEvent.PAUSE.name());
+            NegotiatorNegotiationEvent.PAUSE.name(),
+            postId);
+
+      when(negotiatorClient.getPost(eq(negotiationId), eq(postId), any(OrganizationConfig.class)))
+              .thenReturn(
+                      TestUtil.post(
+                              postId,
+                              "Hello from Negotiator",
+                              EntityModelPostDTO.TypeEnum.PUBLIC,
+                              String.valueOf(ORG_ID),
+                              "Jane Doe",
+                              "jane@example.com"));
 
     zammadServer
         .expect(requestTo(TICKETS_URL + "/" + ticketId1))
@@ -212,12 +224,30 @@ class NegotiatorToZammadE2ETest {
             jsonPath("$.negotiation_state").value(NegotiatorNegotiationEvent.PAUSE.toState()))
         .andRespond(withSuccess());
 
+      zammadServer
+              .expect(requestTo(TICKET_ARTICLES_URL))
+              .andExpect(method(HttpMethod.POST))
+              .andExpect(jsonPath("$.ticket_id").value(Integer.parseInt(ticketId1)))
+              .andExpect(
+                      jsonPath("$.body").value("From: Jane Doe <jane@example.com>\n\nHello from Negotiator"))
+              .andExpect(jsonPath("$.internal").value(false))
+              .andRespond(withSuccess());
+
     zammadServer
         .expect(requestTo(TICKETS_URL + "/" + ticketId2))
         .andExpect(method(HttpMethod.PUT))
         .andExpect(
             jsonPath("$.negotiation_state").value(NegotiatorNegotiationEvent.PAUSE.toState()))
         .andRespond(withSuccess());
+
+      zammadServer
+              .expect(requestTo(TICKET_ARTICLES_URL))
+              .andExpect(method(HttpMethod.POST))
+              .andExpect(jsonPath("$.ticket_id").value(Integer.parseInt(ticketId2)))
+              .andExpect(
+                      jsonPath("$.body").value("From: Jane Doe <jane@example.com>\n\nHello from Negotiator"))
+              .andExpect(jsonPath("$.internal").value(false))
+              .andRespond(withSuccess());
 
     postWebhook("msg-e2e-state", body);
 
