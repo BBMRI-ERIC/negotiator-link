@@ -230,7 +230,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
             NEGOTIATION_ID, TICKET_ID, NEW_STATE))
         .thenReturn(Optional.empty());
 
-    handler.handle(eventData(NEW_STATE));
+    handler.handle(eventData());
 
     var order = inOrder(helpdeskClient);
     order.verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
@@ -248,7 +248,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
             NEGOTIATION_ID, TICKET_ID, NEW_STATE))
         .thenReturn(Optional.empty());
 
-    handler.handle(eventData(NEW_STATE));
+    handler.handle(eventData());
 
     verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
     verify(helpdeskClient, never()).updateTicketState(any(), any(), any());
@@ -268,7 +268,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
         .when(helpdeskClient)
         .updateTicketState(any(), any(), any());
 
-    assertDoesNotThrow(() -> handler.handle(eventData(NEW_STATE)));
+    assertDoesNotThrow(() -> handler.handle(eventData()));
     verify(helpdeskClient).updateTicketState(eq(TICKET_ID), eq("closed"), eq(config));
   }
 

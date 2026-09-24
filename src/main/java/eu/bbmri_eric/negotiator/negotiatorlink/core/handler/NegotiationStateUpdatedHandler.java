@@ -339,10 +339,9 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       client.updateNegotiationState(ticketId, toState, context.config());
 
       String ticketState = config.negotiationStateToTicketState().get(toState);
-      if (ticketState == null) {
-        return;
+      if (ticketState != null) {
+        client.updateTicketState(ticketId, ticketState, config);
       }
-      client.updateTicketState(ticketId, ticketState, config);
     } catch (Exception e) {
       log.error("fail in updating negotiation state on ticket '{}'", ticketId, e);
     }
