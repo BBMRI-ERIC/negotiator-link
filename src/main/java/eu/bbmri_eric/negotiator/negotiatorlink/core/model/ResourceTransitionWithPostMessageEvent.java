@@ -5,7 +5,8 @@ public record ResourceTransitionWithPostMessageEvent(
     String resourceState,
     String resourceTransitionEvent,
     String postText,
-    Sender sender)
+    Sender sender,
+    String negotiationState)
     implements HelpdeskCallbackEvent {
 
   @Override
