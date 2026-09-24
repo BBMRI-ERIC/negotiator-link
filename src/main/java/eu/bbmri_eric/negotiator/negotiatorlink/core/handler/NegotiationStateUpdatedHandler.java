@@ -324,10 +324,18 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       return;
     }
     try {
-      context.client().updateNegotiationState(ticketId, toState, context.config());
-      log.info("Updated negotiation state '{}' on ticket '{}'", toState, ticketId);
+      log.info("Updating negotiation state on ticket '{}' to state '{}'", ticketId, toState);
+      HelpdeskClient client = context.client();
+      OrganizationConfig config = context.config();
+      client.updateNegotiationState(ticketId, toState, context.config());
+
+      String ticketState = config.negotiationStateToTicketState().get(toState);
+      if (ticketState == null) {
+        return;
+      }
+      client.updateTicketState(ticketId, ticketState, config);
     } catch (Exception e) {
-      log.error("Failed to update negotiation state on ticket '{}'", ticketId, e);
+      log.error("fail in updating negotiation state on ticket '{}'", ticketId, e);
     }
   }
 }

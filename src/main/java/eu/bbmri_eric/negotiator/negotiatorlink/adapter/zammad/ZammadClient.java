@@ -28,6 +28,7 @@ public class ZammadClient implements HelpdeskClient {
   private static final String LINKS_ADD_PATH = "/api/v1/links/add";
 
   private static final String ARTICLE_TYPE_NOTE = "note";
+  private static final String STATE_FIELD = "state";
 
   private final RestClient.Builder restClientBuilder;
   private final Map<String, RestClient> clientCache = new ConcurrentHashMap<>();
@@ -76,6 +77,11 @@ public class ZammadClient implements HelpdeskClient {
     body.put(ZammadFields.RESOURCE_STATE, resourceState);
     body.put(ZammadFields.TRANSITION_EVENT, null);
     putTicket(ticketId, body, config);
+  }
+
+  @Override
+  public void updateTicketState(String ticketId, String ticketState, OrganizationConfig config) {
+    putTicket(ticketId, Map.of(STATE_FIELD, ticketState), config);
   }
 
   @Override
