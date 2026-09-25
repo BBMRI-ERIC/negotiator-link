@@ -88,7 +88,6 @@ public class ZammadCallbackAdapter implements HelpdeskCallbackAdapter {
     String ticketId = parsed.ticket().id();
     String transitionEvent = normalize(parsed.ticket().transitionEvent());
     String resourceState = normalize(parsed.ticket().resourceState());
-    String negotiationState = normalize(parsed.ticket().negotiationState());
     boolean hasArticle = hasArticle(parsed.article());
 
     if (transitionEvent == null && !hasArticle) {
@@ -108,16 +107,10 @@ public class ZammadCallbackAdapter implements HelpdeskCallbackAdapter {
         switch (callbackType) {
           case RESOURCE_TRANSITION ->
               new ResourceTransitionEvent(ticketId, resourceState, transitionEvent);
-          case POST_MESSAGE ->
-              new PostMessageEvent(ticketId, parsed.article().body(), sender, negotiationState);
+          case POST_MESSAGE -> new PostMessageEvent(ticketId, parsed.article().body(), sender);
           case RESOURCE_TRANSITION_WITH_POST_MESSAGE ->
               new ResourceTransitionWithPostMessageEvent(
-                  ticketId,
-                  resourceState,
-                  transitionEvent,
-                  parsed.article().body(),
-                  sender,
-                  negotiationState);
+                  ticketId, resourceState, transitionEvent, parsed.article().body(), sender);
         });
   }
 
@@ -161,7 +154,6 @@ public class ZammadCallbackAdapter implements HelpdeskCallbackAdapter {
     @JsonIgnoreProperties(ignoreUnknown = true)
     record Ticket(
         String id,
-        @JsonProperty(ZammadFields.NEGOTIATION_STATE) String negotiationState,
         @JsonProperty(ZammadFields.RESOURCE_STATE) String resourceState,
         @JsonProperty(ZammadFields.TRANSITION_EVENT) String transitionEvent) {}
 

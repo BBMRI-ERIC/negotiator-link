@@ -420,11 +420,15 @@ When a representative sends an external message from the help desk, the middlewa
 the help desk platform distinguishes between internal and external articles (e.g. Zammad), only external articles are
 processed; internal articles are silently ignored as they are intended for intra-organization communication only.
 
-Before forwarding the message to Negotiator, the middleware checks whether the negotiation is in a state that allows
-posts (IN_PROGRESS, PAUSED, CONCLUDED). If the negotiation state does not permit posting, the middleware does not
-forward the message and instead adds a system comment to the ticket explaining the reason.
+Before forwarding the message to Negotiator, the middleware asks the Negotiator whether the negotiation currently
+accepts private posts by calling `GET /v3/negotiations/{negotiationId}` and reading the `privatePostsEnabled` flag on
+the returned negotiation. The Negotiator is the authoritative source of this decision — the middleware does not compute
+it from the negotiation state itself, since the same state (e.g. ABANDONED) can permit or forbid posting depending on
+the state it was reached from. If `privatePostsEnabled` is not `true` — or the negotiation cannot be fetched — the
+middleware fails closed: it does not forward the message and instead adds a system comment to the ticket explaining the
+reason.
 
-If the state permits posting, the middleware calls `POST /v3/negotiations/{negotiationId}/posts` on Negotiator with
+If posting is permitted, the middleware calls `POST /v3/negotiations/{negotiationId}/posts` on Negotiator with
 visibility type `PRIVATE`. The post text is prefixed with the sender's identity (`From: <name> <email>`) extracted from
 the help desk article's `created_by` field. Actor identity propagation as a dedicated Negotiator field is out of scope — see Section 8.1.
 
@@ -978,9 +982,11 @@ operations — the resolved `HelpdeskClient` instance, and performs exactly the 
   record then calls the bulk `PATCH /v3/negotiations/{id}/resources` endpoint, on partial or full invalidity calls
   `adapter.updateResourceState()` to clear the field and `adapter.addSystemComment()` listing which resources cannot
   accept the transition
-- `HelpdeskPostHandler` — writes hash of post text and `ticketId` to `originated_posts` before calling Negotiator; calls
-  `NegotiatorClient.createPost()` with visibility type always set to `PRIVATE`. It should also not allow to post
-  a message when the negotiation state is ABANDONED
+- `HelpdeskPostHandler` — first calls `NegotiatorClient.getNegotiation()` and forwards the message only when the
+  returned `privatePostsEnabled` flag is `true` (failing closed on any error or a false/absent flag, and adding a system
+  comment to the ticket to explain the rejection); on the allowed path it writes the hash of the post text and
+  `ticketId` to `originated_posts` before calling `NegotiatorClient.createPost()` with visibility type always set to
+  `PRIVATE`
 
 Each handler has a single, testable responsibility. No handler contains routing logic. Routing is always resolved before
 the handler is called. Some other handlers like NegotiationInfoUpdatedHandler, `HelpdeskTicketStateChangedHandler`, etc. will be added during milestone 2 and 3 (see
@@ -1154,8 +1160,7 @@ record ResourceTransitionEvent(
 record PostMessageEvent(
         String ticketId,
         String postText,
-        Sender sender,                  // sender parsed from the help desk article
-        String negotiationState
+        Sender sender                  // sender parsed from the help desk article
 )
 
 record ResourceTransitionWithPostMessageEvent(
@@ -1163,8 +1168,7 @@ record ResourceTransitionWithPostMessageEvent(
         String resourceState,
         String resourceTransitionEvent,
         String postText,
-        Sender sender,
-        String negotiationState
+        Sender sender
 )
 
 record TicketStateChangedEvent(

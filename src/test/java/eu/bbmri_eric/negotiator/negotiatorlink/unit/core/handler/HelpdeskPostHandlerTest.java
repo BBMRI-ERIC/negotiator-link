@@ -21,6 +21,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.model.PostMessageEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostCreateDTO;
 import java.util.List;
 import java.util.Map;
@@ -65,6 +66,8 @@ class HelpdeskPostHandlerTest {
     when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
             TICKET_ID, ORG_EXT_ID))
         .thenReturn(List.of(mapping()));
+    when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config))
+        .thenReturn(negotiationWithPrivatePosts(true));
 
     handler.handle(callbackEvent(), config);
 
@@ -84,12 +87,44 @@ class HelpdeskPostHandlerTest {
   }
 
   @Test
-  void handle_negotiationAbandoned_rejectsPostAndAddsSystemComment() {
+  void handle_privatePostsDisabled_rejectsPostAndAddsSystemComment() {
     when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
             TICKET_ID, ORG_EXT_ID))
         .thenReturn(List.of(mapping()));
+    when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config))
+        .thenReturn(negotiationWithPrivatePosts(false));
 
-    handler.handle(callbackEvent("ABANDONED"), config);
+    handler.handle(callbackEvent(), config);
+
+    verify(helpdeskClient).addSystemComment(eq(TICKET_ID), any(), eq(config));
+    verify(negotiatorClient, never()).createPost(any(), any(), any());
+    verify(originatedPostRepository, never()).save(any());
+  }
+
+  @Test
+  void handle_privatePostsFlagNull_rejectsPost() {
+    when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
+            TICKET_ID, ORG_EXT_ID))
+        .thenReturn(List.of(mapping()));
+    when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config))
+        .thenReturn(negotiationWithPrivatePosts(null));
+
+    handler.handle(callbackEvent(), config);
+
+    verify(helpdeskClient).addSystemComment(eq(TICKET_ID), any(), eq(config));
+    verify(negotiatorClient, never()).createPost(any(), any(), any());
+    verify(originatedPostRepository, never()).save(any());
+  }
+
+  @Test
+  void handle_getNegotiationFails_failsClosedAndAddsSystemComment() {
+    when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
+            TICKET_ID, ORG_EXT_ID))
+        .thenReturn(List.of(mapping()));
+    when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config))
+        .thenThrow(new RuntimeException("negotiator unavailable"));
+
+    handler.handle(callbackEvent(), config);
 
     verify(helpdeskClient).addSystemComment(eq(TICKET_ID), any(), eq(config));
     verify(negotiatorClient, never()).createPost(any(), any(), any());
@@ -108,6 +143,10 @@ class HelpdeskPostHandlerTest {
     verify(originatedPostRepository, never()).save(any());
   }
 
+  private EntityModelNegotiationDTO negotiationWithPrivatePosts(Boolean enabled) {
+    return new EntityModelNegotiationDTO().privatePostsEnabled(enabled);
+  }
+
   private TicketMapping mapping() {
     return new TicketMapping(
         new TicketMappingId(NEGOTIATION_ID, TICKET_ID, "resource-1"),
@@ -117,10 +156,6 @@ class HelpdeskPostHandlerTest {
   }
 
   private PostMessageEvent callbackEvent() {
-    return callbackEvent(null);
-  }
-
-  private PostMessageEvent callbackEvent(String negotiationState) {
-    return new PostMessageEvent(TICKET_ID, POST_TEXT, SENDER, negotiationState);
+    return new PostMessageEvent(TICKET_ID, POST_TEXT, SENDER);
   }
 }

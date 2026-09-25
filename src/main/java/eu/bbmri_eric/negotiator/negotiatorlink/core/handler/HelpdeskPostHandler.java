@@ -26,10 +26,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class HelpdeskPostHandler implements HelpdeskCallbackHandler<PostMessageEvent> {
 
-  private static final String ABANDONED_STATE = "ABANDONED";
-  private static final String ABANDONED_POST_REJECTED_MESSAGE =
-      "The message could not be forwarded to the Negotiator: the negotiation has been abandoned and "
-          + "no longer accepts new posts.";
+  private static final String POST_REJECTED_MESSAGE =
+      "This message could not be forwarded to the Negotiator at this time. New posts are currently "
+          + "not being accepted for this negotiation.";
 
   private final TicketMappingRepository ticketMappingRepository;
   private final OriginatedPostRepository originatedPostRepository;
@@ -59,8 +58,8 @@ public class HelpdeskPostHandler implements HelpdeskCallbackHandler<PostMessageE
     TicketMapping anyMapping = mappings.getFirst();
     String negotiationId = anyMapping.getId().getNegotiationId();
 
-    if (ABANDONED_STATE.equalsIgnoreCase(postMessageEvent.negotiationState())) {
-      rejectPostForAbandonedNegotiation(ticketId, negotiationId, config);
+    if (!arePrivatePostsEnabled(negotiationId, config)) {
+      rejectPost(ticketId, negotiationId, config);
       return;
     }
 
@@ -82,20 +81,26 @@ public class HelpdeskPostHandler implements HelpdeskCallbackHandler<PostMessageE
         negotiationId);
   }
 
-  private void rejectPostForAbandonedNegotiation(
-      String ticketId, String negotiationId, OrganizationConfig config) {
+  private boolean arePrivatePostsEnabled(String negotiationId, OrganizationConfig config) {
+    try {
+      var negotiation = negotiatorClient.getNegotiation(negotiationId, config);
+      return negotiation != null && negotiation.getPrivatePostsEnabled();
+    } catch (Exception e) {
+      log.error(
+          "Could not determine whether negotiation '{}' accepts private posts — rejecting post: {}",
+          negotiationId,
+          e.getMessage());
+      return false;
+    }
+  }
+
+  private void rejectPost(String ticketId, String negotiationId, OrganizationConfig config) {
     log.info(
-        "Negotiation '{}' for ticket '{}' is ABANDONED — rejecting post and notifying ticket",
+        "Negotiation '{}' for ticket '{}' does not accept private posts — rejecting post and "
+            + "notifying ticket",
         negotiationId,
         ticketId);
     HelpdeskClient client = clients.get(config.type());
-    if (client != null) {
-      client.addSystemComment(ticketId, ABANDONED_POST_REJECTED_MESSAGE, config);
-    } else {
-      log.error(
-          "No adapter for help desk type '{}' — cannot notify ticket '{}' about rejected post",
-          config.type(),
-          ticketId);
-    }
+    client.addSystemComment(ticketId, POST_REJECTED_MESSAGE, config);
   }
 }

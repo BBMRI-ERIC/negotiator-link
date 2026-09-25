@@ -47,11 +47,7 @@ public class HelpdeskEventRouter {
             config);
         dispatch(
             HelpdeskCallbackType.POST_MESSAGE,
-            new PostMessageEvent(
-                combined.ticketId(),
-                combined.postText(),
-                combined.sender(),
-                combined.negotiationState()),
+            new PostMessageEvent(combined.ticketId(), combined.postText(), combined.sender()),
             config);
       }
     }

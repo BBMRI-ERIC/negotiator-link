@@ -98,7 +98,7 @@ class ZammadCallbackAdapterTest {
 
     var expected =
         new PostMessageEvent(
-            "2", "Hello from help desk", new Sender("John Rep", "john.rep@example.com"), ABANDONED);
+            "2", "Hello from help desk", new Sender("John Rep", "john.rep@example.com"));
     assertThat(adapter.parseCallback(payload)).contains(expected);
   }
 
@@ -121,8 +121,7 @@ class ZammadCallbackAdapterTest {
             IN_PROGRESS,
             NegotiatorResourceEvent.MARK_AS_AVAILABLE.name(),
             "Granting access",
-            new Sender("Jane Rep", "jane.rep@example.com"),
-            ABANDONED);
+            new Sender("Jane Rep", "jane.rep@example.com"));
     assertThat(adapter.parseCallback(payload)).contains(expected);
   }
 
