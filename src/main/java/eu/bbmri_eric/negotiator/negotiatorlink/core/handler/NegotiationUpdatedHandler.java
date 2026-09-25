@@ -38,6 +38,14 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
   private final TicketMappingRepository ticketMappingRepository;
   private final ObjectMapper objectMapper;
 
+  /** Negotiation-wide data shared by every ticket's update comment, resolved once per event. */
+  private record NegotiationContext(
+      String negotiationId,
+      EntityModelNegotiationDTO negotiation,
+      Map<String, EntityModelResourceWithStatusDTO> resourceById,
+      List<EntityModelResourceWithStatusDTO> allResources,
+      List<TicketMapping> allMappings) {}
+
   @Override
   public String getSupportedEventType() {
     return EVENT_TYPE;
@@ -78,71 +86,58 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
                     Function.identity(),
                     (existing, duplicate) -> existing));
 
+    NegotiationContext context =
+        new NegotiationContext(negotiationId, negotiation, resourceById, allResources, allMappings);
+
     ticketToOrgExtId.forEach(
-        (ticketId, orgExtId) ->
-            postUpdateComment(
-                negotiationId, ticketId, orgExtId, negotiation, resourceById, allMappings));
+        (ticketId, orgExtId) -> postUpdateComment(ticketId, orgExtId, context));
   }
 
-  private void postUpdateComment(
-      String negotiationId,
-      String ticketId,
-      String orgExtId,
-      EntityModelNegotiationDTO negotiation,
-      Map<String, EntityModelResourceWithStatusDTO> resourceById,
-      List<TicketMapping> allMappings) {
-
+  private void postUpdateComment(String ticketId, String orgExtId, NegotiationContext context) {
     OrganizationConfig config = registry.findByExternalId(orgExtId).orElse(null);
     if (config == null) {
       log.warn("Org '{}' not in config for ticket '{}' — skipping", orgExtId, ticketId);
       return;
     }
     HelpdeskClient client = clients.get(config.type());
-    String body =
-        buildBody(ticketId, config.ticketStrategy(), negotiation, resourceById, allMappings);
+    String body = buildBody(ticketId, config.ticketStrategy(), context);
     try {
       client.addComment(ticketId, body, CommentType.HTML, config);
       log.info(
           "Posted negotiation update comment to ticket '{}' (negotiation '{}')",
           ticketId,
-          negotiationId);
+          context.negotiationId());
     } catch (Exception e) {
       log.error(
           "Failed to post update comment to ticket '{}' for negotiation '{}'",
           ticketId,
-          negotiationId,
+          context.negotiationId(),
           e);
     }
   }
 
-  private String buildBody(
-      String ticketId,
-      TicketStrategy strategy,
-      EntityModelNegotiationDTO negotiation,
-      Map<String, EntityModelResourceWithStatusDTO> resourceById,
-      List<TicketMapping> allMappings) {
-
+  private String buildBody(String ticketId, TicketStrategy strategy, NegotiationContext context) {
     if (strategy == TicketStrategy.PER_NEGOTIATION) {
       // Collect all resources that belong to this ticket.
       List<EntityModelResourceWithStatusDTO> ticketResources =
-          allMappings.stream()
+          context.allMappings().stream()
               .filter(mapping -> mapping.getId().getHelpdeskTicketId().equals(ticketId))
-              .map(mapping -> resourceById.get(mapping.getId().getResourceId()))
+              .map(mapping -> context.resourceById().get(mapping.getId().getResourceId()))
               .filter(Objects::nonNull)
               .toList();
       return NegotiationTicketBodyFormatter.getUpdatedTicketBodyWithMultipleResources(
-          negotiation, ticketResources);
+          context.negotiation(), ticketResources, context.allResources());
     }
 
     // PER_RESOURCE: find the single resource for this ticket.
     EntityModelResourceWithStatusDTO resource =
-        allMappings.stream()
+        context.allMappings().stream()
             .filter(mapping -> mapping.getId().getHelpdeskTicketId().equals(ticketId))
             .findFirst()
-            .map(mapping -> resourceById.get(mapping.getId().getResourceId()))
+            .map(mapping -> context.resourceById().get(mapping.getId().getResourceId()))
             .orElseThrow();
     return NegotiationTicketBodyFormatter.getUpdatedTicketBodyWithSingleResource(
-        negotiation, resource);
+        context.negotiation(), resource, context.allResources());
   }
 
   private static Map<String, String> getDistinctTicketIdToOrgExtId(List<TicketMapping> mappings) {
