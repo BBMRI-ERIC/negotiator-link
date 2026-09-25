@@ -97,14 +97,16 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     }
 
     groupByOrg(resources)
-        .forEach((orgExtId, orgResources) -> ticketOrg(negotiation, orgExtId, orgResources));
+        .forEach(
+            (orgExtId, orgResources) -> ticketOrg(negotiation, orgExtId, orgResources, resources));
   }
 
   /** Creates tickets for a single organization's resources, skipping/logging on any failure. */
   private void ticketOrg(
       EntityModelNegotiationDTO negotiation,
       String orgExtId,
-      List<EntityModelResourceWithStatusDTO> orgResources) {
+      List<EntityModelResourceWithStatusDTO> orgResources,
+      List<EntityModelResourceWithStatusDTO> allResources) {
     OrgTicketContext context = resolveOrgContext(negotiation.getId(), orgExtId);
     if (context == null) {
       return;
@@ -112,9 +114,9 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
 
     try {
       if (context.config().ticketStrategy() == TicketStrategy.PER_NEGOTIATION) {
-        handlePerNegotiation(negotiation, orgResources, context);
+        handlePerNegotiation(negotiation, orgResources, context, allResources);
       } else {
-        handlePerResource(negotiation, orgResources, context);
+        handlePerResource(negotiation, orgResources, context, allResources);
       }
     } catch (Exception e) {
       log.error(
@@ -139,10 +141,12 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
   private void handlePerNegotiation(
       EntityModelNegotiationDTO negotiation,
       List<EntityModelResourceWithStatusDTO> resources,
-      OrgTicketContext context) {
+      OrgTicketContext context,
+      List<EntityModelResourceWithStatusDTO> allResources) {
 
     String body =
-        NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(negotiation, resources);
+        NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(
+            negotiation, resources, allResources);
     String title = NegotiationTicketBodyFormatter.buildTitle(negotiation, null);
     CreateTicketRequest request =
         new CreateTicketRequest(
@@ -161,7 +165,8 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
   private void handlePerResource(
       EntityModelNegotiationDTO negotiation,
       List<EntityModelResourceWithStatusDTO> resources,
-      OrgTicketContext context) {
+      OrgTicketContext context,
+      List<EntityModelResourceWithStatusDTO> allResources) {
 
     List<CreatedTicket> createdTickets = new ArrayList<>();
 
@@ -170,7 +175,8 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
 
     for (EntityModelResourceWithStatusDTO resource : resources) {
       String body =
-          NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(negotiation, resource);
+          NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
+              negotiation, resource, allResources);
 
       String title = NegotiationTicketBodyFormatter.buildTitle(negotiation, resource.getName());
       CreateTicketRequest request =

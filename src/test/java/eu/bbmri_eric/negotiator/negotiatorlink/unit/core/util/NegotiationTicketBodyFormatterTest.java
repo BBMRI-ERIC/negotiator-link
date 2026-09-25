@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFormatter;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO.CurrentStateEnum;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.OrganizationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.UserResponseModel;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -18,6 +20,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 class NegotiationTicketBodyFormatterTest {
+
+  private static final CurrentStateEnum SUBMITTED = CurrentStateEnum.SUBMITTED;
+  private static final CurrentStateEnum RESOURCE_AVAILABLE = CurrentStateEnum.RESOURCE_AVAILABLE;
 
   @ParameterizedTest
   @CsvSource({
@@ -56,7 +61,8 @@ class NegotiationTicketBodyFormatterTest {
     Document doc = renderSingle(createNegotiation(true), submittedResource());
 
     assertThat(sectionHeaders(doc))
-        .containsExactly("PROJECT", "REQUEST", "ETHICS VOTE", "SEARCH PARAMETERS", "RESOURCE");
+        .containsExactly(
+            "PROJECT", "REQUEST", "ETHICS VOTE", "SEARCH PARAMETERS", "REQUESTED RESOURCES");
   }
 
   @Test
@@ -128,9 +134,9 @@ class NegotiationTicketBodyFormatterTest {
     Document doc =
         Jsoup.parse(
             NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(
-                negotiation, List.of(r1, r2)));
+                negotiation, List.of(r1, r2), List.of(r1, r2)));
 
-    Element resourcesHeader = findSectionHeader(doc, "RESOURCES");
+    Element resourcesHeader = findSectionHeader(doc, "REQUESTED RESOURCES");
     Element list = resourcesHeader.nextElementSibling();
     Elements items = list.select("> li");
 
@@ -150,7 +156,7 @@ class NegotiationTicketBodyFormatterTest {
     Document doc =
         Jsoup.parse(
             NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(
-                negotiation, List.of(r1, r2)));
+                negotiation, List.of(r1, r2), List.of(r1, r2)));
 
     assertThat(fieldValue(doc, "State (all resources)")).isEqualTo("SUBMITTED");
   }
@@ -165,7 +171,7 @@ class NegotiationTicketBodyFormatterTest {
 
     String rawHtml =
         NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
-            negotiation, submittedResource());
+            negotiation, submittedResource(), List.of(submittedResource()));
 
     // The dangerous markup must NOT appear as a live tag ...
     assertThat(rawHtml).doesNotContain("<script>");
@@ -184,7 +190,8 @@ class NegotiationTicketBodyFormatterTest {
     var resource = createResource("<b>Evil</b>", "id-x");
 
     String rawHtml =
-        NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(negotiation, resource);
+        NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
+            negotiation, resource, List.of(resource));
 
     assertThat(rawHtml).doesNotContain("<b>Evil</b>");
     assertThat(Jsoup.parse(rawHtml).getElementsContainingOwnText("<b>Evil</b>")).isNotEmpty();
@@ -194,7 +201,7 @@ class NegotiationTicketBodyFormatterTest {
   void getTicketBodyWithSingleResource_usesInlineStylesAndNoStyleBlock() {
     String rawHtml =
         NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
-            createNegotiation(true), submittedResource());
+            createNegotiation(true), submittedResource(), List.of(submittedResource()));
     Document doc = Jsoup.parse(rawHtml);
 
     assertThat(doc.select("style")).isEmpty();
@@ -206,7 +213,7 @@ class NegotiationTicketBodyFormatterTest {
   void getUpdatedTicketBodyWithSingleResource_prependsUpdateNote() {
     String html =
         NegotiationTicketBodyFormatter.getUpdatedTicketBodyWithSingleResource(
-            createNegotiation(true), submittedResource());
+            createNegotiation(true), submittedResource(), List.of(submittedResource()));
 
     assertThat(html).startsWith("<p><strong>");
     assertThat(html).contains("updated");
@@ -220,11 +227,131 @@ class NegotiationTicketBodyFormatterTest {
 
     String html =
         NegotiationTicketBodyFormatter.getUpdatedTicketBodyWithMultipleResources(
-            createNegotiation(true), List.of(r1, r2));
+            createNegotiation(true), List.of(r1, r2), List.of(r1, r2));
 
     assertThat(html).startsWith("<p><strong>");
     assertThat(html).contains("updated");
     assertThat(html).contains("Negotiator Access Request");
+  }
+
+  // ---------------------------------------------------------------------------
+  // Other resources section
+  // ---------------------------------------------------------------------------
+
+  @Test
+  void otherResourcesSection_whenOtherOrgResourcesExist_groupsByOrgName() {
+    var negotiation = createNegotiation(true);
+    var ticketResource = createResource(1L, "Munich Blood", "id-1", "Biobank Munich", SUBMITTED);
+    var otherA1 = createResource(2L, "Prague Tissue", "id-2", "Biobank Prague", RESOURCE_AVAILABLE);
+    var otherA2 = createResource(3L, "Prague Serum", "id-3", "Biobank Prague", SUBMITTED);
+    var otherB = createResource(4L, "Vienna Cohort", "id-4", "Biobank Vienna", SUBMITTED);
+
+    Document doc =
+        Jsoup.parse(
+            NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
+                negotiation, ticketResource, List.of(ticketResource, otherA1, otherA2, otherB)));
+
+    assertThat(sectionHeaders(doc)).contains("OTHER RESOURCES IN THIS NEGOTIATION");
+    assertThat(doc.select("h4").eachText()).containsExactly("Biobank Prague", "Biobank Vienna");
+    assertThat(otherResourcesUnder(doc, "Biobank Prague"))
+        .containsExactly("Prague Tissue", "Prague Serum");
+    assertThat(otherResourcesUnder(doc, "Biobank Vienna")).containsExactly("Vienna Cohort");
+  }
+
+  @Test
+  void otherResourcesSection_whenNoOtherResources_omitsSection() {
+    var negotiation = createNegotiation(true);
+    var ticketResource = createResource(1L, "Munich Blood", "id-1", "Biobank Munich", SUBMITTED);
+
+    Document doc =
+        Jsoup.parse(
+            NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
+                negotiation, ticketResource, List.of(ticketResource)));
+
+    assertThat(sectionHeaders(doc)).doesNotContain("OTHER RESOURCES IN THIS NEGOTIATION");
+    assertThat(doc.select("h4")).isEmpty();
+  }
+
+  @Test
+  void otherResourcesSection_whenOtherResourcePresent_showsNameStateAndSourceId() {
+    var negotiation = createNegotiation(true);
+    var ticketResource = createResource(1L, "Munich Blood", "id-1", "Biobank Munich", SUBMITTED);
+    var other =
+        createResource(2L, "Prague Tissue", "src-prague", "Biobank Prague", RESOURCE_AVAILABLE);
+
+    Document doc =
+        Jsoup.parse(
+            NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
+                negotiation, ticketResource, List.of(ticketResource, other)));
+
+    Element item = otherResourceItem(doc, "Biobank Prague", 0);
+    assertThat(item.selectFirst("strong").text()).isEqualTo("Prague Tissue");
+    assertThat(item.text()).contains("State: RESOURCE_AVAILABLE");
+    assertThat(item.text()).contains("ID: src-prague");
+  }
+
+  @Test
+  void otherResourcesSection_whenOtherResourceHasNullOrg_groupsUnderUnknownOrganization() {
+    var negotiation = createNegotiation(true);
+    var ticketResource = createResource(1L, "Munich Blood", "id-1", "Biobank Munich", SUBMITTED);
+    var other = createResource(2L, "Orphan Resource", "id-2", null, SUBMITTED);
+
+    Document doc =
+        Jsoup.parse(
+            NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
+                negotiation, ticketResource, List.of(ticketResource, other)));
+
+    assertThat(doc.select("h4").eachText()).containsExactly("Unknown organization");
+    assertThat(otherResourcesUnder(doc, "Unknown organization")).containsExactly("Orphan Resource");
+  }
+
+  @Test
+  void otherResourcesSection_whenOtherResourceNameHasHtml_escapesIt() {
+    var negotiation = createNegotiation(true);
+    var ticketResource = createResource(1L, "Munich Blood", "id-1", "Biobank Munich", SUBMITTED);
+    var other = createResource(2L, "<b>Evil</b>", "id-2", "Biobank Prague", SUBMITTED);
+
+    String rawHtml =
+        NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
+            negotiation, ticketResource, List.of(ticketResource, other));
+
+    assertThat(rawHtml).doesNotContain("<b>Evil</b>");
+    assertThat(Jsoup.parse(rawHtml).getElementsContainingOwnText("<b>Evil</b>")).isNotEmpty();
+  }
+
+  @Test
+  void otherResourcesSection_whenSameOrgHasSiblingResources_listsThemUnderSameOrg() {
+    var negotiation = createNegotiation(true);
+    // PER_RESOURCE: one ticket shows resource A; B and C are siblings from the SAME organization.
+    var ticketResource = createResource(1L, "Resource A", "id-a", "Biobank Munich", SUBMITTED);
+    var siblingB = createResource(2L, "Resource B", "id-b", "Biobank Munich", RESOURCE_AVAILABLE);
+    var siblingC = createResource(3L, "Resource C", "id-c", "Biobank Munich", SUBMITTED);
+
+    Document doc =
+        Jsoup.parse(
+            NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
+                negotiation, ticketResource, List.of(ticketResource, siblingB, siblingC)));
+
+    assertThat(sectionHeaders(doc)).contains("OTHER RESOURCES IN THIS NEGOTIATION");
+    assertThat(doc.select("h4").eachText()).containsExactly("Biobank Munich");
+    assertThat(otherResourcesUnder(doc, "Biobank Munich"))
+        .containsExactly("Resource B", "Resource C");
+  }
+
+  @Test
+  void otherResourcesSection_whenMatchedById_excludesTicketResourcesWithSameSourceId() {
+    var negotiation = createNegotiation(true);
+    var ticketResource =
+        createResource(1L, "Shared Name", "shared-src", "Biobank Munich", SUBMITTED);
+    var other = createResource(2L, "Shared Name", "shared-src", "Biobank Prague", SUBMITTED);
+
+    Document doc =
+        Jsoup.parse(
+            NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
+                negotiation, ticketResource, List.of(ticketResource, other)));
+
+    assertThat(doc.select("h4").eachText()).containsExactly("Biobank Prague");
+    assertThat(otherResourcesUnder(doc, "Biobank Prague")).containsExactly("Shared Name");
   }
 
   // ---------------------------------------------------------------------------
@@ -234,7 +361,8 @@ class NegotiationTicketBodyFormatterTest {
   private static Document renderSingle(
       EntityModelNegotiationDTO negotiation, EntityModelResourceWithStatusDTO resource) {
     return Jsoup.parse(
-        NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(negotiation, resource));
+        NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
+            negotiation, resource, List.of(resource)));
   }
 
   /** Returns the value-cell text for the first row whose label matches. */
@@ -271,6 +399,26 @@ class NegotiationTicketBodyFormatterTest {
         .filter(h -> h.text().equals(title))
         .findFirst()
         .orElseThrow(() -> new AssertionError("No section header: " + title));
+  }
+
+  /** Resource names listed under the given "other resources" organization subheading (h4). */
+  private static List<String> otherResourcesUnder(Document doc, String organizationName) {
+    return organizationList(doc, organizationName).select("> li strong").eachText();
+  }
+
+  /** The nth resource &lt;li&gt; under the given organization subheading. */
+  private static Element otherResourceItem(Document doc, String organizationName, int index) {
+    return organizationList(doc, organizationName).select("> li").get(index);
+  }
+
+  private static Element organizationList(Document doc, String organizationName) {
+    Element subheading =
+        doc.select("h4").stream()
+            .filter(h -> h.text().equals(organizationName))
+            .findFirst()
+            .orElseThrow(
+                () -> new AssertionError("No organization subheading: " + organizationName));
+    return subheading.nextElementSibling();
   }
 
   private EntityModelResourceWithStatusDTO submittedResource() {
@@ -331,6 +479,25 @@ class NegotiationTicketBodyFormatterTest {
     resource.setSourceId(sourceId);
     resource.setCurrentState(
         EntityModelResourceWithStatusDTO.CurrentStateEnum.fromValue("SUBMITTED"));
+    return resource;
+  }
+
+  private EntityModelResourceWithStatusDTO createResource(
+      long id,
+      String name,
+      String sourceId,
+      String organizationName,
+      EntityModelResourceWithStatusDTO.CurrentStateEnum state) {
+    var resource = new EntityModelResourceWithStatusDTO();
+    resource.setId(id);
+    resource.setName(name);
+    resource.setSourceId(sourceId);
+    resource.setCurrentState(state);
+    if (organizationName != null) {
+      var organization = new OrganizationDTO();
+      organization.setName(organizationName);
+      resource.setOrganization(organization);
+    }
     return resource;
   }
 }

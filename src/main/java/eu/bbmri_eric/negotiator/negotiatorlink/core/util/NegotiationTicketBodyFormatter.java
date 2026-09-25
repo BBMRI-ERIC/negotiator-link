@@ -5,6 +5,7 @@ import static j2html.TagCreator.div;
 import static j2html.TagCreator.each;
 import static j2html.TagCreator.h2;
 import static j2html.TagCreator.h3;
+import static j2html.TagCreator.h4;
 import static j2html.TagCreator.li;
 import static j2html.TagCreator.p;
 import static j2html.TagCreator.span;
@@ -18,14 +19,20 @@ import static j2html.TagCreator.ul;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.OrganizationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.UserResponseModel;
 import j2html.tags.DomContent;
 import j2html.tags.specialized.TableTag;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +42,7 @@ import lombok.extern.slf4j.Slf4j;
 public final class NegotiationTicketBodyFormatter {
 
   private static final String EMPTY_VALUE = "\u2014";
+  private static final String UNKNOWN_ORG = "Unknown organization";
 
   private static final String WRAPPER_STYLE =
       "font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;"
@@ -45,6 +53,8 @@ public final class NegotiationTicketBodyFormatter {
   private static final String SECTION_HEADER_STYLE =
       "margin:24px 0 8px;padding-bottom:4px;border-bottom:2px solid #c9d2dc;"
           + "font-size:14px;text-transform:uppercase;letter-spacing:.5px;color:#334e68;";
+  private static final String ORG_SUBHEADING_STYLE =
+      "margin:16px 0 6px;font-size:13px;font-weight:600;color:#627d98;";
   private static final String TABLE_STYLE = "border-collapse:collapse;width:100%;";
   private static final String LABEL_CELL_STYLE =
       "padding:4px 12px 4px 0;vertical-align:top;font-weight:600;color:#486581;"
@@ -57,29 +67,43 @@ public final class NegotiationTicketBodyFormatter {
   // ------------
 
   public static String getTicketBodyWithSingleResource(
-      EntityModelNegotiationDTO negotiation, EntityModelResourceWithStatusDTO resource) {
+      EntityModelNegotiationDTO negotiation,
+      EntityModelResourceWithStatusDTO resource,
+      List<EntityModelResourceWithStatusDTO> allNegotiationResources) {
     return wrapper(
-            commonSections(negotiation), sectionHeader("RESOURCE"), singleResourceTable(resource))
+            commonSections(negotiation),
+            sectionHeader("REQUESTED RESOURCES"),
+            singleResourceTable(resource),
+            otherResourcesSection(List.of(resource), allNegotiationResources))
         .render();
   }
 
   public static String getUpdatedTicketBodyWithSingleResource(
-      EntityModelNegotiationDTO negotiation, EntityModelResourceWithStatusDTO resource) {
-    return updateNote() + getTicketBodyWithSingleResource(negotiation, resource);
+      EntityModelNegotiationDTO negotiation,
+      EntityModelResourceWithStatusDTO resource,
+      List<EntityModelResourceWithStatusDTO> allNegotiationResources) {
+    return updateNote()
+        + getTicketBodyWithSingleResource(negotiation, resource, allNegotiationResources);
   }
 
   public static String getUpdatedTicketBodyWithMultipleResources(
-      EntityModelNegotiationDTO negotiation, List<EntityModelResourceWithStatusDTO> resources) {
-    return updateNote() + getTicketBodyWithMultipleResources(negotiation, resources);
+      EntityModelNegotiationDTO negotiation,
+      List<EntityModelResourceWithStatusDTO> resources,
+      List<EntityModelResourceWithStatusDTO> allNegotiationResources) {
+    return updateNote()
+        + getTicketBodyWithMultipleResources(negotiation, resources, allNegotiationResources);
   }
 
   public static String getTicketBodyWithMultipleResources(
-      EntityModelNegotiationDTO negotiation, List<EntityModelResourceWithStatusDTO> resources) {
+      EntityModelNegotiationDTO negotiation,
+      List<EntityModelResourceWithStatusDTO> resources,
+      List<EntityModelResourceWithStatusDTO> allNegotiationResources) {
     return wrapper(
             commonSections(negotiation),
-            sectionHeader("RESOURCES"),
+            sectionHeader("REQUESTED RESOURCES"),
             resourcesList(resources),
-            fieldsTable(List.of(Field.scalar("State (all resources)", sharedState(resources)))))
+            fieldsTable(List.of(Field.scalar("State (all resources)", sharedState(resources)))),
+            otherResourcesSection(resources, allNegotiationResources))
         .render();
   }
 
@@ -165,6 +189,87 @@ public final class NegotiationTicketBodyFormatter {
                                 br(),
                                 span("ID: " + safe(r.getSourceId())).withStyle(MUTED_STYLE))
                             .withStyle("margin-bottom:8px;")));
+  }
+
+  /**
+   * Renders the other negotiation's resources that are not requested in this ticket, grouped by
+   * organization name.
+   */
+  private static DomContent otherResourcesSection(
+      List<EntityModelResourceWithStatusDTO> ticketResources,
+      List<EntityModelResourceWithStatusDTO> allNegotiationResources) {
+
+    Set<Long> ticketResourceIds =
+        ticketResources.stream()
+            .map(EntityModelResourceWithStatusDTO::getId)
+            .collect(Collectors.toSet());
+    Set<EntityModelResourceWithStatusDTO> ticketResourceInstances =
+        Collections.newSetFromMap(new IdentityHashMap<>());
+    ticketResourceInstances.addAll(ticketResources);
+
+    List<EntityModelResourceWithStatusDTO> others =
+        allNegotiationResources.stream()
+            .filter(r -> !belongsToTicket(r, ticketResourceIds, ticketResourceInstances))
+            .toList();
+
+    if (others.isEmpty()) {
+      return each();
+    }
+
+    Map<String, List<EntityModelResourceWithStatusDTO>> byOrganization =
+        others.stream()
+            .collect(
+                Collectors.groupingBy(
+                    NegotiationTicketBodyFormatter::organizationNameOf,
+                    LinkedHashMap::new,
+                    Collectors.toList()));
+
+    var content = new ArrayList<DomContent>();
+    content.add(sectionHeader("OTHER RESOURCES IN THIS NEGOTIATION"));
+    byOrganization.forEach(
+        (organizationName, organizationResources) -> {
+          content.add(organizationSubheading(organizationName));
+          content.add(otherResourcesList(organizationResources));
+        });
+    return each(content.toArray(new DomContent[0]));
+  }
+
+  private static boolean belongsToTicket(
+      EntityModelResourceWithStatusDTO resource,
+      Set<Long> ticketResourceIds,
+      Set<EntityModelResourceWithStatusDTO> ticketResourceInstances) {
+    if (resource.getId() != null) {
+      return ticketResourceIds.contains(resource.getId());
+    }
+    return ticketResourceInstances.contains(resource);
+  }
+
+  private static DomContent organizationSubheading(String organizationName) {
+    return h4(text(safe(organizationName))).withStyle(ORG_SUBHEADING_STYLE);
+  }
+
+  private static DomContent otherResourcesList(List<EntityModelResourceWithStatusDTO> resources) {
+    return ul().withStyle("margin:0;padding-left:20px;")
+        .with(
+            resources.stream()
+                .map(
+                    r ->
+                        li(
+                                strong(text(safe(r.getName()))),
+                                br(),
+                                span("State: "
+                                        + safe(stateOf(r))
+                                        + " · ID: "
+                                        + safe(r.getSourceId()))
+                                    .withStyle(MUTED_STYLE))
+                            .withStyle("margin-bottom:8px;")));
+  }
+
+  private static String organizationNameOf(EntityModelResourceWithStatusDTO resource) {
+    return Optional.ofNullable(resource.getOrganization())
+        .map(OrganizationDTO::getName)
+        .filter(name -> !name.isBlank())
+        .orElse(UNKNOWN_ORG);
   }
 
   private static TableTag fieldsTable(List<Field> fields) {
