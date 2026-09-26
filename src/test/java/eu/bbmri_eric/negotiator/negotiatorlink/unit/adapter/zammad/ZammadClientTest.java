@@ -3,6 +3,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.unit.adapter.zammad;
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalToJson;
+import static com.github.tomakehurst.wiremock.client.WireMock.notMatching;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.put;
@@ -19,8 +20,10 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorCredentials;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreatedTicket;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -93,7 +96,8 @@ class ZammadClientTest {
             "[NEGO-1] Access Request — Dummy Collection",
             "IN_PROGRESS",
             "SUBMITTED",
-            "Ticket body");
+            "Ticket body",
+            List.of());
 
     CreatedTicket result = client.createTicket(request, config);
 
@@ -138,7 +142,11 @@ class ZammadClientTest {
 
     var request =
         new CreateTicketRequest(
-            "[NEGO-2] Resources Access Request", "IN_PROGRESS", "SUBMITTED", "Body text");
+            "[NEGO-2] Resources Access Request",
+            "IN_PROGRESS",
+            "SUBMITTED",
+            "Body text",
+            List.of());
 
     CreatedTicket result = client.createTicket(request, config);
 
@@ -180,7 +188,8 @@ class ZammadClientTest {
     wireMock.stubFor(post(urlEqualTo(TICKETS_URL)).willReturn(stub));
 
     var request =
-        new CreateTicketRequest("[NEGO-1] Access Request", "IN_PROGRESS", "SUBMITTED", "Body");
+        new CreateTicketRequest(
+            "[NEGO-1] Access Request", "IN_PROGRESS", "SUBMITTED", "Body", List.of());
 
     assertThatThrownBy(() -> client.createTicket(request, config))
         .isInstanceOf(IllegalStateException.class);
@@ -285,6 +294,177 @@ class ZammadClientTest {
                     """,
                     true,
                     false)));
+  }
+
+  @Test
+  void addComment_withAttachments_postsBase64EncodedFilesOnArticle() {
+    wireMock.stubFor(
+        post(urlEqualTo(TICKET_ARTICLES_URL))
+            .willReturn(
+                aResponse()
+                    .withStatus(201)
+                    .withHeader("Content-Type", "application/json")
+                    .withBody("{}")));
+
+    var attachment =
+        new Attachment("requestor.txt", "text/plain", "hello".getBytes(StandardCharsets.UTF_8));
+    client.addComment(
+        "7",
+        "New negotiation-level attachments added by requestor. See the files below.",
+        CommentType.PLAIN_TEXT,
+        List.of(attachment),
+        config);
+
+    wireMock.verify(
+        postRequestedFor(urlEqualTo(TICKET_ARTICLES_URL))
+            .withRequestBody(
+                equalToJson(
+                    """
+                    {
+                      "ticket_id": 7,
+                      "body": "New negotiation-level attachments added by requestor. See the files below.",
+                      "content_type": "text/plain",
+                      "type": "note",
+                      "internal": false,
+                      "attachments": [
+                        {"filename": "requestor.txt", "data": "aGVsbG8=", "mime-type": "text/plain"}
+                      ]
+                    }
+                    """,
+                    true,
+                    false)));
+  }
+
+  @Test
+  void attachFile_postsSingleAttachmentWithEmptyBody() {
+    wireMock.stubFor(
+        post(urlEqualTo(TICKET_ARTICLES_URL))
+            .willReturn(
+                aResponse()
+                    .withStatus(201)
+                    .withHeader("Content-Type", "application/json")
+                    .withBody("{}")));
+
+    var attachment =
+        new Attachment("summary.pdf", "application/pdf", "hello".getBytes(StandardCharsets.UTF_8));
+    client.attachFile("7", attachment, config);
+
+    wireMock.verify(
+        postRequestedFor(urlEqualTo(TICKET_ARTICLES_URL))
+            .withRequestBody(
+                equalToJson(
+                    """
+                    {
+                      "ticket_id": 7,
+                      "body": "",
+                      "type": "note",
+                      "internal": false,
+                      "attachments": [
+                        {"filename": "summary.pdf", "data": "aGVsbG8=", "mime-type": "application/pdf"}
+                      ]
+                    }
+                    """,
+                    true,
+                    true)));
+  }
+
+  @Test
+  void addComment_withEmptyAttachmentsList_omitsAttachmentsField() {
+    wireMock.stubFor(
+        post(urlEqualTo(TICKET_ARTICLES_URL))
+            .willReturn(
+                aResponse()
+                    .withStatus(201)
+                    .withHeader("Content-Type", "application/json")
+                    .withBody("{}")));
+
+    client.addComment("7", "No files here", CommentType.PLAIN_TEXT, List.of(), config);
+
+    wireMock.verify(
+        postRequestedFor(urlEqualTo(TICKET_ARTICLES_URL))
+            .withHeader("Authorization", equalTo("Token token=" + API_TOKEN))
+            .withRequestBody(
+                equalToJson(
+                    """
+                    {
+                      "ticket_id": 7,
+                      "body": "No files here",
+                      "content_type": "text/plain",
+                      "type": "note",
+                      "internal": false
+                    }
+                    """,
+                    true,
+                    false)));
+    wireMock.verify(
+        postRequestedFor(urlEqualTo(TICKET_ARTICLES_URL))
+            .withRequestBody(notMatching(".*attachments.*")));
+  }
+
+  @Test
+  void attachFile_sendsAuthHeaderAndBase64EncodedContent() {
+    wireMock.stubFor(
+        post(urlEqualTo(TICKET_ARTICLES_URL))
+            .willReturn(
+                aResponse()
+                    .withStatus(201)
+                    .withHeader("Content-Type", "application/json")
+                    .withBody("{}")));
+
+    var attachment =
+        new Attachment("report.csv", "text/csv", "a,b,c".getBytes(StandardCharsets.UTF_8));
+    client.attachFile("7", attachment, config);
+
+    wireMock.verify(
+        postRequestedFor(urlEqualTo(TICKET_ARTICLES_URL))
+            .withHeader("Authorization", equalTo("Token token=" + API_TOKEN))
+            .withRequestBody(
+                equalToJson(
+                    """
+                    {
+                      "ticket_id": 7,
+                      "attachments": [
+                        {"filename": "report.csv", "data": "YSxiLGM=", "mime-type": "text/csv"}
+                      ]
+                    }
+                    """,
+                    false,
+                    true)));
+  }
+
+  @Test
+  void createTicket_withAttachments_addFilesOnCreateArticle() {
+    wireMock.stubFor(
+        post(urlEqualTo(TICKETS_URL))
+            .willReturn(
+                aResponse()
+                    .withStatus(201)
+                    .withHeader("Content-Type", "application/json")
+                    .withBody("{\"id\":42,\"number\":\"22042\"}")));
+
+    var attachment =
+        new Attachment("requestor.txt", "text/plain", "hello".getBytes(StandardCharsets.UTF_8));
+    var request =
+        new CreateTicketRequest(
+            "[NEGO-1] Access Request", "IN_PROGRESS", "SUBMITTED", "Body", List.of(attachment));
+
+    client.createTicket(request, config);
+
+    wireMock.verify(
+        postRequestedFor(urlEqualTo(TICKETS_URL))
+            .withRequestBody(
+                equalToJson(
+                    """
+                    {
+                      "article": {
+                        "attachments": [
+                          {"filename": "requestor.txt", "data": "aGVsbG8=", "mime-type": "text/plain"}
+                        ]
+                      }
+                    }
+                    """,
+                    false,
+                    true)));
   }
 
   @Test
