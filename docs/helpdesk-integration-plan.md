@@ -1554,32 +1554,15 @@ negotiation lifecycle.
 The integration should expose this same document inside the help desk ticket so that representatives working exclusively
 in the help desk have the full negotiation context without needing to open Negotiator.
 
-**When to send the PDF:** Two triggers are proposed, but the exact policy must be confirmed before implementation:
+**When to send the PDF:** Two triggers for sending the PDF are defined:
 
-1. **On ticket creation** — immediately after `NegotiationApprovedHandler` successfully creates the ticket(s), the PDF
-   is fetched and attached. This gives representatives the full negotiation snapshot from the moment the ticket lands in
-   their queue.
-2. **When a resource reaches its final state** — when the resource-level state machine transitions to a terminal state,
-   a fresh PDF is fetched and attached to the corresponding ticket. This captures
-   the final agreed outcome.
+1. **On ticket creation** — the PDF summary should be downloaded and passed as an attachment to the 
+   `createTicket()` call in `NegotiationApprovedHandler`.
+2. **On negotiation update** - the PDF summary should be downloaded and passed as an attachment to the
+   new ticket body.
 
-Both triggers can fire for the same ticket; the result is two PDF attachments at different points in time, each
-reflecting the negotiation state at the moment of attachment.
-
-**Negotiator API:** A dedicated PDF export endpoint must exist on the Negotiator side. The middleware calls it to fetch
-the binary PDF before attaching it to the ticket. The exact endpoint path and authentication requirements must be
-confirmed during implementation planning for this milestone.
-
-**Middleware changes:**
-
-- `NegotiationApprovedHandler` — after ticket creation succeeds, call the PDF export endpoint, then upload the binary
-  to each newly created ticket via the adapter's attachment API.
-- `NegotiationResourceStateChangedHandler` — after updating the ticket's `negotiator_resource_state` field, check
-  whether the new state is terminal (determined by the configured resource state machine); if so, fetch and attach the
-  PDF.
-- A method on `NegotiatorClient` encapsulates the PDF fetch so both handlers reuse the same logic.
-- The adapter interface gains an `attachFile(ticketId, filename, contentType, bytes)` method used by both handlers and
-  by the attachment forwarding introduced in milestone 2.
+**Negotiator API:** There is dedicated PDF export endpoint on the Negotiator side "/negotiations/{id}/pdf". 
+The middleware calls it to fetch the binary PDF before attaching it to the ticket.
 
 ### Milestone 4
 
