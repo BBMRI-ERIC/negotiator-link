@@ -10,6 +10,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService.ResolvedAttachment;
@@ -47,8 +48,7 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
       EntityModelNegotiationDTO negotiation,
       Map<String, EntityModelResourceWithStatusDTO> resourceById,
       List<EntityModelResourceWithStatusDTO> allResources,
-      List<TicketMapping> allMappings,
-      List<ResolvedAttachment> newAttachments) {}
+      List<TicketMapping> allMappings) {}
 
   @Override
   public String getSupportedEventType() {
@@ -66,21 +66,40 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
       return;
     }
 
-    List<TicketMapping> allMappings = ticketMappingRepository.findByIdNegotiationId(negotiationId);
-    if (allMappings.isEmpty()) {
+    List<TicketMapping> mappings = ticketMappingRepository.findByIdNegotiationId(negotiationId);
+    if (mappings.isEmpty()) {
       log.debug("No mapped tickets for negotiation '{}' — skipping update comment", negotiationId);
       return;
     }
 
-    Map<String, String> ticketToOrgExtId = getDistinctTicketIdToOrgExtId(allMappings);
-    String anyOrgExtId = allMappings.getFirst().getOrganizationExtId();
-    OrganizationConfig fetchConfig = registry.findByExternalId(anyOrgExtId).orElseThrow();
+    OrganizationConfig fetchConfig =
+        registry.findByExternalId(mappings.getFirst().getOrganizationExtId()).orElseThrow();
 
-    EntityModelNegotiationDTO negotiation =
-        negotiatorClient.getNegotiation(negotiationId, fetchConfig);
+    NegotiationContext context = buildContext(negotiationId, mappings, fetchConfig);
+
+    List<ResolvedAttachment> newAttachments =
+        attachmentForwardingService.resolveNegotiationPayloadAttachmentsToForward(
+            negotiationId, fetchConfig);
+    Attachment pdfSummary =
+        attachmentForwardingService.getNegotiationPdfSummary(negotiationId, fetchConfig);
+
+    getDistinctTicketIdToOrgExtId(mappings)
+        .forEach(
+            (ticketId, orgExtId) ->
+                processTicket(ticketId, orgExtId, context, newAttachments, pdfSummary));
+
+    List<String> forwardedAttachmentIds =
+        newAttachments.stream().map(ResolvedAttachment::attachmentId).toList();
+    if (!forwardedAttachmentIds.isEmpty()) {
+      attachmentForwardingService.recordForwarded(negotiationId, forwardedAttachmentIds);
+    }
+  }
+
+  private NegotiationContext buildContext(
+      String negotiationId, List<TicketMapping> mappings, OrganizationConfig config) {
+    EntityModelNegotiationDTO negotiation = negotiatorClient.getNegotiation(negotiationId, config);
     List<EntityModelResourceWithStatusDTO> allResources =
-        negotiatorClient.getResources(negotiationId, fetchConfig);
-
+        negotiatorClient.getResources(negotiationId, config);
     // Build a lookup from resourceId (String) → resource for fast per-ticket filtering below.
     Map<String, EntityModelResourceWithStatusDTO> resourceById =
         allResources.stream()
@@ -89,34 +108,34 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
                     resource -> String.valueOf(resource.getId()),
                     Function.identity(),
                     (existing, duplicate) -> existing));
-
-    List<ResolvedAttachment> newAttachments =
-        attachmentForwardingService.resolveNegotiationPayloadAttachmentsToForward(
-            negotiationId, fetchConfig);
-
-    NegotiationContext context =
-        new NegotiationContext(
-            negotiationId, negotiation, resourceById, allResources, allMappings, newAttachments);
-
-    ticketToOrgExtId.forEach(
-        (ticketId, orgExtId) -> postUpdateComment(ticketId, orgExtId, context));
-
-    if (!newAttachments.isEmpty()) {
-      attachmentForwardingService.recordForwarded(
-          negotiationId, newAttachments.stream().map(ResolvedAttachment::attachmentId).toList());
-    }
+    return new NegotiationContext(negotiationId, negotiation, resourceById, allResources, mappings);
   }
 
-  private void postUpdateComment(String ticketId, String orgExtId, NegotiationContext context) {
+  private void processTicket(
+      String ticketId,
+      String orgExtId,
+      NegotiationContext context,
+      List<ResolvedAttachment> newAttachments,
+      Attachment pdfSummary) {
     OrganizationConfig config = registry.findByExternalId(orgExtId).orElse(null);
     if (config == null) {
       log.warn("Org '{}' not in config for ticket '{}' — skipping", orgExtId, ticketId);
       return;
     }
     HelpdeskClient client = clients.get(config.type());
+    postUpdateComment(ticketId, config, client, context, pdfSummary);
+    forwardNewAttachments(ticketId, config, client, context.negotiationId(), newAttachments);
+  }
+
+  private void postUpdateComment(
+      String ticketId,
+      OrganizationConfig config,
+      HelpdeskClient client,
+      NegotiationContext context,
+      Attachment pdfSummary) {
     String body = buildBody(ticketId, config.ticketStrategy(), context);
     try {
-      client.addComment(ticketId, body, CommentType.HTML, config);
+      client.addComment(ticketId, body, CommentType.HTML, List.of(pdfSummary), config);
       log.info(
           "Posted negotiation update comment to ticket '{}' (negotiation '{}')",
           ticketId,
@@ -128,21 +147,15 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
           context.negotiationId(),
           e);
     }
-    forwardNewAttachments(ticketId, config, client, context);
   }
 
-  /**
-   * Posts the shared negotiation-level attachments to one ticket in a separate comment that makes
-   * clear the files come from the requestor's negotiation (not a representative's post). The set is
-   * resolved and downloaded once per negotiation by the caller; the ledger is recorded once after
-   * all tickets are attempted. A failure here is logged and does not abort the other tickets.
-   */
+  /** Posts the new negotiation-level attachments to one ticket in a separate comment. */
   private void forwardNewAttachments(
       String ticketId,
       OrganizationConfig config,
       HelpdeskClient client,
-      NegotiationContext context) {
-    List<ResolvedAttachment> newAttachments = context.newAttachments();
+      String negotiationId,
+      List<ResolvedAttachment> newAttachments) {
     if (newAttachments.isEmpty()) {
       return;
     }
@@ -154,15 +167,15 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
           newAttachments.stream().map(ResolvedAttachment::attachment).toList(),
           config);
       log.info(
-          "Forwarded {} new attachment(s) to ticket '{}' (negotiation '{}')",
+          "Forwarded {} file(s) to ticket '{}' (negotiation '{}')",
           newAttachments.size(),
           ticketId,
-          context.negotiationId());
+          negotiationId);
     } catch (Exception e) {
       log.error(
           "Failed to forward attachments to ticket '{}' for negotiation '{}'",
           ticketId,
-          context.negotiationId(),
+          negotiationId,
           e);
     }
   }

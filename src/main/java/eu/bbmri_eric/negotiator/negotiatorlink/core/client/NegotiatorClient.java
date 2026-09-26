@@ -206,8 +206,8 @@ public class NegotiatorClient {
   /**
    * Download the raw bytes of a single attachment.
    *
-   * <p>Bypasses the generated {@code AttachmentsApi.retrieve3} on purpose: the generated {@code
-   * ApiClient.selectHeaderAccept} collapses the advertised accept types to {@code
+   * <p>Bypasses the generated {@code AttachmentsApi.retrieve3} on purpose since the generated
+   * {@code ApiClient.selectHeaderAccept} collapses the advertised accept types to {@code
    * application/json}, so the request that reaches Negotiator's octet-stream-only download endpoint
    * fails content negotiation with 406 (surfaced as 403). Calling the authenticated {@link
    * RestClient} directly lets us send the correct {@code Accept: application/octet-stream}.
@@ -222,6 +222,31 @@ public class NegotiatorClient {
         .get()
         .uri(baseUrl + "/v3/attachments/{id}", attachmentId)
         .accept(MediaType.APPLICATION_OCTET_STREAM)
+        .retrieve()
+        .body(byte[].class);
+  }
+
+  /**
+   * Generate and download the PDF summary of a negotiation.
+   *
+   * <p>Bypasses the generated {@code NegotiationsApi.generateNegotiationPdf} since the generated
+   * {@code ApiClient.selectHeaderAccept} collapses the advertised accept types to {@code
+   * application/json}, so the request that reaches Negotiator's PDF endpoint fails content
+   * negotiation with 406 (surfaced as 403). Calling the authenticated {@link RestClient} directly
+   * lets us send the correct {@code Accept: application/pdf}.
+   *
+   * <p>Attachments are intentionally not included in the PDF.
+   *
+   * @param negotiationId the ID of the negotiation to summarize
+   * @param config organization configuration to use for this request
+   * @return the raw PDF bytes
+   */
+  public byte[] generateNegotiationPdf(String negotiationId, OrganizationConfig config) {
+    return getOrCreateClient(config)
+        .restClient()
+        .get()
+        .uri(baseUrl + "/v3/negotiations/{id}/pdf", negotiationId)
+        .accept(MediaType.APPLICATION_PDF)
         .retrieve()
         .body(byte[].class);
   }

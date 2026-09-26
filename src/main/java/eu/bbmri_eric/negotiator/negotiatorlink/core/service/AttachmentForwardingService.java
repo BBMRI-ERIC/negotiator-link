@@ -7,6 +7,8 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.ForwardedNegotiationP
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.ForwardedNegotiationPayloadAttachmentRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.AttachmentMetadataDTO;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -22,6 +24,11 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class AttachmentForwardingService {
+
+  private static final String PDF_CONTENT_TYPE = "application/pdf";
+  private static final String PDF_SUMMARY_FILENAME_PREFIX = "negotiation_summary_";
+  private static final DateTimeFormatter PDF_SUMMARY_TIMESTAMP =
+      DateTimeFormatter.ofPattern("yyyy-MM-dd_HHmmss");
 
   private final NegotiatorClient negotiatorClient;
   private final ForwardedNegotiationPayloadAttachmentRepository forwardedAttachmentRepository;
@@ -61,6 +68,12 @@ public class AttachmentForwardingService {
         .toList();
   }
 
+  /** Generates the negotiation's PDF summary. */
+  public Attachment getNegotiationPdfSummary(String negotiationId, OrganizationConfig config) {
+    byte[] content = negotiatorClient.generateNegotiationPdf(negotiationId, config);
+    return new Attachment(pdfSummaryFilename(), PDF_CONTENT_TYPE, content);
+  }
+
   /** Records one row per forwarded attachment ID. Call only after a successful upload. */
   public void recordForwarded(String negotiationId, List<String> attachmentIds) {
     for (String attachmentId : attachmentIds) {
@@ -68,6 +81,10 @@ public class AttachmentForwardingService {
           new ForwardedNegotiationPayloadAttachment(
               new ForwardedNegotiationPayloadAttachmentId(negotiationId, attachmentId)));
     }
+  }
+
+  private String pdfSummaryFilename() {
+    return PDF_SUMMARY_FILENAME_PREFIX + LocalDateTime.now().format(PDF_SUMMARY_TIMESTAMP) + ".pdf";
   }
 
   private ResolvedAttachment download(AttachmentMetadataDTO metadata, OrganizationConfig config) {

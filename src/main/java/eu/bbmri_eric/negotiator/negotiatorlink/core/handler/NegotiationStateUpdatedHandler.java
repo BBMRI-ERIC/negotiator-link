@@ -100,17 +100,22 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       return;
     }
 
-    List<ResolvedAttachment> attachments =
+    List<ResolvedAttachment> resolvedAttachments =
         attachmentForwardingService.resolveNegotiationPayloadAttachmentsToForward(
             negotiationId, result.config());
+    List<Attachment> attachments = new ArrayList<>(toAttachments(resolvedAttachments));
+    attachments.add(
+        attachmentForwardingService.getNegotiationPdfSummary(negotiationId, result.config()));
+
     groupByOrg(resources)
         .forEach(
             (orgExtId, orgResources) ->
                 ticketOrg(negotiation, orgExtId, orgResources, resources, attachments));
 
-    if (!attachments.isEmpty()) {
+    if (!resolvedAttachments.isEmpty()) {
       attachmentForwardingService.recordForwarded(
-          negotiationId, attachments.stream().map(ResolvedAttachment::attachmentId).toList());
+          negotiationId,
+          resolvedAttachments.stream().map(ResolvedAttachment::attachmentId).toList());
     }
   }
 
@@ -120,7 +125,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       String orgExtId,
       List<EntityModelResourceWithStatusDTO> orgResources,
       List<EntityModelResourceWithStatusDTO> allResources,
-      List<ResolvedAttachment> attachments) {
+      List<Attachment> ticketFiles) {
     OrgTicketContext context = resolveOrgContext(negotiation.getId(), orgExtId);
     if (context == null) {
       return;
@@ -128,9 +133,9 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
 
     try {
       if (context.config().ticketStrategy() == TicketStrategy.PER_NEGOTIATION) {
-        handlePerNegotiation(negotiation, orgResources, context, allResources, attachments);
+        handlePerNegotiation(negotiation, orgResources, context, allResources, ticketFiles);
       } else {
-        handlePerResource(negotiation, orgResources, context, allResources, attachments);
+        handlePerResource(negotiation, orgResources, context, allResources, ticketFiles);
       }
     } catch (Exception e) {
       log.error(
@@ -157,7 +162,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       List<EntityModelResourceWithStatusDTO> resources,
       OrgTicketContext context,
       List<EntityModelResourceWithStatusDTO> allResources,
-      List<ResolvedAttachment> attachments) {
+      List<Attachment> ticketFiles) {
 
     String body =
         NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(
@@ -170,7 +175,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
             negotiation.getStatus(),
             resolveInitialState(resources.getFirst()),
             body,
-            toAttachments(attachments));
+            ticketFiles);
 
     CreatedTicket created = context.client().createTicket(request, context.config());
     log.info(
@@ -187,7 +192,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       List<EntityModelResourceWithStatusDTO> resources,
       OrgTicketContext context,
       List<EntityModelResourceWithStatusDTO> allResources,
-      List<ResolvedAttachment> attachments) {
+      List<Attachment> ticketFiles) {
 
     List<CreatedTicket> createdTickets = new ArrayList<>();
 
@@ -203,11 +208,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
 
       CreateTicketRequest request =
           new CreateTicketRequest(
-              title,
-              negotiation.getStatus(),
-              resolveInitialState(resource),
-              body,
-              toAttachments(attachments));
+              title, negotiation.getStatus(), resolveInitialState(resource), body, ticketFiles);
 
       CreatedTicket created = context.client().createTicket(request, context.config());
       log.info(
