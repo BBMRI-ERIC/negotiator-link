@@ -83,6 +83,8 @@ class NegotiatorToZammadE2ETest {
             negotiation(negotiationId, "E2E-1", NegotiatorNegotiationEvent.APPROVE.toState()));
     when(negotiatorClient.getResources(eq(negotiationId), any(OrganizationConfig.class)))
         .thenReturn(List.of(resource));
+    when(negotiatorClient.generateNegotiationPdf(eq(negotiationId), any(OrganizationConfig.class)))
+        .thenReturn("%PDF-summary".getBytes());
 
     zammadServer
         .expect(requestTo(TICKETS_URL))
@@ -93,6 +95,11 @@ class NegotiatorToZammadE2ETest {
         .andExpect(
             jsonPath("$.negotiation_state").value(NegotiatorNegotiationEvent.APPROVE.toState()))
         .andExpect(jsonPath("$.negotiator_resource_state").value("SUBMITTED"))
+        .andExpect(
+            jsonPath("$.article.attachments[0].filename")
+                .value(
+                    org.hamcrest.Matchers.matchesPattern(
+                        "negotiation_summary_\\d{4}-\\d{2}-\\d{2}_\\d{6}\\.pdf")))
         .andRespond(withSuccess("{\"id\":1,\"number\":\"1001\"}", MediaType.APPLICATION_JSON));
 
     postWebhook("msg-e2e-approve", body);
@@ -253,17 +260,25 @@ class NegotiatorToZammadE2ETest {
         .thenReturn(List.of(publicAttachment, privateAttachment));
     when(negotiatorClient.downloadAttachment(eq("att-public"), any(OrganizationConfig.class)))
         .thenReturn("hello".getBytes());
+    when(negotiatorClient.generateNegotiationPdf(eq(negotiationId), any(OrganizationConfig.class)))
+        .thenReturn("%PDF-summary".getBytes());
 
-    // First article: the negotiation-update comment.
+    // First article: the negotiation-update comment, with the PDF summary attached.
     zammadServer
         .expect(requestTo(TICKET_ARTICLES_URL))
         .andExpect(method(HttpMethod.POST))
         .andExpect(jsonPath("$.ticket_id").value(77))
         .andExpect(jsonPath("$.content_type").value("text/html"))
         .andExpect(jsonPath("$.internal").value(false))
+        .andExpect(
+            jsonPath("$.attachments[0].filename")
+                .value(
+                    org.hamcrest.Matchers.matchesPattern(
+                        "negotiation_summary_\\d{4}-\\d{2}-\\d{2}_\\d{6}\\.pdf")))
+        .andExpect(jsonPath("$.attachments[0]['mime-type']").value("application/pdf"))
         .andRespond(withSuccess());
 
-    // Second article: the forwarded attachment carried on a separate comment.
+    // Second article: the new negotiation-level attachment only.
     zammadServer
         .expect(requestTo(TICKET_ARTICLES_URL))
         .andExpect(method(HttpMethod.POST))
@@ -271,6 +286,7 @@ class NegotiatorToZammadE2ETest {
         .andExpect(jsonPath("$.attachments[0].filename").value("requestor.txt"))
         .andExpect(jsonPath("$.attachments[0].data").value("aGVsbG8="))
         .andExpect(jsonPath("$.attachments[0]['mime-type']").value("text/plain"))
+        .andExpect(jsonPath("$.attachments[1]").doesNotExist())
         .andRespond(withSuccess());
 
     postWebhook("msg-e2e-updated", negotiationUpdatedPayload(negotiationId));

@@ -12,6 +12,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.ForwardedNegotiationPayloadAttachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.ForwardedNegotiationPayloadAttachmentId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.ForwardedNegotiationPayloadAttachmentRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService.ResolvedAttachment;
@@ -95,6 +96,19 @@ class AttachmentForwardingServiceTest {
   void recordForwarded_emptyList_savesNothing() {
     service.recordForwarded(NEGOTIATION_ID, List.of());
 
+    verifyNoInteractions(forwardedAttachmentRepository);
+  }
+
+  @Test
+  void getNegotiationPdfSummary_returnsPdfWithTimestampedName() {
+    byte[] pdf = "%PDF-bytes".getBytes();
+    when(negotiatorClient.generateNegotiationPdf(NEGOTIATION_ID, config)).thenReturn(pdf);
+
+    Attachment summary = service.getNegotiationPdfSummary(NEGOTIATION_ID, config);
+
+    assertThat(summary.content()).isEqualTo(pdf);
+    assertThat(summary.contentType()).isEqualTo("application/pdf");
+    assertThat(summary.filename()).matches("negotiation_summary_\\d{4}-\\d{2}-\\d{2}_\\d{6}\\.pdf");
     verifyNoInteractions(forwardedAttachmentRepository);
   }
 

@@ -328,4 +328,30 @@ class NegotiatorClientTest {
     assertThatThrownBy(() -> client.downloadAttachment("a-err", config))
         .isInstanceOf(RestClientException.class);
   }
+
+  @Test
+  void generateNegotiationPdf_returnsRawBytes() {
+    byte[] pdf = "%PDF-bytes".getBytes();
+    server
+        .expect(requestTo(BASE_URL + "/v3/negotiations/neg-1/pdf"))
+        .andExpect(method(HttpMethod.GET))
+        .andExpect(header("Authorization", "Bearer " + BEARER_TOKEN))
+        .andExpect(header("Accept", MediaType.APPLICATION_PDF_VALUE))
+        .andRespond(withSuccess(pdf, MediaType.APPLICATION_PDF));
+
+    byte[] result = client.generateNegotiationPdf("neg-1", config);
+
+    assertThat(result).isEqualTo(pdf);
+  }
+
+  @Test
+  void generateNegotiationPdf_whenNegotiatorReturns5xx_throwsRestClientException() {
+    server
+        .expect(requestTo(BASE_URL + "/v3/negotiations/neg-err/pdf"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withServerError());
+
+    assertThatThrownBy(() -> client.generateNegotiationPdf("neg-err", config))
+        .isInstanceOf(RestClientException.class);
+  }
 }

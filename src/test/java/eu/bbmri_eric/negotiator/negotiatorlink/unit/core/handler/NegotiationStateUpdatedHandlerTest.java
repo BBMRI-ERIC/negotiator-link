@@ -56,6 +56,9 @@ class NegotiationStateUpdatedHandlerTest {
   private static final Long ORG_INTERNAL_ID = 10L;
   private static final String TICKET_ID = "ticket-42";
   private static final String RESOURCE_STATE = "SUBMITTED";
+  private static final Attachment PDF_SUMMARY =
+      new Attachment(
+          "negotiation_summary_2026-09-26_143207.pdf", "application/pdf", "%PDF".getBytes());
 
   @Mock private NegotiatorClient negotiatorClient;
   @Mock private OrganizationConfigRegistry registry;
@@ -198,7 +201,7 @@ class NegotiationStateUpdatedHandlerTest {
   }
 
   @Test
-  void handleApprove_withPublicAttachments_ridesFilesOnCreateAndRecordsThem() {
+  void handleApprove_withPublicAttachments_addFilesOnCreate() {
     var config = createConfig(TicketStrategy.PER_RESOURCE);
     var resource = createResource("r-1", 1L);
     var negotiation = createNegotiation();
@@ -216,8 +219,9 @@ class NegotiationStateUpdatedHandlerTest {
 
     handler.handle(approveEventData());
 
+    // Ticket carries both the payload attachment and the always-appended PDF summary.
     verify(helpdeskClient)
-        .createTicket(argThat(request -> request.attachments().size() == 1), eq(config));
+        .createTicket(argThat(request -> request.attachments().size() == 2), eq(config));
     verify(attachmentForwardingService).recordForwarded(NEGOTIATION_ID, List.of("a-1"));
   }
 
@@ -392,13 +396,14 @@ class NegotiationStateUpdatedHandlerTest {
     verify(ticketMappingRepository).save(eq(mappingFor(ticket, "1", resource)));
   }
 
-  /** Stubs the full happy path: negotiation, resources, and matching org config. */
   private void stubHappyPath(
       EntityModelNegotiationDTO negotiation,
       OrganizationConfig config,
       List<EntityModelResourceWithStatusDTO> resources) {
     stubResources(negotiation, config, resources);
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+    when(attachmentForwardingService.getNegotiationPdfSummary(eq(NEGOTIATION_ID), eq(config)))
+        .thenReturn(PDF_SUMMARY);
   }
 
   private void stubResources(
@@ -420,7 +425,7 @@ class NegotiationStateUpdatedHandlerTest {
         RESOURCE_STATE,
         NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
             negotiation, resource, allResources),
-        List.of());
+        List.of(PDF_SUMMARY));
   }
 
   private CreateTicketRequest perNegotiationRequest(
@@ -433,7 +438,7 @@ class NegotiationStateUpdatedHandlerTest {
         RESOURCE_STATE,
         NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(
             negotiation, resources, allResources),
-        List.of());
+        List.of(PDF_SUMMARY));
   }
 
   private TicketMapping mappingFor(
@@ -468,13 +473,6 @@ class NegotiationStateUpdatedHandlerTest {
 
   private EntityModelResourceWithStatusDTO createResource(String sourceId, Long id) {
     return TestUtil.resource(id, sourceId, "Resource " + sourceId, ORG_EXT_ID, ORG_INTERNAL_ID);
-  }
-
-  private EntityModelResourceWithStatusDTO namedResource(
-      Long id, String sourceId, String name, String orgExtId, String orgName) {
-    var resource = TestUtil.resource(id, sourceId, name, orgExtId, ORG_INTERNAL_ID);
-    resource.getOrganization().setName(orgName);
-    return resource;
   }
 
   private void stubPosts(OrganizationConfig config, List<EntityModelPostDTO> posts) {
