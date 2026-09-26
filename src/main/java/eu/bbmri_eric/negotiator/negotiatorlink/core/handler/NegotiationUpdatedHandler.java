@@ -149,7 +149,7 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
     try {
       client.addComment(
           ticketId,
-          "New negotiation-level attachments added during the negotiation update. See the files below.",
+          "New negotiation-level attachments added by requestor. See the files below.",
           CommentType.PLAIN_TEXT,
           newAttachments.stream().map(ResolvedAttachment::attachment).toList(),
           config);
