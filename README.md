@@ -90,14 +90,14 @@ conditions to prevent feedback loops (see Step 8).
 
 In Zammad: **Admin → Users → New User**
 
-- **First name**: `negotiator-link`
+- **First name**: `Negotiator Service Account`
 - **Email**: `negotiator-link@local.dev`
 - **Role**: `negotiator-link` (the role created in Step 5 — uncheck the default `Agent` role)
-- **Password**: any value (the account is only used via API token, never interactively)
+- **Password**: any value
 
 ### Step 7 — Create a Zammad API token
 
-Log into Zammad as the `negotiator-link` bot user created in Step 6.
+Log into Zammad as the `Negotiator Service Account` bot user created in Step 6.
 
 Go to **Avatar (top right) → Profile → Token Access → Create**.
 Give it a name (e.g. `negotiator-link`) and enable all permissions. Copy the token into `.env` as
