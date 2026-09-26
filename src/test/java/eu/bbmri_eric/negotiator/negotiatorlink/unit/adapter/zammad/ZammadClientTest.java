@@ -309,7 +309,7 @@ class ZammadClientTest {
         new Attachment("requestor.txt", "text/plain", "hello".getBytes(StandardCharsets.UTF_8));
     client.addComment(
         "7",
-            "New negotiation-level attachments added by requestor. See the files below.",
+        "New negotiation-level attachments added by requestor. See the files below.",
         CommentType.PLAIN_TEXT,
         List.of(attachment),
         config);
