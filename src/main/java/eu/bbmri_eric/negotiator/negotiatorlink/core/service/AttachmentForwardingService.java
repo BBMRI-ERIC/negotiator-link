@@ -42,8 +42,17 @@ public class AttachmentForwardingService {
         forwardedAttachmentRepository.findByIdNegotiationId(negotiationId).stream()
             .map(fa -> fa.getId().getAttachmentId())
             .collect(Collectors.toSet());
-
-    return negotiatorClient.getAttachments(negotiationId, config).stream()
+    var metadata = negotiatorClient.getAttachments(negotiationId, config);
+    log.debug("Retrieved {} attachments for negotiation '{}'", metadata.size(), negotiationId);
+    for (AttachmentMetadataDTO a : metadata) {
+      log.debug(
+          "Attachment {}: name='{}', contentType='{}', organizationId='{}'",
+          a.getId(),
+          a.getName(),
+          a.getContentType(),
+          a.getOrganizationId());
+    }
+    return metadata.stream()
         // TODO: once the Negotiator post <--> attachment link ships and AttachmentMetadataDTO
         //       exposes postId, extend to: getOrganizationId() == null && getPostId() == null
         .filter(a -> a.getOrganizationId() == null)

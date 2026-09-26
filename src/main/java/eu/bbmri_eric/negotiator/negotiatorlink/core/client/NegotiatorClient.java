@@ -20,6 +20,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.client.AuthorizedClientServiceOAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.InMemoryOAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.OAuth2AuthorizeRequest;
@@ -41,7 +42,8 @@ public class NegotiatorClient {
       NegotiationsApi negotiations,
       CommentsApi comments,
       UsersApi users,
-      AttachmentsApi attachments) {}
+      AttachmentsApi attachments,
+      RestClient restClient) {}
 
   public NegotiatorClient(RestClient.Builder restClientBuilder, String baseUrl, String issuerUri) {
     this.restClientBuilder = restClientBuilder;
@@ -204,12 +206,24 @@ public class NegotiatorClient {
   /**
    * Download the raw bytes of a single attachment.
    *
+   * <p>Bypasses the generated {@code AttachmentsApi.retrieve3} on purpose: the generated {@code
+   * ApiClient.selectHeaderAccept} collapses the advertised accept types to {@code
+   * application/json}, so the request that reaches Negotiator's octet-stream-only download endpoint
+   * fails content negotiation with 406 (surfaced as 403). Calling the authenticated {@link
+   * RestClient} directly lets us send the correct {@code Accept: application/octet-stream}.
+   *
    * @param attachmentId the ID of the attachment to download
    * @param config organization configuration to use for this request
    * @return the attachment content
    */
   public byte[] downloadAttachment(String attachmentId, OrganizationConfig config) {
-    return getOrCreateClient(config).attachments().retrieve3(attachmentId);
+    return getOrCreateClient(config)
+        .restClient()
+        .get()
+        .uri(baseUrl + "/v3/attachments/{id}", attachmentId)
+        .accept(MediaType.APPLICATION_OCTET_STREAM)
+        .retrieve()
+        .body(byte[].class);
   }
 
   private PerOrgClient getOrCreateClient(OrganizationConfig config) {
@@ -229,7 +243,8 @@ public class NegotiatorClient {
         new NegotiationsApi(apiClient),
         new CommentsApi(apiClient),
         new UsersApi(apiClient),
-        new AttachmentsApi(apiClient));
+        new AttachmentsApi(apiClient),
+        restClient);
   }
 
   private AuthorizedClientServiceOAuth2AuthorizedClientManager createAuthorizedClientManager(

@@ -63,7 +63,8 @@ class NegotiatorClientTest {
             new NegotiationsApi(apiClient),
             new CommentsApi(apiClient),
             new UsersApi(apiClient),
-            new AttachmentsApi(apiClient));
+            new AttachmentsApi(apiClient),
+            restClient);
     client = new NegotiatorClient(Map.of(ORG_EXT_ID, perOrgClient), BASE_URL);
 
     config = TestUtil.organizationConfig(ORG_EXT_ID, TicketStrategy.PER_RESOURCE);
@@ -309,6 +310,7 @@ class NegotiatorClientTest {
         .expect(requestTo(BASE_URL + "/v3/attachments/a-1"))
         .andExpect(method(HttpMethod.GET))
         .andExpect(header("Authorization", "Bearer " + BEARER_TOKEN))
+        .andExpect(header("Accept", MediaType.APPLICATION_OCTET_STREAM_VALUE))
         .andRespond(withSuccess(content, MediaType.APPLICATION_OCTET_STREAM));
 
     byte[] result = client.downloadAttachment("a-1", config);
