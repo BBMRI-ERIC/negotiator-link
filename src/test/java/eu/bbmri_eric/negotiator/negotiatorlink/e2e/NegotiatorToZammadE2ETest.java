@@ -3,6 +3,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.e2e;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.negotiation;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.negotiationApprovedPayload;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.negotiationStateChangedPayload;
+import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.negotiationUpdatedPayload;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.postAddedPayload;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.resource;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.resourceStateUpdatedPayload;
@@ -23,6 +24,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.AttachmentMetadataDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorNegotiationEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorResourceEvent;
@@ -49,6 +51,8 @@ import org.springframework.web.client.RestClient;
 class NegotiatorToZammadE2ETest {
 
   private static final String ZAMMAD_BASE = "https://zammad.mhh.de";
+  private static final String TICKETS_URL = ZAMMAD_BASE + "/api/v1/tickets";
+  private static final String TICKET_ARTICLES_URL = ZAMMAD_BASE + "/api/v1/ticket_articles";
   private static final String ORG_EXT_ID = "bbmri:DE:MHH";
   private static final Long ORG_ID = 1L;
 
@@ -81,7 +85,7 @@ class NegotiatorToZammadE2ETest {
         .thenReturn(List.of(resource));
 
     zammadServer
-        .expect(requestTo(ZAMMAD_BASE + "/api/v1/tickets"))
+        .expect(requestTo(TICKETS_URL))
         .andExpect(method(HttpMethod.POST))
         .andExpect(jsonPath("$.title").value("[NEGO-E2E-1] Access Request — Resource A"))
         .andExpect(jsonPath("$.group").value("Sales"))
@@ -117,7 +121,7 @@ class NegotiatorToZammadE2ETest {
             ORG_EXT_ID));
 
     zammadServer
-        .expect(requestTo(ZAMMAD_BASE + "/api/v1/tickets/" + ticketId))
+        .expect(requestTo(TICKETS_URL + "/" + ticketId))
         .andExpect(method(HttpMethod.PUT))
         .andExpect(
             jsonPath("$.negotiator_resource_state")
@@ -155,7 +159,7 @@ class NegotiatorToZammadE2ETest {
                 "jane@example.com"));
 
     zammadServer
-        .expect(requestTo(ZAMMAD_BASE + "/api/v1/ticket_articles"))
+        .expect(requestTo(TICKET_ARTICLES_URL))
         .andExpect(method(HttpMethod.POST))
         .andExpect(jsonPath("$.ticket_id").value(42))
         .andExpect(
@@ -195,20 +199,81 @@ class NegotiatorToZammadE2ETest {
             NegotiatorNegotiationEvent.PAUSE.name());
 
     zammadServer
-        .expect(requestTo(ZAMMAD_BASE + "/api/v1/tickets/" + ticketId1))
+        .expect(requestTo(TICKETS_URL + "/" + ticketId1))
         .andExpect(method(HttpMethod.PUT))
         .andExpect(
             jsonPath("$.negotiation_state").value(NegotiatorNegotiationEvent.PAUSE.toState()))
         .andRespond(withSuccess());
 
     zammadServer
-        .expect(requestTo(ZAMMAD_BASE + "/api/v1/tickets/" + ticketId2))
+        .expect(requestTo(TICKETS_URL + "/" + ticketId2))
         .andExpect(method(HttpMethod.PUT))
         .andExpect(
             jsonPath("$.negotiation_state").value(NegotiatorNegotiationEvent.PAUSE.toState()))
         .andRespond(withSuccess());
 
     postWebhook("msg-e2e-state", body);
+
+    zammadServer.verify();
+  }
+
+  @Test
+  void negotiationUpdated_postsUpdateCommentAndForwardsNewAttachments() throws Exception {
+    String negotiationId = "neg-e2e-upd-1";
+    String ticketId = "77";
+    String resourceId = "20";
+    var resource = resource(20L, "src-upd-1", "Resource U", ORG_EXT_ID, ORG_ID);
+
+    ticketMappingRepository.save(
+        new TicketMapping(
+            new TicketMappingId(negotiationId, ticketId, resourceId),
+            "src-upd-1",
+            String.valueOf(ORG_ID),
+            ORG_EXT_ID));
+
+    when(negotiatorClient.getNegotiation(eq(negotiationId), any(OrganizationConfig.class)))
+        .thenReturn(negotiation(negotiationId, "E2E-UPD-1", "IN_PROGRESS"));
+    when(negotiatorClient.getResources(eq(negotiationId), any(OrganizationConfig.class)))
+        .thenReturn(List.of(resource));
+
+    var publicAttachment =
+        new AttachmentMetadataDTO()
+            .id("att-public")
+            .name("requestor.txt")
+            .contentType("text/plain")
+            .size(5L);
+    var privateAttachment =
+        new AttachmentMetadataDTO()
+            .id("att-private")
+            .organizationId(String.valueOf(ORG_ID))
+            .name("internal.txt")
+            .contentType("text/plain")
+            .size(7L);
+    when(negotiatorClient.getAttachments(eq(negotiationId), any(OrganizationConfig.class)))
+        .thenReturn(List.of(publicAttachment, privateAttachment));
+    when(negotiatorClient.downloadAttachment(eq("att-public"), any(OrganizationConfig.class)))
+        .thenReturn("hello".getBytes());
+
+    // First article: the negotiation-update comment.
+    zammadServer
+        .expect(requestTo(TICKET_ARTICLES_URL))
+        .andExpect(method(HttpMethod.POST))
+        .andExpect(jsonPath("$.ticket_id").value(77))
+        .andExpect(jsonPath("$.content_type").value("text/html"))
+        .andExpect(jsonPath("$.internal").value(false))
+        .andRespond(withSuccess());
+
+    // Second article: the forwarded attachment carried on a separate comment.
+    zammadServer
+        .expect(requestTo(TICKET_ARTICLES_URL))
+        .andExpect(method(HttpMethod.POST))
+        .andExpect(jsonPath("$.ticket_id").value(77))
+        .andExpect(jsonPath("$.attachments[0].filename").value("requestor.txt"))
+        .andExpect(jsonPath("$.attachments[0].data").value("aGVsbG8="))
+        .andExpect(jsonPath("$.attachments[0]['mime-type']").value("text/plain"))
+        .andRespond(withSuccess());
+
+    postWebhook("msg-e2e-updated", negotiationUpdatedPayload(negotiationId));
 
     zammadServer.verify();
   }

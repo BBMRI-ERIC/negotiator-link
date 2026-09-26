@@ -12,9 +12,11 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.ApiClient;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.api.AttachmentsApi;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.api.CommentsApi;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.api.NegotiationsApi;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.api.UsersApi;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.AttachmentMetadataDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
@@ -58,7 +60,10 @@ class NegotiatorClientTest {
     apiClient.setBasePath(BASE_URL);
     var perOrgClient =
         new NegotiatorClient.PerOrgClient(
-            new NegotiationsApi(apiClient), new CommentsApi(apiClient), new UsersApi(apiClient));
+            new NegotiationsApi(apiClient),
+            new CommentsApi(apiClient),
+            new UsersApi(apiClient),
+            new AttachmentsApi(apiClient));
     client = new NegotiatorClient(Map.of(ORG_EXT_ID, perOrgClient), BASE_URL);
 
     config = TestUtil.organizationConfig(ORG_EXT_ID, TicketStrategy.PER_RESOURCE);
@@ -259,5 +264,66 @@ class NegotiatorClientTest {
                 MediaType.APPLICATION_JSON));
 
     assertThat(client.getPosts("neg-1", config)).isEmpty();
+  }
+
+  @Test
+  void getAttachments_returnsDeserializedMetadataList() {
+    server
+        .expect(requestTo(BASE_URL + "/v3/negotiations/neg-1/attachments"))
+        .andExpect(method(HttpMethod.GET))
+        .andExpect(header("Authorization", "Bearer " + BEARER_TOKEN))
+        .andRespond(
+            withSuccess(
+                """
+                [
+                  {"id":"a-1","name":"public.txt","contentType":"text/plain","size":5},
+                  {"id":"a-2","organizationId":"org-9","name":"private.txt",
+                   "contentType":"text/plain","size":9}
+                ]
+                """,
+                MediaType.APPLICATION_JSON));
+
+    List<AttachmentMetadataDTO> attachments = client.getAttachments("neg-1", config);
+
+    assertThat(attachments).hasSize(2);
+    assertThat(attachments.get(0).getId()).isEqualTo("a-1");
+    assertThat(attachments.get(0).getOrganizationId()).isNull();
+    assertThat(attachments.get(1).getId()).isEqualTo("a-2");
+    assertThat(attachments.get(1).getOrganizationId()).isEqualTo("org-9");
+  }
+
+  @Test
+  void getAttachments_whenBodyNull_returnsEmptyList() {
+    server
+        .expect(requestTo(BASE_URL + "/v3/negotiations/neg-1/attachments"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess());
+
+    assertThat(client.getAttachments("neg-1", config)).isEmpty();
+  }
+
+  @Test
+  void downloadAttachment_returnsRawBytes() {
+    byte[] content = "file-bytes".getBytes();
+    server
+        .expect(requestTo(BASE_URL + "/v3/attachments/a-1"))
+        .andExpect(method(HttpMethod.GET))
+        .andExpect(header("Authorization", "Bearer " + BEARER_TOKEN))
+        .andRespond(withSuccess(content, MediaType.APPLICATION_OCTET_STREAM));
+
+    byte[] result = client.downloadAttachment("a-1", config);
+
+    assertThat(result).isEqualTo(content);
+  }
+
+  @Test
+  void downloadAttachment_whenNegotiatorReturns5xx_throwsRestClientException() {
+    server
+        .expect(requestTo(BASE_URL + "/v3/attachments/a-err"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withServerError());
+
+    assertThatThrownBy(() -> client.downloadAttachment("a-err", config))
+        .isInstanceOf(RestClientException.class);
   }
 }
