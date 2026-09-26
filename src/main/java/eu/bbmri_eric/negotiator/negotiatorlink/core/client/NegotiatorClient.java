@@ -3,9 +3,11 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.client;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorCredentials;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.ApiClient;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.api.AttachmentsApi;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.api.CommentsApi;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.api.NegotiationsApi;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.api.UsersApi;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.AttachmentMetadataDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
@@ -35,7 +37,11 @@ public class NegotiatorClient {
   private final RestClient.Builder restClientBuilder;
   private final Map<String, PerOrgClient> clientCache = new ConcurrentHashMap<>();
 
-  public record PerOrgClient(NegotiationsApi negotiations, CommentsApi comments, UsersApi users) {}
+  public record PerOrgClient(
+      NegotiationsApi negotiations,
+      CommentsApi comments,
+      UsersApi users,
+      AttachmentsApi attachments) {}
 
   public NegotiatorClient(RestClient.Builder restClientBuilder, String baseUrl, String issuerUri) {
     this.restClientBuilder = restClientBuilder;
@@ -182,6 +188,30 @@ public class NegotiatorClient {
     return getOrCreateClient(config).users().userInfo();
   }
 
+  /**
+   * List the attachment metadata for a negotiation.
+   *
+   * @param negotiationId the ID of the negotiation
+   * @param config organization configuration to use for this request
+   * @return the attachment metadata, empty if none
+   */
+  public List<AttachmentMetadataDTO> getAttachments(
+      String negotiationId, OrganizationConfig config) {
+    return Objects.requireNonNullElse(
+        getOrCreateClient(config).attachments().listByNegotiation(negotiationId), List.of());
+  }
+
+  /**
+   * Download the raw bytes of a single attachment.
+   *
+   * @param attachmentId the ID of the attachment to download
+   * @param config organization configuration to use for this request
+   * @return the attachment content
+   */
+  public byte[] downloadAttachment(String attachmentId, OrganizationConfig config) {
+    return getOrCreateClient(config).attachments().retrieve3(attachmentId);
+  }
+
   private PerOrgClient getOrCreateClient(OrganizationConfig config) {
     // Cached per organizationExternalId under the assumption that per-org credentials are
     // immutable at runtime. This holds because credentials originate from environment variables,
@@ -196,7 +226,10 @@ public class NegotiatorClient {
     var restClient = createAuthenticatedRestClient(manager, creds);
     var apiClient = createApiClient(restClient);
     return new PerOrgClient(
-        new NegotiationsApi(apiClient), new CommentsApi(apiClient), new UsersApi(apiClient));
+        new NegotiationsApi(apiClient),
+        new CommentsApi(apiClient),
+        new UsersApi(apiClient),
+        new AttachmentsApi(apiClient));
   }
 
   private AuthorizedClientServiceOAuth2AuthorizedClientManager createAuthorizedClientManager(

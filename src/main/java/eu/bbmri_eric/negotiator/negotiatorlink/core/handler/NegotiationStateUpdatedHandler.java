@@ -11,10 +11,13 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigReg
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreatedTicket;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService.ResolvedAttachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFormatter;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
@@ -46,6 +49,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
   private final OrganizationConfigRegistry registry;
   private final Map<HelpdeskType, HelpdeskClient> clients;
   private final TicketMappingRepository ticketMappingRepository;
+  private final AttachmentForwardingService attachmentForwardingService;
   private final ObjectMapper objectMapper;
 
   private record NegotiationWithConfig(
@@ -96,9 +100,18 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       return;
     }
 
+    List<ResolvedAttachment> attachments =
+        attachmentForwardingService.resolveNegotiationPayloadAttachmentsToForward(
+            negotiationId, result.config());
     groupByOrg(resources)
         .forEach(
-            (orgExtId, orgResources) -> ticketOrg(negotiation, orgExtId, orgResources, resources));
+            (orgExtId, orgResources) ->
+                ticketOrg(negotiation, orgExtId, orgResources, resources, attachments));
+
+    if (!attachments.isEmpty()) {
+      attachmentForwardingService.recordForwarded(
+          negotiationId, attachments.stream().map(ResolvedAttachment::attachmentId).toList());
+    }
   }
 
   /** Creates tickets for a single organization's resources, skipping/logging on any failure. */
@@ -106,7 +119,8 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       EntityModelNegotiationDTO negotiation,
       String orgExtId,
       List<EntityModelResourceWithStatusDTO> orgResources,
-      List<EntityModelResourceWithStatusDTO> allResources) {
+      List<EntityModelResourceWithStatusDTO> allResources,
+      List<ResolvedAttachment> attachments) {
     OrgTicketContext context = resolveOrgContext(negotiation.getId(), orgExtId);
     if (context == null) {
       return;
@@ -114,9 +128,9 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
 
     try {
       if (context.config().ticketStrategy() == TicketStrategy.PER_NEGOTIATION) {
-        handlePerNegotiation(negotiation, orgResources, context, allResources);
+        handlePerNegotiation(negotiation, orgResources, context, allResources, attachments);
       } else {
-        handlePerResource(negotiation, orgResources, context, allResources);
+        handlePerResource(negotiation, orgResources, context, allResources, attachments);
       }
     } catch (Exception e) {
       log.error(
@@ -142,15 +156,21 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       EntityModelNegotiationDTO negotiation,
       List<EntityModelResourceWithStatusDTO> resources,
       OrgTicketContext context,
-      List<EntityModelResourceWithStatusDTO> allResources) {
+      List<EntityModelResourceWithStatusDTO> allResources,
+      List<ResolvedAttachment> attachments) {
 
     String body =
         NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(
             negotiation, resources, allResources);
     String title = NegotiationTicketBodyFormatter.buildTitle(negotiation, null);
+
     CreateTicketRequest request =
         new CreateTicketRequest(
-            title, negotiation.getStatus(), resolveInitialState(resources.getFirst()), body);
+            title,
+            negotiation.getStatus(),
+            resolveInitialState(resources.getFirst()),
+            body,
+            toAttachments(attachments));
 
     CreatedTicket created = context.client().createTicket(request, context.config());
     log.info(
@@ -166,7 +186,8 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       EntityModelNegotiationDTO negotiation,
       List<EntityModelResourceWithStatusDTO> resources,
       OrgTicketContext context,
-      List<EntityModelResourceWithStatusDTO> allResources) {
+      List<EntityModelResourceWithStatusDTO> allResources,
+      List<ResolvedAttachment> attachments) {
 
     List<CreatedTicket> createdTickets = new ArrayList<>();
 
@@ -179,9 +200,14 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
               negotiation, resource, allResources);
 
       String title = NegotiationTicketBodyFormatter.buildTitle(negotiation, resource.getName());
+
       CreateTicketRequest request =
           new CreateTicketRequest(
-              title, negotiation.getStatus(), resolveInitialState(resource), body);
+              title,
+              negotiation.getStatus(),
+              resolveInitialState(resource),
+              body,
+              toAttachments(attachments));
 
       CreatedTicket created = context.client().createTicket(request, context.config());
       log.info(
@@ -244,6 +270,10 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
             resource.getSourceId(),
             String.valueOf(resource.getOrganization().getId()),
             context.orgExtId()));
+  }
+
+  private List<Attachment> toAttachments(List<ResolvedAttachment> resolved) {
+    return resolved.stream().map(ResolvedAttachment::attachment).toList();
   }
 
   private String resolveInitialState(EntityModelResourceWithStatusDTO resource) {

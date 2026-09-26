@@ -11,6 +11,8 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigReg
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService.ResolvedAttachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFormatter;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
@@ -36,6 +38,7 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
   private final OrganizationConfigRegistry registry;
   private final Map<HelpdeskType, HelpdeskClient> clients;
   private final TicketMappingRepository ticketMappingRepository;
+  private final AttachmentForwardingService attachmentForwardingService;
   private final ObjectMapper objectMapper;
 
   /** Negotiation-wide data shared by every ticket's update comment, resolved once per event. */
@@ -44,7 +47,8 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
       EntityModelNegotiationDTO negotiation,
       Map<String, EntityModelResourceWithStatusDTO> resourceById,
       List<EntityModelResourceWithStatusDTO> allResources,
-      List<TicketMapping> allMappings) {}
+      List<TicketMapping> allMappings,
+      List<ResolvedAttachment> newAttachments) {}
 
   @Override
   public String getSupportedEventType() {
@@ -86,11 +90,21 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
                     Function.identity(),
                     (existing, duplicate) -> existing));
 
+    List<ResolvedAttachment> newAttachments =
+        attachmentForwardingService.resolveNegotiationPayloadAttachmentsToForward(
+            negotiationId, fetchConfig);
+
     NegotiationContext context =
-        new NegotiationContext(negotiationId, negotiation, resourceById, allResources, allMappings);
+        new NegotiationContext(
+            negotiationId, negotiation, resourceById, allResources, allMappings, newAttachments);
 
     ticketToOrgExtId.forEach(
         (ticketId, orgExtId) -> postUpdateComment(ticketId, orgExtId, context));
+
+    if (!newAttachments.isEmpty()) {
+      attachmentForwardingService.recordForwarded(
+          negotiationId, newAttachments.stream().map(ResolvedAttachment::attachmentId).toList());
+    }
   }
 
   private void postUpdateComment(String ticketId, String orgExtId, NegotiationContext context) {
@@ -110,6 +124,43 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
     } catch (Exception e) {
       log.error(
           "Failed to post update comment to ticket '{}' for negotiation '{}'",
+          ticketId,
+          context.negotiationId(),
+          e);
+    }
+    forwardNewAttachments(ticketId, config, client, context);
+  }
+
+  /**
+   * Posts the shared negotiation-level attachments to one ticket in a separate comment that makes
+   * clear the files come from the requestor's negotiation (not a representative's post). The set is
+   * resolved and downloaded once per negotiation by the caller; the ledger is recorded once after
+   * all tickets are attempted. A failure here is logged and does not abort the other tickets.
+   */
+  private void forwardNewAttachments(
+      String ticketId,
+      OrganizationConfig config,
+      HelpdeskClient client,
+      NegotiationContext context) {
+    List<ResolvedAttachment> newAttachments = context.newAttachments();
+    if (newAttachments.isEmpty()) {
+      return;
+    }
+    try {
+      client.addComment(
+          ticketId,
+          "New negotiation-level attachments added during the negotiation update. See the files below.",
+          CommentType.PLAIN_TEXT,
+          newAttachments.stream().map(ResolvedAttachment::attachment).toList(),
+          config);
+      log.info(
+          "Forwarded {} new attachment(s) to ticket '{}' (negotiation '{}')",
+          newAttachments.size(),
+          ticketId,
+          context.negotiationId());
+    } catch (Exception e) {
+      log.error(
+          "Failed to forward attachments to ticket '{}' for negotiation '{}'",
           ticketId,
           context.negotiationId(),
           e);
