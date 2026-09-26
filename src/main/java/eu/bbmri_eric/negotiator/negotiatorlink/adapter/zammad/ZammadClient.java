@@ -5,8 +5,11 @@ import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreatedTicket;
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -91,6 +94,24 @@ public class ZammadClient implements HelpdeskClient {
   }
 
   @Override
+  public void addComment(
+      String ticketId,
+      String commentText,
+      CommentType commentType,
+      List<Attachment> attachments,
+      OrganizationConfig config) {
+    post(
+        buildClient(config),
+        TICKET_ARTICLES_PATH,
+        buildArticleBody(ticketId, commentText, commentType, false, attachments));
+  }
+
+  @Override
+  public void attachFile(String ticketId, Attachment attachment, OrganizationConfig config) {
+    addComment(ticketId, "", CommentType.PLAIN_TEXT, List.of(attachment), config);
+  }
+
+  @Override
   public void addSystemComment(
       String ticketId, String systemCommentText, OrganizationConfig config) {
     postArticle(ticketId, systemCommentText, CommentType.PLAIN_TEXT, true, config);
@@ -117,6 +138,9 @@ public class ZammadClient implements HelpdeskClient {
     article.put("content_type", "text/html");
     article.put("type", ARTICLE_TYPE_NOTE);
     article.put("internal", false);
+    if (!request.attachments().isEmpty()) {
+      article.put("attachments", attachmentsPayload(request.attachments()));
+    }
 
     Map<String, Object> body = new HashMap<>();
     body.put("title", request.title());
@@ -140,6 +164,19 @@ public class ZammadClient implements HelpdeskClient {
     return body;
   }
 
+  private Map<String, Object> buildArticleBody(
+      String ticketId,
+      String text,
+      CommentType commentType,
+      boolean internal,
+      List<Attachment> attachments) {
+    Map<String, Object> body = buildArticleBody(ticketId, text, commentType, internal);
+    if (attachments != null && !attachments.isEmpty()) {
+      body.put("attachments", attachmentsPayload(attachments));
+    }
+    return body;
+  }
+
   private Map<String, Object> buildLinkBody(CreatedTicket source, CreatedTicket target) {
     Map<String, Object> body = new HashMap<>();
     body.put("link_type", "normal");
@@ -148,6 +185,22 @@ public class ZammadClient implements HelpdeskClient {
     body.put("link_object_target", "Ticket");
     body.put("link_object_target_value", Long.parseLong(target.ticketId()));
     return body;
+  }
+
+  private List<Map<String, Object>> attachmentsPayload(List<Attachment> attachments) {
+    List<Map<String, Object>> payload = new ArrayList<>();
+    for (Attachment attachment : attachments) {
+      payload.add(toZammadAttachment(attachment));
+    }
+    return payload;
+  }
+
+  private Map<String, Object> toZammadAttachment(Attachment attachment) {
+    Map<String, Object> map = new HashMap<>();
+    map.put("filename", attachment.filename());
+    map.put("data", Base64.getEncoder().encodeToString(attachment.content()));
+    map.put("mime-type", attachment.contentType());
+    return map;
   }
 
   private void postArticle(
