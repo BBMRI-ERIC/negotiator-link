@@ -5,6 +5,7 @@ target/
 
 ### Secrets ###
 .env
+/organizations.yml
 
 ### STS ###
 .apt_generated

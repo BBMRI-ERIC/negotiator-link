@@ -1,0 +1,81 @@
+name: negotiator-link
+
+# Production deployment for negotiator-link. Whole deployment process is described in the @docs/deployment.md file.
+#
+# Runs ONLY negotiator-link + its own PostgreSQL.
+#
+# External access:
+#   Internet --HTTPS--> upstream reverse proxy (TLS) --HTTP--> VM:80 --> container:8080
+#   https://negotiator-link.demo.bbmri-eric.eu/  ->  VM port 80
+#
+# Configuration is supplied via a `.env` file in this directory (see
+# .env.prod.example) and an `organizations.yml` bind-mounted next to
+# this file (see organizations.prod.yml). Neither must ever be committed.
+
+services:
+
+  negotiator-link:
+    container_name: negotiator-link
+    build:
+      context: .
+      args:
+        ARTIFACT_VERSION: prod
+    restart: unless-stopped
+    ports:
+      - "80:8080"            # host 80 (reachable externally via proxy) -> container 8080
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
+    depends_on:
+      negotiator-link-postgresql:
+        condition: service_healthy
+    environment:
+      # --- Database (matches ${DB_*} in application.yml) ---
+      DB_URL: jdbc:postgresql://negotiator-link-postgresql:5432/negotiator_link
+      DB_USERNAME: negotiator_link
+      DB_PASSWORD: ${DB_PASSWORD}
+      # --- Negotiator (external, acc environment) ---
+      NEGOTIATOR_BASE_URL: https://negotiator.acc.bbmri-eric.eu/api
+      NEGOTIATOR_ISSUER_URI: ${NEGOTIATOR_ISSUER_URI}
+      # --- Negotiator OAuth2 client credentials (per organization) ---
+      NEGOTIATOR_CLIENT_ORG1_ID: ${NEGOTIATOR_CLIENT_ORG1_ID}
+      NEGOTIATOR_CLIENT_ORG1_SECRET: ${NEGOTIATOR_CLIENT_ORG1_SECRET}
+      # --- Webhook signing secret (must match the Negotiator webhook entity) ---
+      NEGOTIATOR_WEBHOOK_SECRET: ${NEGOTIATOR_WEBHOOK_SECRET}
+      # --- Zammad org credentials (resolved into organizations.yml placeholders) ---
+      ZAMMAD_ORG1_API_TOKEN: ${ZAMMAD_ORG1_API_TOKEN}
+      ZAMMAD_ORG1_CALLBACK_SECRET: ${ZAMMAD_ORG1_CALLBACK_SECRET}
+      # --- Organizations config file (bind-mounted below) ---
+      ORGANIZATIONS_CONFIG_PATH: /config/organizations.yml
+    volumes:
+      - ./organizations.yml:/config/organizations.yml:ro
+    networks:
+      - negotiator-link-network
+
+  negotiator-link-postgresql:
+    container_name: negotiator-link-db
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: negotiator_link
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: negotiator_link
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U negotiator_link -d negotiator_link"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - negotiator-link-db-data:/var/lib/postgresql/data
+    networks:
+      - negotiator-link-network
+
+networks:
+  negotiator-link-network:
+    driver: bridge
+
+volumes:
+  negotiator-link-db-data:

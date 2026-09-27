@@ -1,0 +1,122 @@
+# ============================================================================
+# organizations.prod.yml — REFERENCE / TEMPLATE for negotiator-link org config
+# ============================================================================
+#
+# What this file is:
+#   The per-organization configuration that tells negotiator-link which help
+#   desk each Negotiator organization is wired to, how to authenticate, and how
+#   negotiation/resource states map to help-desk ticket states.
+#
+# How it is used:
+#   Copy this file to `organizations.yml` in the deployment directory on the VM.
+#   It is bind-mounted read-only into the container (see compose.prod.yml) and
+#   read ONCE at application startup - for updates, see @docs/deployment.md ("Onboarding a new organization").
+#
+# Secrets:
+#   NEVER hardcode credentials here. The ${...} placeholders are resolved at
+#   runtime from environment variables supplied via `.env` on the VM.
+#     • SAFE TO COMMIT: this template (placeholders + non-secret settings).
+#     • NEVER COMMIT:   the filled-in organizations.yml on the VM.
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# Default state mappings
+# ----------------------------------------------------------------------------
+# Optional per-help-desk-type defaults for the state-mapping fields. When set,
+# an organization of that `type` inherits these mappings unless it defines its
+# own. This saves repeating the same mappings on every organization.
+#
+# Per-organization overrides:
+#   • Define the mapping on the organization to REPLACE the default for it.
+#   • Set it to an empty map (e.g. `negotiationStateToTicketState: {}`) to
+#     DISABLE the default for that organization.
+# The mappings shown on the example organizations below duplicates the defaults since they are only illustrative.
+# So in production, they can be omitted to use the defaults, or they can be overridden if needed.
+#
+#defaults:
+#  ZAMMAD:
+#    negotiationStateToTicketState:
+#      ABANDONED: "closed"
+#      CONCLUDED: "closed"
+#    resourceStateToTicketState:
+#      RESOURCE_NOT_MADE_AVAILABLE: "closed"
+#    ticketStateToResourceEvent:
+#      open: "MARK_AS_CHECKING_AVAILABILITY"
+
+
+negotiator-link:
+  organizations:
+    - organizationExternalId: "bbmri-eric:ID:SE_890"
+      # ^ The organization's external ID as it appears in Negotiator. This is
+      #   the key used to route incoming Negotiator events to this config.
+
+      type: "ZAMMAD"
+      # ^ Help-desk system type. Supported values: ZAMMAD, ALVAO.
+
+      ticketStrategy: "PER_RESOURCE"
+      # ^ How tickets are created for this organization:
+      #     PER_RESOURCE    = one ticket per organization resource in a negotiation.
+      #     PER_NEGOTIATION = one ticket per negotiation (all resources share it).
+
+      baseUrl: https://zammad.example.org
+      # ^ Base URL of this organization's help-desk instance (production value).
+
+      credentials:
+        # ^ Help-desk API credentials. The keys inside `credentials` are
+        #   platform-specific. For ZAMMAD, the adapter expects `apiToken`.
+        apiToken: "${ZAMMAD_ORG1_API_TOKEN}"
+
+      callbackSecret: "${ZAMMAD_ORG1_CALLBACK_SECRET}"
+      # ^ Shared secret used to verify inbound webhooks/callbacks FROM the help
+      #   desk. For Zammad this is the HMAC SHA1 signature token configured on
+      #   the Zammad webhook.
+
+      platformConfig:
+        # ^ Free-form, platform-specific settings (map of key -> value).
+        #   For ZAMMAD:
+        group: "negotiator-link"
+        # ^ Zammad group that owns the tickets created for this organization.
+        botEmail: "negotiator-link@local.dev"
+        # ^ Email of the Zammad bot/service-account user under which
+        #   negotiator-link applies changes. Also used to recognise (and skip)
+        #   the service account's own actions to avoid feedback loops.
+
+      negotiationStateToTicketState:
+        # ^  Mapping of Negotiator negotiation states to Zammad ticket states.
+        #    If the negotiation state is changed e.g. to CONCLUDED, it changes the ticket state to closed. When the
+        #    transition is not applicable from current state, it is ignored.
+        ABANDONED: "closed"
+        CONCLUDED: "closed"
+
+      resourceStateToTicketState:
+        # ^  Mapping of Negotiator resource states to Zammad ticket states.
+        #    If the resource state is changed e.g. to RESOURCE_NOT_MADE_AVAILABLE, it changes the ticket state to closed. When the
+        #    transition is not applicable from current state, it is ignored.
+        RESOURCE_NOT_MADE_AVAILABLE: "closed"
+
+      ticketStateToResourceEvent:
+        # ^  Mapping of Helpdesk ticket states to Negotiator resource events.
+        #    If the ticket state is changed e.g. to open, it changes the resource state to MARK_AS_CHECKING_AVAILABILITY. When the
+        #    transition is not applicable from current state, it is ignored.
+        open: "MARK_AS_CHECKING_AVAILABILITY"
+
+      negotiatorCredentials:
+        # ^ OAuth2 client-credentials for calling Negotiator back on behalf of
+        #   this organization (client registered in Negotiator).
+        clientId: "${NEGOTIATOR_CLIENT_ORG1_ID}"
+        clientSecret: "${NEGOTIATOR_CLIENT_ORG1_SECRET}"
+
+# ============================================================================
+# Field reference (applies to every item under `organizations:`)
+# ----------------------------------------------------------------------------
+#   organizationExternalId  (string)  Negotiator org external ID; routing key.
+#   type                    (enum)    ZAMMAD | ALVAO.
+#   ticketStrategy          (enum)    PER_RESOURCE | PER_NEGOTIATION.
+#   baseUrl                 (string)  Help-desk instance base URL.
+#   credentials             (map)     Platform-specific API creds
+#   callbackSecret          (string)  Secret to verify inbound help-desk callbacks.
+#   platformConfig          (map)     Platform-specific settings
+#   negotiationStateToTicketState (map)  Negotiation state -> ticket state.
+#   resourceStateToTicketState    (map)  Resource state    -> ticket state.
+#   negotiatorCredentials   (obj)     clientId + clientSecret for Negotiator OAuth2.
+#   ticketStateToResourceEvent    (map)  PLANNED — ticket state -> resource event.
