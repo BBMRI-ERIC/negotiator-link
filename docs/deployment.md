@@ -110,11 +110,11 @@ cp .env.prod.example .env
 cp organizations.prod.yml organizations.yml
 
 # 4. Fill in the real values
-vi .env                 # DB_PASSWORD, NEGOTIATOR_ISSUER_URI, client creds, webhook + Helpdesk secrets
-vi organizations.yml    # set the real Helpdesk baseUrl for each organization
+nano .env                 # DB_PASSWORD, NEGOTIATOR_ISSUER_URI, client creds, webhook + Helpdesk secrets
+nano organizations.yml    # set the real Helpdesk baseUrl for each organization
 
 # 5. Build the image and start the stack in the background
-docker compose -f compose.prod.yml up -d --build
+sudo docker compose -f compose.prod.yml up -d --build
 ```
 
 Notes:
@@ -132,19 +132,19 @@ Run these on the VM unless noted otherwise.
 
 **Containers are up and healthy:**
 ```bash
-docker compose -f compose.prod.yml ps
+sudo docker compose -f compose.prod.yml ps
 # negotiator-link      Up (healthy)
 # negotiator-link-db   Up (healthy)
 ```
 
 **Application logs** (look for the Spring "Started" line and Flyway migrations, no errors):
 ```bash
-docker compose -f compose.prod.yml logs -f negotiator-link
+sudo docker compose -f compose.prod.yml logs -f negotiator-link
 ```
 
 **The container is publishing port 80:**
 ```bash
-docker compose -f compose.prod.yml port negotiator-link 8080   # -> 0.0.0.0:80
+sudo docker compose -f compose.prod.yml port negotiator-link 8080   # -> 0.0.0.0:80
 ss -tlnp | grep ':80'                                          # host is listening on 80
 ```
 

@@ -39,7 +39,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       # --- Negotiator (external) ---
       NEGOTIATOR_BASE_URL: ${NEGOTIATOR_BASE_URL:-https://negotiator.acc.bbmri-eric.eu/api}
-      NEGOTIATOR_ISSUER_URI: ${NEGOTIATOR_ISSUER_URI:-https://login.aai.lifescience-ri.eu/oidc}
+      NEGOTIATOR_ISSUER_URI: ${NEGOTIATOR_ISSUER_URI:-https://login.aai.lifescience-ri.eu/oidc/}
       # --- Negotiator OAuth2 client credentials (per organization) ---
       NEGOTIATOR_CLIENT_ORG1_ID: ${NEGOTIATOR_CLIENT_ORG1_ID}
       NEGOTIATOR_CLIENT_ORG1_SECRET: ${NEGOTIATOR_CLIENT_ORG1_SECRET}
