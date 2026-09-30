@@ -176,8 +176,8 @@ curl -I https://<your-domain>/actuator/health
 ssh negotiator-link
 cd ~/negotiator-link
 git pull                                          # fetch updated source / compose / templates
-docker compose -f compose.prod.yml up -d --build  # rebuild image and restart changed services
-docker compose -f compose.prod.yml logs -f negotiator-link
+sudo docker compose -f compose.prod.yml up -d --build  # rebuild image and restart changed services
+sudo docker compose -f compose.prod.yml logs -f negotiator-link
 ```
 
 - Database data persists in the `negotiator-link-db-data` volume across rebuilds and restarts.
@@ -188,8 +188,8 @@ docker compose -f compose.prod.yml logs -f negotiator-link
 
 Stop / start containers without deleting:
 ```bash
-docker compose -f compose.prod.yml stop
-docker compose -f compose.prod.yml start
+sudo docker compose -f compose.prod.yml stop
+sudo docker compose -f compose.prod.yml start
 ```
 
 ---
@@ -208,15 +208,15 @@ needed — only configuration. On the VM:
 3. **Apply the change:**
    ```bash
    cd ~/negotiator-link
-   docker compose -f compose.prod.yml up -d
+   sudo docker compose -f compose.prod.yml up -d
    ```
    `up -d` recreates the negotiator-link container so it picks up the new `.env` values and re-reads
    `organizations.yml` (the config is read once at startup). No `--build` is required, and the
    database and its data are untouched.
 4. **Verify** the container came up cleanly with the new org and check for config errors:
    ```bash
-   docker compose -f compose.prod.yml ps
-   docker compose -f compose.prod.yml logs -f negotiator-link
+   sudo docker compose -f compose.prod.yml ps
+   sudo docker compose -f compose.prod.yml logs -f negotiator-link
    ```
 
 > Configuring negotiator-link is only one side. The organization's **Negotiator webhook** and
