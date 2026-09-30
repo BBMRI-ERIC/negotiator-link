@@ -147,12 +147,6 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
   /** Propagates the negotiation timeline to every distinct ticket mapped to the negotiation. */
   private void propagateTimelineToAllTickets(String negotiationId) {
     Map<String, String> ticketToOrgExtId = getDistinctTicketIdToOrgExtId(negotiationId);
-    if (ticketToOrgExtId.isEmpty()) {
-      log.debug(
-          "No mapped tickets for negotiation '{}' — skipping timeline propagation", negotiationId);
-      return;
-    }
-
     ticketToOrgExtId.forEach(
         (ticketId, orgExtId) -> {
           OrganizationConfig config = registry.findByExternalId(orgExtId).orElse(null);
