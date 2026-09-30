@@ -207,6 +207,7 @@ public class NegotiatorClient {
             .clientId(creds.clientId())
             .clientSecret(creds.clientSecret())
             .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
+            .scope("negotiator_api")
             .build();
     var registrationRepo = new InMemoryClientRegistrationRepository(registration);
     var clientService = new InMemoryOAuth2AuthorizedClientService(registrationRepo);
