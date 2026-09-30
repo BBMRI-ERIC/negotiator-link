@@ -156,7 +156,7 @@ curl -f http://localhost/actuator/health      # -> {"status":"UP"}
 **Health check externally** (from your laptop — use your real domain):
 ```bash
 curl -I https://<your-domain>/actuator/health
-# e.g. curl -I https://negotiator-link.demo.bbmri-eric.eu/actuator/health
+# e.g. curl https://negotiator-link.demo.bbmri-eric.eu/actuator/health
 ```
 
 ### Distinguishing an application problem from a proxy/network problem
