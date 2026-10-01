@@ -83,7 +83,7 @@ public class AttachmentForwardingService {
   /**
    * Records one row per forwarded attachment ID for a ticket. Call only after a successful upload.
    */
-  public void recordForwarded(
+  public void recordForwardedAttachments(
       String negotiationId, String orgExtId, String ticketId, List<String> attachmentIds) {
     for (String attachmentId : attachmentIds) {
       forwardedAttachmentRepository.save(

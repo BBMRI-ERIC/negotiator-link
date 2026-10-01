@@ -172,9 +172,8 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
         created.ticketId(),
         orgExtId,
         negotiation.getId());
-    recordForwarded(created, negotiation.getId(), orgExtId, context.resolvedAttachments());
-    resources.forEach(resource -> saveMapping(created, resource, negotiation.getId(), orgExtId));
-    postCommentsToTicket(created.ticketId(), negotiation.getId(), config, client);
+    List<EntityModelPostDTO> posts = negotiatorClient.getPosts(negotiation.getId(), config);
+    afterTicketCreated(created, resources, posts, orgExtId, config, client, context);
   }
 
   private void handlePerResource(
@@ -184,11 +183,9 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       HelpdeskClient client,
       CreateNegotiationContext context) {
     EntityModelNegotiationDTO negotiation = context.negotiation();
-
-    List<CreatedTicket> createdTickets = new ArrayList<>();
-
     List<EntityModelPostDTO> posts = negotiatorClient.getPosts(negotiation.getId(), config);
 
+    List<CreatedTicket> createdTickets = new ArrayList<>();
     for (EntityModelResourceWithStatusDTO resource : resources) {
       String body =
           NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(negotiation, resource);
@@ -208,11 +205,8 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
           created.ticketId(),
           resource.getId(),
           negotiation.getId());
-      recordForwarded(created, negotiation.getId(), orgExtId, context.resolvedAttachments());
-      saveMapping(created, resource, negotiation.getId(), orgExtId);
+      afterTicketCreated(created, List.of(resource), posts, orgExtId, config, client, context);
       createdTickets.add(created);
-
-      postCommentsToTicket(created.ticketId(), posts, config, client);
     }
 
     if (createdTickets.size() > 1) {
@@ -220,10 +214,23 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     }
   }
 
-  private void postCommentsToTicket(
-      String ticketId, String negotiationId, OrganizationConfig config, HelpdeskClient client) {
-    List<EntityModelPostDTO> posts = negotiatorClient.getPosts(negotiationId, config);
-    postCommentsToTicket(ticketId, posts, config, client);
+  private void afterTicketCreated(
+      CreatedTicket createdTicket,
+      List<EntityModelResourceWithStatusDTO> ticketResources,
+      List<EntityModelPostDTO> posts,
+      String orgExtId,
+      OrganizationConfig config,
+      HelpdeskClient client,
+      CreateNegotiationContext context) {
+    String negotiationId = context.negotiation().getId();
+    attachmentForwardingService.recordForwardedAttachments(
+        negotiationId,
+        orgExtId,
+        createdTicket.ticketId(),
+        context.resolvedAttachments().stream().map(ResolvedAttachment::attachmentId).toList());
+    ticketResources.forEach(
+        resource -> saveMapping(createdTicket, resource, negotiationId, orgExtId));
+    postCommentsToTicket(createdTicket.ticketId(), posts, config, client);
   }
 
   private void postCommentsToTicket(
@@ -268,21 +275,6 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
             resource.getSourceId(),
             String.valueOf(resource.getOrganization().getId()),
             orgExtId));
-  }
-
-  private void recordForwarded(
-      CreatedTicket ticket,
-      String negotiationId,
-      String orgExtId,
-      List<ResolvedAttachment> resolvedAttachments) {
-    if (resolvedAttachments.isEmpty()) {
-      return;
-    }
-    attachmentForwardingService.recordForwarded(
-        negotiationId,
-        orgExtId,
-        ticket.ticketId(),
-        resolvedAttachments.stream().map(ResolvedAttachment::attachmentId).toList());
   }
 
   /**

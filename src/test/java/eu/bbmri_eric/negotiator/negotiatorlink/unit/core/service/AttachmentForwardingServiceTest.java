@@ -93,8 +93,9 @@ class AttachmentForwardingServiceTest {
   }
 
   @Test
-  void recordForwarded_savesOneRowPerId_withTicketAndOrgInKey() {
-    service.recordForwarded(NEGOTIATION_ID, ORG_EXT_ID, TICKET_ID, List.of("a-1", "a-2"));
+  void recordForwardedAttachments_savesOneRowPerId_withTicketAndOrgInKey() {
+    service.recordForwardedAttachments(
+        NEGOTIATION_ID, ORG_EXT_ID, TICKET_ID, List.of("a-1", "a-2"));
 
     verify(forwardedAttachmentRepository, times(2)).save(rowCaptor.capture());
     assertThat(rowCaptor.getAllValues())
@@ -107,8 +108,8 @@ class AttachmentForwardingServiceTest {
   }
 
   @Test
-  void recordForwarded_emptyList_savesNothing() {
-    service.recordForwarded(NEGOTIATION_ID, ORG_EXT_ID, TICKET_ID, List.of());
+  void recordForwardedAttachments_emptyList_savesNothing() {
+    service.recordForwardedAttachments(NEGOTIATION_ID, ORG_EXT_ID, TICKET_ID, List.of());
 
     verifyNoInteractions(forwardedAttachmentRepository);
   }

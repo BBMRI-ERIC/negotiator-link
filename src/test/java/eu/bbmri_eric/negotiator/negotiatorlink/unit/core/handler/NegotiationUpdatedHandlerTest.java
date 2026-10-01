@@ -150,7 +150,8 @@ class NegotiationUpdatedHandlerTest {
             eq(CommentType.HTML),
             argThat(this::isPdfSummaryOnly),
             eq(config2));
-    verify(attachmentForwardingService, never()).recordForwarded(any(), any(), any(), any());
+    verify(attachmentForwardingService, never())
+        .recordForwardedAttachments(any(), any(), any(), any());
   }
 
   @Test
@@ -193,7 +194,7 @@ class NegotiationUpdatedHandlerTest {
             argThat(files -> files.size() == 1),
             eq(config));
     verify(attachmentForwardingService)
-        .recordForwarded(NEGOTIATION_ID, ORG_EXT_ID, TICKET_ID, List.of("a-1"));
+        .recordForwardedAttachments(NEGOTIATION_ID, ORG_EXT_ID, TICKET_ID, List.of("a-1"));
   }
 
   @Test
@@ -240,9 +241,9 @@ class NegotiationUpdatedHandlerTest {
     handler.handle(updatedEventNode(NEGOTIATION_ID));
 
     verify(attachmentForwardingService, never())
-        .recordForwarded(NEGOTIATION_ID, ORG_EXT_ID, TICKET_ID, List.of("a-1"));
+        .recordForwardedAttachments(NEGOTIATION_ID, ORG_EXT_ID, TICKET_ID, List.of("a-1"));
     verify(attachmentForwardingService)
-        .recordForwarded(NEGOTIATION_ID, orgExtId2, ticketId2, List.of("a-1"));
+        .recordForwardedAttachments(NEGOTIATION_ID, orgExtId2, ticketId2, List.of("a-1"));
   }
 
   @Test

@@ -152,7 +152,7 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
           CommentType.PLAIN_TEXT,
           toForward.stream().map(ResolvedAttachment::attachment).toList(),
           config);
-      attachmentForwardingService.recordForwarded(
+      attachmentForwardingService.recordForwardedAttachments(
           negotiationId,
           orgExtId,
           ticketId,

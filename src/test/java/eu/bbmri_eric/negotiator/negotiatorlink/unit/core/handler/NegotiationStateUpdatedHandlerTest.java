@@ -219,7 +219,7 @@ class NegotiationStateUpdatedHandlerTest {
     verify(helpdeskClient)
         .createTicket(argThat(request -> request.attachments().size() == 2), eq(config));
     verify(attachmentForwardingService)
-        .recordForwarded(NEGOTIATION_ID, ORG_EXT_ID, TICKET_ID, List.of("a-1"));
+        .recordForwardedAttachments(NEGOTIATION_ID, ORG_EXT_ID, TICKET_ID, List.of("a-1"));
     verify(attachmentForwardingService, never()).notYetForwardedToTicket(any(), any(), any());
   }
 
