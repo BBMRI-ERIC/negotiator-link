@@ -1519,29 +1519,34 @@ include the attachments linked to that post; once that change is available, post
 a later milestone.
 
 The middleware maintains a `forwarded_negotiation_payload_attachment` table to track which attachments have already
-been transferred for each negotiation, so that each attachment is forwarded at most once regardless of how many
-forwarding triggers fire. The grain is the negotiation, not the ticket: because all of a negotiation's tickets are
-created together at approval and no ticket is ever added afterwards, every ticket of a negotiation always carries the
-same set of forwarded negotiation-level attachments, so a single `(negotiation_id, attachment_id)` row covers all of
-them.
+been transferred to each ticket, so that each attachment is forwarded at most once per ticket regardless of how many
+forwarding triggers fire. The grain is the ticket, not the negotiation: scoping per ticket means a failed forward to one
+ticket does not suppress forwarding to the other tickets of the same negotiation, nor a later retry of the failed one. A
+ticket id is only unique within one organization's help desk, so the key is `(organization_ext_id, ticket_id,
+attachment_id)`. `negotiation_id` is kept as a descriptive column (it is not needed for uniqueness and is not queried on
+its own).
 
-| Column           | Type      | Constraints  |
-|------------------|-----------|--------------|
-| `negotiation_id` | VARCHAR   | composite PK |
-| `attachment_id`  | VARCHAR   | composite PK |
-| `forwarded_at`   | TIMESTAMP | NOT NULL     |
+| Column                | Type      | Constraints  |
+|-----------------------|-----------|--------------|
+| `organization_ext_id` | VARCHAR   | composite PK |
+| `ticket_id`           | VARCHAR   | composite PK |
+| `attachment_id`       | VARCHAR   | composite PK |
+| `negotiation_id`      | VARCHAR   | NOT NULL     |
+| `forwarded_at`        | TIMESTAMP | NOT NULL     |
 
 When ticket creation or `NegotiationUpdatedHandler` fires, it fetches the full list of attachments
-for the negotiation from Negotiator via `GET /v3/negotiations/{negotiationId}/attachments`, subtracts the IDs already
-present in `forwarded_negotiation_payload_attachment`, and forwards only the delta. Before forwarding, each attachment
-is filtered: only attachments with no `organizationId` set are forwarded. Attachments that carry an `organizationId`
-were added in a private post scoped to a specific organization; these are not forwarded in milestone 2 and will instead
-be forwarded alongside the originating post once the Negotiator team includes attachment references in the
-`negotiation.post.added` webhook payload. Each attachment that passes the filter is downloaded once per negotiation via
-`GET /v3/attachments/{id}` and the same bytes are fanned out to every ticket of that negotiation: on creation the files
-ride the initial ticket article, and on a payload update they ride a separate comment that makes clear the files come
-from the requestor's negotiation. After all of the negotiation's tickets have been attempted, one row per forwarded
-attachment id is inserted into `forwarded_negotiation_payload_attachment`, so a re-fired event skips those files.
+for the negotiation from Negotiator via `GET /v3/negotiations/{negotiationId}/attachments` once per event. Before
+forwarding, each attachment is filtered: only attachments with no `organizationId` set are forwarded. Attachments that
+carry an `organizationId` were added in a private post scoped to a specific organization; these are not forwarded in
+milestone 2 and will instead be forwarded alongside the originating post once the Negotiator team includes attachment
+references in the `negotiation.post.added` webhook payload. Each attachment that passes the filter is downloaded once per
+event via `GET /v3/attachments/{id}` and the same bytes are fanned out to the tickets. The already-forwarded subtraction
+is per ticket: on a payload update the handler subtracts the ids already recorded for that `(organization_ext_id,
+ticket_id)` and forwards only the delta in a separate comment that makes clear the files come from the requestor's
+negotiation, recording each ticket's forwarded ids immediately after that ticket's comment succeeds. On creation the
+files ride the initial ticket article (a brand-new ticket has nothing recorded yet, so no subtraction is needed) and the
+forwarded ids are recorded per ticket once creation succeeds. A failed forward therefore leaves that ticket's rows
+absent, so a re-fired event retries only that ticket.
 
 Attachment forwarding from the help desk to Negotiator (reverse direction) is also deferred to a later milestone.
 
