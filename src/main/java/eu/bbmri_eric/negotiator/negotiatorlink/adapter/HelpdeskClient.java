@@ -35,7 +35,8 @@ public interface HelpdeskClient extends HelpdeskTyped {
    * Add an external comment to a ticket relaying a Negotiator post (from a researcher, admin, or
    * another organization's representative). Visible to all ticket participants.
    */
-  void addComment(String ticketId, String commentText, OrganizationConfig config);
+  void addComment(
+      String ticketId, String commentText, CommentType commentType, OrganizationConfig config);
 
   /**
    * Add an internal comment to a ticket for middleware operational notifications (e.g. invalid

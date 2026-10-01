@@ -202,6 +202,31 @@ class NegotiationTicketBodyFormatterTest {
     assertThat(doc.selectFirst("h2").hasAttr("style")).isTrue();
   }
 
+  @Test
+  void getUpdatedTicketBodyWithSingleResource_prependsUpdateNote() {
+    String html =
+        NegotiationTicketBodyFormatter.getUpdatedTicketBodyWithSingleResource(
+            createNegotiation(true), submittedResource());
+
+    assertThat(html).startsWith("<p><strong>");
+    assertThat(html).contains("updated");
+    assertThat(html).contains("Negotiator Access Request");
+  }
+
+  @Test
+  void getUpdatedTicketBodyWithMultipleResources_prependsUpdateNote() {
+    var r1 = createResource("A", "id-a");
+    var r2 = createResource("B", "id-b");
+
+    String html =
+        NegotiationTicketBodyFormatter.getUpdatedTicketBodyWithMultipleResources(
+            createNegotiation(true), List.of(r1, r2));
+
+    assertThat(html).startsWith("<p><strong>");
+    assertThat(html).contains("updated");
+    assertThat(html).contains("Negotiator Access Request");
+  }
+
   // ---------------------------------------------------------------------------
   // Jsoup helpers
   // ---------------------------------------------------------------------------

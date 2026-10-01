@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
@@ -81,8 +82,10 @@ class NegotiationPostAddedHandlerTest {
 
     handler.handle(postEventData(null));
 
-    verify(helpdeskClient).addComment(eq(TICKET_A), eq(POST_TEXT), eq(configMhh));
-    verify(helpdeskClient).addComment(eq(TICKET_B), eq(POST_TEXT), eq(configAmc));
+    verify(helpdeskClient)
+        .addComment(eq(TICKET_A), eq(POST_TEXT), eq(CommentType.PLAIN_TEXT), eq(configMhh));
+    verify(helpdeskClient)
+        .addComment(eq(TICKET_B), eq(POST_TEXT), eq(CommentType.PLAIN_TEXT), eq(configAmc));
   }
 
   @Test
@@ -103,8 +106,9 @@ class NegotiationPostAddedHandlerTest {
 
     handler.handle(postEventData(ORG_ID));
 
-    verify(helpdeskClient).addComment(eq(TICKET_A), eq(POST_TEXT), eq(config));
-    verify(helpdeskClient, never()).addComment(eq(TICKET_B), any(), any());
+    verify(helpdeskClient)
+        .addComment(eq(TICKET_A), eq(POST_TEXT), eq(CommentType.PLAIN_TEXT), eq(config));
+    verify(helpdeskClient, never()).addComment(eq(TICKET_B), any(), any(), any());
   }
 
   @Test
@@ -124,7 +128,7 @@ class NegotiationPostAddedHandlerTest {
 
     handler.handle(postEventData(ORG_ID));
 
-    verify(helpdeskClient, never()).addComment(eq(TICKET_A), any(), any());
+    verify(helpdeskClient, never()).addComment(eq(TICKET_A), any(), any(), any());
     verify(originatedPostRepository).deleteById(any());
   }
 
@@ -141,7 +145,7 @@ class NegotiationPostAddedHandlerTest {
 
     handler.handle(postEventData(ORG_ID));
 
-    verify(helpdeskClient, never()).addComment(any(), any(), any());
+    verify(helpdeskClient, never()).addComment(any(), any(), any(), any());
   }
 
   @Test
@@ -152,7 +156,7 @@ class NegotiationPostAddedHandlerTest {
     handler.handle(postEventData(ORG_ID));
 
     verify(negotiatorClient, never()).getPost(any(), any(), any());
-    verify(helpdeskClient, never()).addComment(any(), any(), any());
+    verify(helpdeskClient, never()).addComment(any(), any(), any(), any());
   }
 
   @Test
@@ -162,7 +166,7 @@ class NegotiationPostAddedHandlerTest {
     handler.handle(postEventData(null));
 
     verify(negotiatorClient, never()).getPost(any(), any(), any());
-    verify(helpdeskClient, never()).addComment(any(), any(), any());
+    verify(helpdeskClient, never()).addComment(any(), any(), any(), any());
   }
 
   @Test
@@ -177,7 +181,7 @@ class NegotiationPostAddedHandlerTest {
     handler.handle(postEventData(ORG_ID));
 
     verify(ticketMappingRepository, never()).findByIdNegotiationId(any());
-    verify(helpdeskClient, never()).addComment(any(), any(), any());
+    verify(helpdeskClient, never()).addComment(any(), any(), any(), any());
   }
 
   private JsonNode postEventData(Long orgId) {
@@ -214,7 +218,10 @@ class NegotiationPostAddedHandlerTest {
 
     verify(helpdeskClient)
         .addComment(
-            eq(TICKET_A), eq("From: Jane Doe <jane@example.com>\n\n" + POST_TEXT), eq(config));
+            eq(TICKET_A),
+            eq("From: Jane Doe <jane@example.com>\n\n" + POST_TEXT),
+            eq(CommentType.PLAIN_TEXT),
+            eq(config));
   }
 
   @Test
@@ -241,7 +248,11 @@ class NegotiationPostAddedHandlerTest {
     handler.handle(postEventData(ORG_ID));
 
     verify(helpdeskClient)
-        .addComment(eq(TICKET_A), eq("From: Jane Doe\n\n" + POST_TEXT), eq(config));
+        .addComment(
+            eq(TICKET_A),
+            eq("From: Jane Doe\n\n" + POST_TEXT),
+            eq(CommentType.PLAIN_TEXT),
+            eq(config));
   }
 
   @Test
@@ -268,7 +279,11 @@ class NegotiationPostAddedHandlerTest {
     handler.handle(postEventData(ORG_ID));
 
     verify(helpdeskClient)
-        .addComment(eq(TICKET_A), eq("From: jane@example.com\n\n" + POST_TEXT), eq(config));
+        .addComment(
+            eq(TICKET_A),
+            eq("From: jane@example.com\n\n" + POST_TEXT),
+            eq(CommentType.PLAIN_TEXT),
+            eq(config));
   }
 
   private EntityModelPostDTO createPost(EntityModelPostDTO.TypeEnum type) {

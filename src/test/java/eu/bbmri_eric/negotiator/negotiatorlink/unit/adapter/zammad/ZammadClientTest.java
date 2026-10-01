@@ -13,6 +13,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
+import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.zammad.ZammadClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorCredentials;
@@ -267,7 +268,7 @@ class ZammadClientTest {
                     .withHeader("Content-Type", "application/json")
                     .withBody("{}")));
 
-    client.addComment("7", "Hello representative", config);
+    client.addComment("7", "Hello representative", CommentType.PLAIN_TEXT, config);
 
     wireMock.verify(
         postRequestedFor(urlEqualTo(TICKET_ARTICLES_URL))
@@ -277,6 +278,7 @@ class ZammadClientTest {
                     {
                       "ticket_id": 7,
                       "body": "Hello representative",
+                      "content_type": "text/plain",
                       "type": "note",
                       "internal": false
                     }
@@ -305,6 +307,7 @@ class ZammadClientTest {
                     {
                       "ticket_id": 7,
                       "body": "Transition rejected",
+                      "content_type": "text/plain",
                       "type": "note",
                       "internal": true
                     }

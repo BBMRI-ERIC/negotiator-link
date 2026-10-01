@@ -2,6 +2,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
@@ -132,11 +133,6 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     }
 
     HelpdeskClient client = clients.get(config.type());
-    if (client == null) {
-      log.error("No adapter for help desk type '{}' (org '{}')", config.type(), orgExtId);
-      return null;
-    }
-
     return new OrgTicketContext(negotiationId, orgExtId, config, client);
   }
 
@@ -223,7 +219,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
                   createdBy != null ? new Sender(createdBy.getName(), createdBy.getEmail()) : null;
               String signedText = PostUtil.signPost(post.getText(), sender);
               try {
-                context.client().addComment(ticketId, signedText, config);
+                context.client().addComment(ticketId, signedText, CommentType.PLAIN_TEXT, config);
                 log.info("Posted comment '{}' to ticket '{}'", post.getId(), ticketId);
               } catch (Exception e) {
                 log.error("Failed to post comment '{}' to ticket '{}'", post.getId(), ticketId, e);
@@ -302,7 +298,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       return;
     }
 
-    Map<String, String> ticketToOrgExtId = getTicketIdByOrgExtId(negotiationId);
+    Map<String, String> ticketToOrgExtId = getDistinctTicketIdToOrgExtId(negotiationId);
     if (ticketToOrgExtId.isEmpty()) {
       log.debug("No mapped tickets for negotiation '{}' — skipping state update", negotiationId);
       return;
@@ -313,7 +309,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
             updateNegotiationStateInTicket(negotiationId, ticketId, orgExtId, toState));
   }
 
-  private Map<String, String> getTicketIdByOrgExtId(String negotiationId) {
+  private Map<String, String> getDistinctTicketIdToOrgExtId(String negotiationId) {
     Map<String, String> ticketToOrgExtId = new LinkedHashMap<>();
     for (TicketMapping m : ticketMappingRepository.findByIdNegotiationId(negotiationId)) {
       ticketToOrgExtId.putIfAbsent(m.getId().getHelpdeskTicketId(), m.getOrganizationExtId());
