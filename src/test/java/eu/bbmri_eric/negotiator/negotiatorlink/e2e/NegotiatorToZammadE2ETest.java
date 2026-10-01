@@ -111,7 +111,7 @@ class NegotiatorToZammadE2ETest {
   void resourceStateUpdated_updatesTicketInZammad() throws Exception {
     String negotiationId = "neg-e2e-2";
     String resourceSourceId = "src-e2e-1";
-    String ticketId = "t-2";
+    String ticketId = "2";
     var body =
         resourceStateUpdatedPayload(
             negotiationId,
@@ -133,6 +133,14 @@ class NegotiatorToZammadE2ETest {
         .andExpect(
             jsonPath("$.negotiator_resource_state")
                 .value(NegotiatorResourceEvent.MARK_AS_CHECKING_AVAILABILITY.targetState()))
+        .andRespond(withSuccess());
+
+    zammadServer
+        .expect(requestTo(TICKET_ARTICLES_URL))
+        .andExpect(method(HttpMethod.POST))
+        .andExpect(jsonPath("$.ticket_id").value(Integer.parseInt(ticketId)))
+        .andExpect(jsonPath("$.body").value("Resource status changed to 'Checking Availability'"))
+        .andExpect(jsonPath("$.internal").value(true))
         .andRespond(withSuccess());
 
     postWebhook("msg-e2e-rsu", body);
@@ -228,6 +236,14 @@ class NegotiatorToZammadE2ETest {
         .expect(requestTo(TICKET_ARTICLES_URL))
         .andExpect(method(HttpMethod.POST))
         .andExpect(jsonPath("$.ticket_id").value(Integer.parseInt(ticketId1)))
+        .andExpect(jsonPath("$.body").value("Negotiation status changed to 'Paused'"))
+        .andExpect(jsonPath("$.internal").value(true))
+        .andRespond(withSuccess());
+
+    zammadServer
+        .expect(requestTo(TICKET_ARTICLES_URL))
+        .andExpect(method(HttpMethod.POST))
+        .andExpect(jsonPath("$.ticket_id").value(Integer.parseInt(ticketId1)))
         .andExpect(
             jsonPath("$.body").value("From: Jane Doe <jane@example.com>\n\nHello from Negotiator"))
         .andExpect(jsonPath("$.internal").value(false))
@@ -238,6 +254,14 @@ class NegotiatorToZammadE2ETest {
         .andExpect(method(HttpMethod.PUT))
         .andExpect(
             jsonPath("$.negotiation_state").value(NegotiatorNegotiationEvent.PAUSE.toState()))
+        .andRespond(withSuccess());
+
+    zammadServer
+        .expect(requestTo(TICKET_ARTICLES_URL))
+        .andExpect(method(HttpMethod.POST))
+        .andExpect(jsonPath("$.ticket_id").value(Integer.parseInt(ticketId2)))
+        .andExpect(jsonPath("$.body").value("Negotiation status changed to 'Paused'"))
+        .andExpect(jsonPath("$.internal").value(true))
         .andRespond(withSuccess());
 
     zammadServer

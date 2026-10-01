@@ -56,6 +56,9 @@ class NegotiationStateUpdatedHandlerTest {
   private static final Long ORG_INTERNAL_ID = 10L;
   private static final String TICKET_ID = "ticket-42";
   private static final String RESOURCE_STATE = "SUBMITTED";
+  private static final String PAUSED_SYSTEM_COMMENT = "Negotiation status changed to 'Paused'";
+  private static final String CONCLUDED_SYSTEM_COMMENT =
+      "Negotiation status changed to 'Concluded'";
   private static final Attachment PDF_SUMMARY =
       new Attachment(
           "negotiation_summary_2026-09-26_143207.pdf", "application/pdf", "%PDF".getBytes());
@@ -385,6 +388,8 @@ class NegotiationStateUpdatedHandlerTest {
     verify(helpdeskClient)
         .updateNegotiationState(
             eq("ticket-2"), eq(NegotiatorNegotiationEvent.PAUSE.toState()), eq(config));
+    verify(helpdeskClient).addSystemComment(eq("ticket-1"), eq(PAUSED_SYSTEM_COMMENT), eq(config));
+    verify(helpdeskClient).addSystemComment(eq("ticket-2"), eq(PAUSED_SYSTEM_COMMENT), eq(config));
     verify(negotiatorClient, never()).getPost(any(), any(), any());
     verify(helpdeskClient, never()).addComment(any(), any(), any(), any());
   }
@@ -414,6 +419,8 @@ class NegotiationStateUpdatedHandlerTest {
     verify(helpdeskClient, times(1))
         .updateNegotiationState(
             eq(TICKET_ID), eq(NegotiatorNegotiationEvent.PAUSE.toState()), eq(config));
+    verify(helpdeskClient, times(1))
+        .addSystemComment(eq(TICKET_ID), eq(PAUSED_SYSTEM_COMMENT), eq(config));
   }
 
   @Test
@@ -487,6 +494,8 @@ class NegotiationStateUpdatedHandlerTest {
     verify(helpdeskClient)
         .updateNegotiationState(
             eq("ticket-2"), eq(NegotiatorNegotiationEvent.PAUSE.toState()), eq(config));
+    verify(helpdeskClient).addSystemComment(eq("ticket-2"), eq(PAUSED_SYSTEM_COMMENT), eq(config));
+    verify(helpdeskClient, never()).addSystemComment(eq("ticket-1"), any(), any());
   }
 
   @Test
@@ -502,6 +511,9 @@ class NegotiationStateUpdatedHandlerTest {
 
     var order = inOrder(helpdeskClient);
     order.verify(helpdeskClient).updateNegotiationState(eq(TICKET_ID), eq(toState), eq(config));
+    order
+        .verify(helpdeskClient)
+        .addSystemComment(eq(TICKET_ID), eq(CONCLUDED_SYSTEM_COMMENT), eq(config));
     order.verify(helpdeskClient).updateTicketState(eq(TICKET_ID), eq("closed"), eq(config));
   }
 
@@ -518,6 +530,7 @@ class NegotiationStateUpdatedHandlerTest {
     verify(helpdeskClient)
         .updateNegotiationState(
             eq(TICKET_ID), eq(NegotiatorNegotiationEvent.PAUSE.toState()), eq(config));
+    verify(helpdeskClient).addSystemComment(eq(TICKET_ID), eq(PAUSED_SYSTEM_COMMENT), eq(config));
     verify(helpdeskClient, never()).updateTicketState(any(), any(), any());
   }
 
@@ -561,11 +574,17 @@ class NegotiationStateUpdatedHandlerTest {
     var order = inOrder(helpdeskClient);
     order
         .verify(helpdeskClient)
+        .addSystemComment(eq("ticket-1"), eq(PAUSED_SYSTEM_COMMENT), eq(config));
+    order
+        .verify(helpdeskClient)
         .addComment(
             eq("ticket-1"),
             startsWith("From: Alice <alice@example.com>"),
             eq(CommentType.PLAIN_TEXT),
             eq(config));
+    order
+        .verify(helpdeskClient)
+        .addSystemComment(eq("ticket-2"), eq(PAUSED_SYSTEM_COMMENT), eq(config));
     order
         .verify(helpdeskClient)
         .addComment(

@@ -1,5 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
+import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil.enumToText;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
@@ -123,6 +125,7 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
             toState,
             context.ticketId());
         context.client().updateResourceState(context.ticketId(), toState, context.config());
+        postSystemCommentAboutTheChange(toState, context);
         applyTicketStateMapping(toState, context);
       }
     } catch (Exception e) {
@@ -161,6 +164,7 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
           toState);
       try {
         context.client().updateResourceState(ticketId, toState, context.config());
+        postSystemCommentAboutTheChange(toState, context);
         applyTicketStateMapping(toState, context);
       } catch (Exception e) {
         log.error(
@@ -184,6 +188,18 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
           expected,
           ticketId);
     }
+  }
+
+  private void postSystemCommentAboutTheChange(String toState, DispatchContext context) {
+    OrganizationConfig config = context.config();
+    String stateText = enumToText(toState);
+    String message;
+    if (config.ticketStrategy() == TicketStrategy.PER_NEGOTIATION) {
+      message = "Resources changed to status '%s'".formatted(stateText);
+    } else {
+      message = "Resource status changed to '%s'".formatted(stateText);
+    }
+    context.client().addSystemComment(context.ticketId(), message, config);
   }
 
   private void applyTicketStateMapping(String toState, DispatchContext context) {

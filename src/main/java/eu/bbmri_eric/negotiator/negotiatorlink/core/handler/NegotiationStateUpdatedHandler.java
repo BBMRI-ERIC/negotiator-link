@@ -1,5 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
+import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil.enumToText;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
@@ -365,6 +367,8 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     try {
       log.info("Updating negotiation state on ticket '{}' to state '{}'", ticketId, toState);
       client.updateNegotiationState(ticketId, toState, config);
+      client.addSystemComment(
+          ticketId, "Negotiation status changed to '%s'".formatted(enumToText(toState)), config);
       addPostAsComment(ticketId, post, config, client);
 
       String ticketState = config.negotiationStateToTicketState().get(toState);

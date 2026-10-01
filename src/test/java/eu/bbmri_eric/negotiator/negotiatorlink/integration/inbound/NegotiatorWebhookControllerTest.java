@@ -246,6 +246,12 @@ class NegotiatorWebhookControllerTest {
         .when(helpdeskClient)
         .updateNegotiationState(
             eq(TICKET_B), eq(NegotiatorNegotiationEvent.CONCLUDE.toState()), any());
+    Mockito.doNothing()
+        .when(helpdeskClient)
+        .addSystemComment(eq(TICKET_A), eq("Negotiation status changed to 'Concluded'"), any());
+    Mockito.doNothing()
+        .when(helpdeskClient)
+        .addSystemComment(eq(TICKET_B), eq("Negotiation status changed to 'Concluded'"), any());
     String body =
         negotiationStateChangedPayload(
             NEGOTIATION_ID,
@@ -293,6 +299,12 @@ class NegotiatorWebhookControllerTest {
     Mockito.doNothing()
         .when(helpdeskClient)
         .updateResourceState(eq(TICKET_RESOURCE), eq(toState), any());
+    Mockito.doNothing()
+        .when(helpdeskClient)
+        .addSystemComment(
+            eq(TICKET_RESOURCE),
+            eq("Resources changed to status 'Resource Made Available'"),
+            any());
     String body =
         resourceStateUpdatedPayload(
             NEGOTIATION_ID,
