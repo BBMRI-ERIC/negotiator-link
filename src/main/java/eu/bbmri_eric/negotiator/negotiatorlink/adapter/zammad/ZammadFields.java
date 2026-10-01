@@ -9,6 +9,8 @@ final class ZammadFields {
   static final String NEGOTIATION_STATE = "negotiation_state";
   static final String RESOURCE_STATE = "negotiator_resource_state";
   static final String TRANSITION_EVENT = "negotiator_resource_transition_event";
+  static final String STATE = "state";
+  static final String STATE_UPDATED = "state_updated";
 
   private ZammadFields() {}
 }

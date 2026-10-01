@@ -36,7 +36,8 @@ public class HelpdeskEventRouter {
   /** Routes the event to the appropriate handler(s) based on its type. */
   public void route(HelpdeskCallbackEvent event, OrganizationConfig config) {
     switch (event.type()) {
-      case RESOURCE_TRANSITION, POST_MESSAGE -> dispatch(event.type(), event, config);
+      case RESOURCE_TRANSITION, POST_MESSAGE, TICKET_STATE_CHANGED ->
+          dispatch(event.type(), event, config);
       case RESOURCE_TRANSITION_WITH_POST_MESSAGE -> {
         ResourceTransitionWithPostMessageEvent combined =
             (ResourceTransitionWithPostMessageEvent) event;

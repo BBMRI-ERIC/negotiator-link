@@ -11,6 +11,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.model.PostMessageEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionWithPostMessageEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketStateChangedEvent;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
@@ -86,6 +87,11 @@ public class ZammadCallbackAdapter implements HelpdeskCallbackAdapter {
     }
 
     String ticketId = parsed.ticket().id();
+
+    if (Boolean.TRUE.equals(parsed.ticket().stateUpdated())) {
+      return parseTicketStateChange(ticketId, parsed.ticket().state());
+    }
+
     String transitionEvent = normalize(parsed.ticket().transitionEvent());
     String resourceState = normalize(parsed.ticket().resourceState());
     boolean hasArticle = hasArticle(parsed.article());
@@ -111,7 +117,19 @@ public class ZammadCallbackAdapter implements HelpdeskCallbackAdapter {
           case RESOURCE_TRANSITION_WITH_POST_MESSAGE ->
               new ResourceTransitionWithPostMessageEvent(
                   ticketId, resourceState, transitionEvent, parsed.article().body(), sender);
+          default ->
+              throw new IllegalStateException(
+                  "Unsupported callback type " + callbackType + " for ticket " + ticketId);
         });
+  }
+
+  private Optional<HelpdeskCallbackEvent> parseTicketStateChange(String ticketId, String state) {
+    String ticketState = normalize(state);
+    if (ticketState == null) {
+      log.warn("Zammad ticket state change for ticket '{}' has no state — discarding", ticketId);
+      return Optional.empty();
+    }
+    return Optional.of(new TicketStateChangedEvent(ticketId, ticketState));
   }
 
   private static HelpdeskCallbackType resolveType(
@@ -155,7 +173,9 @@ public class ZammadCallbackAdapter implements HelpdeskCallbackAdapter {
     record Ticket(
         String id,
         @JsonProperty(ZammadFields.RESOURCE_STATE) String resourceState,
-        @JsonProperty(ZammadFields.TRANSITION_EVENT) String transitionEvent) {}
+        @JsonProperty(ZammadFields.TRANSITION_EVENT) String transitionEvent,
+        @JsonProperty(ZammadFields.STATE) String state,
+        @JsonProperty(ZammadFields.STATE_UPDATED) Boolean stateUpdated) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record Article(

@@ -1466,7 +1466,7 @@ To support this flow, a new `TicketStateChangedEvent` is added to `HelpdeskCallb
 this event type. A new trigger must be configured in the help desk (Trigger 3) that fires when the ticket state
 changes; the middleware bot account must be excluded from this trigger to prevent loops.
 
-**Access form payload updates:** When a researcher or admin updates the access form payload, change the negotiation
+**Access form payload updates:** When a researcher or admin updates the access form payload, change the negotiation 
 display ID or transfer the negotiation to a different researcher, the middleware receives a `negotiation.updated` webhook,
 which contains the negotiation ID of the updated negotiation. The middleware needs to fetch the full negottiation with
 the attachments and put the message to the helpdesk ticket with new negotiation body, as it is done after the ticket creation
