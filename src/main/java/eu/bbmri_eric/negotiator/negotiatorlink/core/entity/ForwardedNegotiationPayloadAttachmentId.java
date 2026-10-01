@@ -15,8 +15,11 @@ import lombok.NoArgsConstructor;
 @EqualsAndHashCode
 public class ForwardedNegotiationPayloadAttachmentId implements Serializable {
 
-  @Column(name = "negotiation_id")
-  private String negotiationId;
+  @Column(name = "organization_ext_id")
+  private String organizationExtId;
+
+  @Column(name = "ticket_id")
+  private String ticketId;
 
   @Column(name = "attachment_id")
   private String attachmentId;

@@ -9,5 +9,6 @@ public interface ForwardedNegotiationPayloadAttachmentRepository
     extends JpaRepository<
         ForwardedNegotiationPayloadAttachment, ForwardedNegotiationPayloadAttachmentId> {
 
-  List<ForwardedNegotiationPayloadAttachment> findByIdNegotiationId(String negotiationId);
+  List<ForwardedNegotiationPayloadAttachment> findByIdOrganizationExtIdAndIdTicketId(
+      String organizationExtId, String ticketId);
 }

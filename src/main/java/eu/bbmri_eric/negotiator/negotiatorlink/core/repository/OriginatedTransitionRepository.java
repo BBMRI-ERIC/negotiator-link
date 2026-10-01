@@ -11,9 +11,6 @@ import org.springframework.data.repository.query.Param;
 
 public interface OriginatedTransitionRepository extends JpaRepository<OriginatedTransition, Long> {
 
-  Optional<OriginatedTransition> findByNegotiationIdAndTicketId(
-      String negotiationId, String ticketId);
-
   Optional<OriginatedTransition> findByNegotiationIdAndTicketIdAndNewState(
       String negotiationId, String ticketId, String newState);
 

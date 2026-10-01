@@ -76,8 +76,8 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
 
     NegotiationContext context = buildContext(negotiationId, mappings, fetchConfig);
 
-    List<ResolvedAttachment> newAttachments =
-        attachmentForwardingService.resolveNegotiationPayloadAttachmentsToForward(
+    List<ResolvedAttachment> candidateAttachments =
+        attachmentForwardingService.resolveForwardablePayloadAttachments(
             negotiationId, fetchConfig);
     Attachment pdfSummary =
         attachmentForwardingService.getNegotiationPdfSummary(negotiationId, fetchConfig);
@@ -85,13 +85,7 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
     getDistinctTicketIdToOrgExtId(mappings)
         .forEach(
             (ticketId, orgExtId) ->
-                processTicket(ticketId, orgExtId, context, newAttachments, pdfSummary));
-
-    List<String> forwardedAttachmentIds =
-        newAttachments.stream().map(ResolvedAttachment::attachmentId).toList();
-    if (!forwardedAttachmentIds.isEmpty()) {
-      attachmentForwardingService.recordForwarded(negotiationId, forwardedAttachmentIds);
-    }
+                processTicket(ticketId, orgExtId, context, candidateAttachments, pdfSummary));
   }
 
   private NegotiationContext buildContext(
@@ -111,7 +105,7 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
       String ticketId,
       String orgExtId,
       NegotiationContext context,
-      List<ResolvedAttachment> newAttachments,
+      List<ResolvedAttachment> candidateAttachments,
       Attachment pdfSummary) {
     OrganizationConfig config = registry.findByExternalId(orgExtId).orElse(null);
     if (config == null) {
@@ -120,7 +114,7 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
     }
     HelpdeskClient client = clients.get(config.type());
     postUpdateComment(ticketId, config, client, context, pdfSummary);
-    forwardNewAttachments(ticketId, config, client, context.negotiationId(), newAttachments);
+    forwardNewAttachments(ticketId, orgExtId, config, client, context, candidateAttachments);
   }
 
   private void postUpdateComment(
@@ -145,14 +139,18 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
     }
   }
 
-  /** Posts the new negotiation-level attachments to one ticket in a separate comment. */
   private void forwardNewAttachments(
       String ticketId,
+      String orgExtId,
       OrganizationConfig config,
       HelpdeskClient client,
-      String negotiationId,
-      List<ResolvedAttachment> newAttachments) {
-    if (newAttachments.isEmpty()) {
+      NegotiationContext context,
+      List<ResolvedAttachment> candidateAttachments) {
+    String negotiationId = context.negotiationId();
+    List<ResolvedAttachment> toForward =
+        attachmentForwardingService.notYetForwardedToTicket(
+            orgExtId, ticketId, candidateAttachments);
+    if (toForward.isEmpty()) {
       return;
     }
     try {
@@ -160,11 +158,16 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
           ticketId,
           "New negotiation-level attachments added by requestor. See the files below.",
           CommentType.PLAIN_TEXT,
-          newAttachments.stream().map(ResolvedAttachment::attachment).toList(),
+          toForward.stream().map(ResolvedAttachment::attachment).toList(),
           config);
+      attachmentForwardingService.recordForwarded(
+          negotiationId,
+          orgExtId,
+          ticketId,
+          toForward.stream().map(ResolvedAttachment::attachmentId).toList());
       log.info(
           "Forwarded {} file(s) to ticket '{}' (negotiation '{}')",
-          newAttachments.size(),
+          toForward.size(),
           ticketId,
           negotiationId);
     } catch (Exception e) {

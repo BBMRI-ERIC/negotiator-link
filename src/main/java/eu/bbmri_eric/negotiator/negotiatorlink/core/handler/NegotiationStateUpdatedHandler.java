@@ -101,22 +101,15 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     }
 
     List<ResolvedAttachment> resolvedAttachments =
-        attachmentForwardingService.resolveNegotiationPayloadAttachmentsToForward(
+        attachmentForwardingService.resolveForwardablePayloadAttachments(
             negotiationId, result.config());
-    List<Attachment> attachments = new ArrayList<>(toAttachments(resolvedAttachments));
-    attachments.add(
-        attachmentForwardingService.getNegotiationPdfSummary(negotiationId, result.config()));
+    Attachment pdfSummary =
+        attachmentForwardingService.getNegotiationPdfSummary(negotiationId, result.config());
 
     groupByOrg(resources)
         .forEach(
             (orgExtId, orgResources) ->
-                ticketOrg(negotiation, orgExtId, orgResources, attachments));
-
-    if (!resolvedAttachments.isEmpty()) {
-      attachmentForwardingService.recordForwarded(
-          negotiationId,
-          resolvedAttachments.stream().map(ResolvedAttachment::attachmentId).toList());
-    }
+                ticketOrg(negotiation, orgExtId, orgResources, resolvedAttachments, pdfSummary));
   }
 
   /** Creates tickets for a single organization's resources, skipping/logging on any failure. */
@@ -124,7 +117,8 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       EntityModelNegotiationDTO negotiation,
       String orgExtId,
       List<EntityModelResourceWithStatusDTO> orgResources,
-      List<Attachment> ticketFiles) {
+      List<ResolvedAttachment> resolvedAttachments,
+      Attachment pdfSummary) {
     OrgTicketContext context = resolveOrgContext(negotiation.getId(), orgExtId);
     if (context == null) {
       return;
@@ -132,9 +126,9 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
 
     try {
       if (context.config().ticketStrategy() == TicketStrategy.PER_NEGOTIATION) {
-        handlePerNegotiation(negotiation, orgResources, context, ticketFiles);
+        handlePerNegotiation(negotiation, orgResources, context, resolvedAttachments, pdfSummary);
       } else {
-        handlePerResource(negotiation, orgResources, context, ticketFiles);
+        handlePerResource(negotiation, orgResources, context, resolvedAttachments, pdfSummary);
       }
     } catch (Exception e) {
       log.error(
@@ -160,7 +154,8 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       EntityModelNegotiationDTO negotiation,
       List<EntityModelResourceWithStatusDTO> resources,
       OrgTicketContext context,
-      List<Attachment> ticketFiles) {
+      List<ResolvedAttachment> resolvedAttachments,
+      Attachment pdfSummary) {
 
     String body =
         NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(negotiation, resources);
@@ -172,7 +167,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
             negotiation.getStatus(),
             resolveInitialState(resources.getFirst()),
             body,
-            ticketFiles);
+            ticketFiles(resolvedAttachments, pdfSummary));
 
     CreatedTicket created = context.client().createTicket(request, context.config());
     log.info(
@@ -180,6 +175,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
         created.ticketId(),
         context.orgExtId(),
         context.negotiationId());
+    recordForwarded(created, context, resolvedAttachments);
     resources.forEach(resource -> saveMapping(created, resource, context));
     postNegotiationCommentsToTicket(created.ticketId(), context);
   }
@@ -188,7 +184,8 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       EntityModelNegotiationDTO negotiation,
       List<EntityModelResourceWithStatusDTO> resources,
       OrgTicketContext context,
-      List<Attachment> ticketFiles) {
+      List<ResolvedAttachment> resolvedAttachments,
+      Attachment pdfSummary) {
 
     List<CreatedTicket> createdTickets = new ArrayList<>();
 
@@ -203,7 +200,11 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
 
       CreateTicketRequest request =
           new CreateTicketRequest(
-              title, negotiation.getStatus(), resolveInitialState(resource), body, ticketFiles);
+              title,
+              negotiation.getStatus(),
+              resolveInitialState(resource),
+              body,
+              ticketFiles(resolvedAttachments, pdfSummary));
 
       CreatedTicket created = context.client().createTicket(request, context.config());
       log.info(
@@ -211,6 +212,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
           created.ticketId(),
           resource.getId(),
           context.negotiationId());
+      recordForwarded(created, context, resolvedAttachments);
       saveMapping(created, resource, context);
       createdTickets.add(created);
 
@@ -268,8 +270,29 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
             context.orgExtId()));
   }
 
-  private List<Attachment> toAttachments(List<ResolvedAttachment> resolved) {
-    return resolved.stream().map(ResolvedAttachment::attachment).toList();
+  private void recordForwarded(
+      CreatedTicket ticket,
+      OrgTicketContext context,
+      List<ResolvedAttachment> resolvedAttachments) {
+    if (resolvedAttachments.isEmpty()) {
+      return;
+    }
+    attachmentForwardingService.recordForwarded(
+        context.negotiationId(),
+        context.orgExtId(),
+        ticket.ticketId(),
+        resolvedAttachments.stream().map(ResolvedAttachment::attachmentId).toList());
+  }
+
+  /**
+   * The files attached to a new ticket: the forwardable payload attachments plus the PDF summary.
+   */
+  private List<Attachment> ticketFiles(
+      List<ResolvedAttachment> resolvedAttachments, Attachment pdfSummary) {
+    List<Attachment> files =
+        new ArrayList<>(resolvedAttachments.stream().map(ResolvedAttachment::attachment).toList());
+    files.add(pdfSummary);
+    return files;
   }
 
   private String resolveInitialState(EntityModelResourceWithStatusDTO resource) {

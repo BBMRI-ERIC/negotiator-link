@@ -209,7 +209,7 @@ class NegotiationStateUpdatedHandlerTest {
     stubHappyPath(negotiation, config, List.of(resource));
     when(helpdeskClient.createTicket(any(CreateTicketRequest.class), eq(config)))
         .thenReturn(ticket);
-    when(attachmentForwardingService.resolveNegotiationPayloadAttachmentsToForward(
+    when(attachmentForwardingService.resolveForwardablePayloadAttachments(
             eq(NEGOTIATION_ID), eq(config)))
         .thenReturn(List.of(resolved));
 
@@ -218,7 +218,9 @@ class NegotiationStateUpdatedHandlerTest {
     // Ticket carries both the payload attachment and the always-appended PDF summary.
     verify(helpdeskClient)
         .createTicket(argThat(request -> request.attachments().size() == 2), eq(config));
-    verify(attachmentForwardingService).recordForwarded(NEGOTIATION_ID, List.of("a-1"));
+    verify(attachmentForwardingService)
+        .recordForwarded(NEGOTIATION_ID, ORG_EXT_ID, TICKET_ID, List.of("a-1"));
+    verify(attachmentForwardingService, never()).notYetForwardedToTicket(any(), any(), any());
   }
 
   @Test

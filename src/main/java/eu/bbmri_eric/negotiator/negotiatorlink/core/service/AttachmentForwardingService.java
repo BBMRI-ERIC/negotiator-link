@@ -17,8 +17,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
- * Resolves which negotiation-level attachments still need to be forwarded for a negotiation, and
- * records them once an upload succeeds.
+ * Resolves which negotiation-level attachments to forward and records, per ticket, which have
+ * already been forwarded. The forwardable set is downloaded once per event; the already-forwarded
+ * subtraction is scoped per {@code (organization, ticket)} so a failed forward to one ticket does
+ * not affect the others.
  */
 @Slf4j
 @Service
@@ -40,32 +42,36 @@ public class AttachmentForwardingService {
   public record ResolvedAttachment(String attachmentId, Attachment attachment) {}
 
   /**
-   * The negotiation-level attachments not yet forwarded for {@code negotiationId} Returns an empty
-   * list when there is nothing new.
+   * All negotiation-level attachments currently forwardable for {@code negotiationId}, downloaded
+   * once. Caller subtracts the per-ticket already-forwarded set via {@link
+   * #notYetForwardedToTicket}. Returns an empty list when there is nothing to forward.
    */
-  public List<ResolvedAttachment> resolveNegotiationPayloadAttachmentsToForward(
+  public List<ResolvedAttachment> resolveForwardablePayloadAttachments(
       String negotiationId, OrganizationConfig config) {
-    Set<String> alreadyForwarded =
-        forwardedAttachmentRepository.findByIdNegotiationId(negotiationId).stream()
-            .map(fa -> fa.getId().getAttachmentId())
-            .collect(Collectors.toSet());
     var metadata = negotiatorClient.getAttachments(negotiationId, config);
     log.debug("Retrieved {} attachments for negotiation '{}'", metadata.size(), negotiationId);
-    for (AttachmentMetadataDTO a : metadata) {
-      log.debug(
-          "Attachment {}: name='{}', contentType='{}', organizationId='{}'",
-          a.getId(),
-          a.getName(),
-          a.getContentType(),
-          a.getOrganizationId());
-    }
     return metadata.stream()
         // TODO: once the Negotiator post <--> attachment link ships and AttachmentMetadataDTO
         //       exposes postId, extend to: getOrganizationId() == null && getPostId() == null
         .filter(a -> a.getOrganizationId() == null)
-        .filter(a -> !alreadyForwarded.contains(a.getId()))
         .map(a -> download(a, config))
         .toList();
+  }
+
+  /**
+   * Subtracts the attachments already forwarded to {@code (orgExtId, ticketId)} from {@code
+   * candidates}, returning only those still to be forwarded to that ticket. DB-only; performs no
+   * HTTP.
+   */
+  public List<ResolvedAttachment> notYetForwardedToTicket(
+      String orgExtId, String ticketId, List<ResolvedAttachment> candidates) {
+    Set<String> alreadyForwarded =
+        forwardedAttachmentRepository
+            .findByIdOrganizationExtIdAndIdTicketId(orgExtId, ticketId)
+            .stream()
+            .map(fa -> fa.getId().getAttachmentId())
+            .collect(Collectors.toSet());
+    return candidates.stream().filter(c -> !alreadyForwarded.contains(c.attachmentId())).toList();
   }
 
   /** Generates the negotiation's PDF summary. */
@@ -74,12 +80,16 @@ public class AttachmentForwardingService {
     return new Attachment(pdfSummaryFilename(), PDF_CONTENT_TYPE, content);
   }
 
-  /** Records one row per forwarded attachment ID. Call only after a successful upload. */
-  public void recordForwarded(String negotiationId, List<String> attachmentIds) {
+  /**
+   * Records one row per forwarded attachment ID for a ticket. Call only after a successful upload.
+   */
+  public void recordForwarded(
+      String negotiationId, String orgExtId, String ticketId, List<String> attachmentIds) {
     for (String attachmentId : attachmentIds) {
       forwardedAttachmentRepository.save(
           new ForwardedNegotiationPayloadAttachment(
-              new ForwardedNegotiationPayloadAttachmentId(negotiationId, attachmentId)));
+              new ForwardedNegotiationPayloadAttachmentId(orgExtId, ticketId, attachmentId),
+              negotiationId));
     }
   }
 
