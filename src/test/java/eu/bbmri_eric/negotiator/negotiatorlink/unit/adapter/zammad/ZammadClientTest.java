@@ -336,39 +336,6 @@ class ZammadClientTest {
   }
 
   @Test
-  void attachFile_postsSingleAttachmentWithEmptyBody() {
-    wireMock.stubFor(
-        post(urlEqualTo(TICKET_ARTICLES_URL))
-            .willReturn(
-                aResponse()
-                    .withStatus(201)
-                    .withHeader("Content-Type", "application/json")
-                    .withBody("{}")));
-
-    var attachment =
-        new Attachment("summary.pdf", "application/pdf", "hello".getBytes(StandardCharsets.UTF_8));
-    client.attachFile("7", attachment, config);
-
-    wireMock.verify(
-        postRequestedFor(urlEqualTo(TICKET_ARTICLES_URL))
-            .withRequestBody(
-                equalToJson(
-                    """
-                    {
-                      "ticket_id": 7,
-                      "body": "",
-                      "type": "note",
-                      "internal": false,
-                      "attachments": [
-                        {"filename": "summary.pdf", "data": "aGVsbG8=", "mime-type": "application/pdf"}
-                      ]
-                    }
-                    """,
-                    true,
-                    true)));
-  }
-
-  @Test
   void addComment_withEmptyAttachmentsList_omitsAttachmentsField() {
     wireMock.stubFor(
         post(urlEqualTo(TICKET_ARTICLES_URL))
@@ -399,37 +366,6 @@ class ZammadClientTest {
     wireMock.verify(
         postRequestedFor(urlEqualTo(TICKET_ARTICLES_URL))
             .withRequestBody(notMatching(".*attachments.*")));
-  }
-
-  @Test
-  void attachFile_sendsAuthHeaderAndBase64EncodedContent() {
-    wireMock.stubFor(
-        post(urlEqualTo(TICKET_ARTICLES_URL))
-            .willReturn(
-                aResponse()
-                    .withStatus(201)
-                    .withHeader("Content-Type", "application/json")
-                    .withBody("{}")));
-
-    var attachment =
-        new Attachment("report.csv", "text/csv", "a,b,c".getBytes(StandardCharsets.UTF_8));
-    client.attachFile("7", attachment, config);
-
-    wireMock.verify(
-        postRequestedFor(urlEqualTo(TICKET_ARTICLES_URL))
-            .withHeader("Authorization", equalTo("Token token=" + API_TOKEN))
-            .withRequestBody(
-                equalToJson(
-                    """
-                    {
-                      "ticket_id": 7,
-                      "attachments": [
-                        {"filename": "report.csv", "data": "YSxiLGM=", "mime-type": "text/csv"}
-                      ]
-                    }
-                    """,
-                    false,
-                    true)));
   }
 
   @Test

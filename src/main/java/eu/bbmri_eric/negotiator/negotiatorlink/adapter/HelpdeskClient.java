@@ -50,9 +50,6 @@ public interface HelpdeskClient extends HelpdeskTyped {
       List<Attachment> attachments,
       OrganizationConfig config);
 
-  /** Upload a single file to a ticket. */
-  void attachFile(String ticketId, Attachment attachment, OrganizationConfig config);
-
   /**
    * Add an internal comment to a ticket for middleware operational notifications (e.g. invalid
    * transition rejection). Visible only to internal help desk staff — not in the Negotiator.

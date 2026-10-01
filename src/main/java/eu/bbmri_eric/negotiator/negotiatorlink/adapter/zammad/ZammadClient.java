@@ -107,11 +107,6 @@ public class ZammadClient implements HelpdeskClient {
   }
 
   @Override
-  public void attachFile(String ticketId, Attachment attachment, OrganizationConfig config) {
-    addComment(ticketId, "", CommentType.PLAIN_TEXT, List.of(attachment), config);
-  }
-
-  @Override
   public void addSystemComment(
       String ticketId, String systemCommentText, OrganizationConfig config) {
     postArticle(ticketId, systemCommentText, CommentType.PLAIN_TEXT, true, config);
