@@ -127,6 +127,70 @@ class OrganizationConfigRegistryTest {
     assertThat(config.negotiatorCredentials().clientSecret()).isEqualTo(CLIENT_SECRET);
   }
 
+  @Test
+  void stateMaps_whenAbsentFromOrg_inheritsTypeDefaults() {
+    var defaults = new NegotiatorLinkProperties.HelpdeskDefaults();
+    defaults.setNegotiationStateToTicketState(Map.of("ABANDONED", "closed"));
+    defaults.setResourceStateToTicketState(Map.of("RESOURCE_MADE_AVAILABLE", "closed"));
+    defaults.setTicketStateToResourceEvent(Map.of("open", "MARK_AS_CHECKING_AVAILABILITY"));
+    var registry =
+        new OrganizationConfigRegistry(propsWithEntryAndDefaults(zammadEntry(), defaults));
+    var config = registry.findByExternalId(ORG_EXTERNAL_ID).orElseThrow();
+    assertThat(config.negotiationStateToTicketState()).containsEntry("ABANDONED", "closed");
+    assertThat(config.resourceStateToTicketState())
+        .containsEntry("RESOURCE_MADE_AVAILABLE", "closed");
+    assertThat(config.ticketStateToResourceEvent())
+        .containsEntry("open", "MARK_AS_CHECKING_AVAILABILITY");
+  }
+
+  @Test
+  void stateMaps_whenExplicitlyEmpty_doesNotInheritDefaults() {
+    var defaults = new NegotiatorLinkProperties.HelpdeskDefaults();
+    defaults.setNegotiationStateToTicketState(Map.of("ABANDONED", "closed"));
+    defaults.setResourceStateToTicketState(Map.of("RESOURCE_MADE_AVAILABLE", "closed"));
+    defaults.setTicketStateToResourceEvent(Map.of("open", "MARK_AS_CHECKING_AVAILABILITY"));
+    var entry = zammadEntry();
+    entry.setNegotiationStateToTicketState(new HashMap<>());
+    entry.setResourceStateToTicketState(new HashMap<>());
+    entry.setTicketStateToResourceEvent(new HashMap<>());
+    var registry = new OrganizationConfigRegistry(propsWithEntryAndDefaults(entry, defaults));
+    var config = registry.findByExternalId(ORG_EXTERNAL_ID).orElseThrow();
+    assertThat(config.negotiationStateToTicketState()).isEmpty();
+    assertThat(config.resourceStateToTicketState()).isEmpty();
+    assertThat(config.ticketStateToResourceEvent()).isEmpty();
+  }
+
+  @Test
+  void stateMaps_whenOrgOverridesOne_othersTakeDefaults() {
+    var defaults = new NegotiatorLinkProperties.HelpdeskDefaults();
+    defaults.setNegotiationStateToTicketState(Map.of("ABANDONED", "closed"));
+    defaults.setResourceStateToTicketState(Map.of("RESOURCE_MADE_AVAILABLE", "closed"));
+    defaults.setTicketStateToResourceEvent(Map.of("open", "MARK_AS_CHECKING_AVAILABILITY"));
+    var entry = zammadEntry();
+    entry.setNegotiationStateToTicketState(new HashMap<>(Map.of("CONCLUDED", "done")));
+    var registry = new OrganizationConfigRegistry(propsWithEntryAndDefaults(entry, defaults));
+    var config = registry.findByExternalId(ORG_EXTERNAL_ID).orElseThrow();
+    assertThat(config.negotiationStateToTicketState()).containsOnlyKeys("CONCLUDED");
+    assertThat(config.resourceStateToTicketState())
+        .containsEntry("RESOURCE_MADE_AVAILABLE", "closed");
+    assertThat(config.ticketStateToResourceEvent())
+        .containsEntry("open", "MARK_AS_CHECKING_AVAILABILITY");
+  }
+
+  @Test
+  void stateMaps_whenAbsentFromOrgAndNoDefaultsForType_resolveToEmptyMaps() {
+    var entry = zammadEntry();
+    entry.setType(HelpdeskType.ALVAO);
+    var props = new NegotiatorLinkProperties();
+    props.setOrganizations(List.of(entry));
+    // no ALVAO entry in defaults map
+    var registry = new OrganizationConfigRegistry(props);
+    var config = registry.findByExternalId(ORG_EXTERNAL_ID).orElseThrow();
+    assertThat(config.negotiationStateToTicketState()).isEmpty();
+    assertThat(config.resourceStateToTicketState()).isEmpty();
+    assertThat(config.ticketStateToResourceEvent()).isEmpty();
+  }
+
   private static NegotiatorLinkProperties.OrgEntry zammadEntry() {
     var entry = new NegotiatorLinkProperties.OrgEntry();
     entry.setOrganizationExternalId(ORG_EXTERNAL_ID);
@@ -147,6 +211,13 @@ class OrganizationConfigRegistryTest {
   private static NegotiatorLinkProperties propsWithEntry(NegotiatorLinkProperties.OrgEntry entry) {
     var props = new NegotiatorLinkProperties();
     props.setOrganizations(List.of(entry));
+    return props;
+  }
+
+  private static NegotiatorLinkProperties propsWithEntryAndDefaults(
+      NegotiatorLinkProperties.OrgEntry entry, NegotiatorLinkProperties.HelpdeskDefaults defaults) {
+    var props = propsWithEntry(entry);
+    props.getDefaults().put(HelpdeskType.ZAMMAD, defaults);
     return props;
   }
 }
