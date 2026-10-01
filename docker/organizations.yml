@@ -14,12 +14,6 @@ negotiator-link:
       platformConfig:
         group: "negotiator-link"
         botEmail: "negotiator-link@local.dev"
-      negotiationStateToTicketState:
-        ABANDONED: "closed"
-        CONCLUDED: "closed"
-      resourceStateToTicketState:
-        RESOURCE_NOT_MADE_AVAILABLE: "closed"
-        RESOURCE_MADE_AVAILABLE: "closed"
       negotiatorCredentials:
         clientId: "${NEGOTIATOR_CLIENT_ID}"
         clientSecret: "${NEGOTIATOR_CLIENT_SECRET}"
@@ -33,12 +27,6 @@ negotiator-link:
       platformConfig:
         group: "negotiator-link"
         botEmail: "negotiator-link@local.dev"
-      negotiationStateToTicketState:
-        ABANDONED: "closed"
-        CONCLUDED: "closed"
-      resourceStateToTicketState:
-        RESOURCE_NOT_MADE_AVAILABLE: "closed"
-        RESOURCE_MADE_AVAILABLE: "closed"
       negotiatorCredentials:
         clientId: "${NEGOTIATOR_CLIENT_ID_CZ_MMCI}"
         clientSecret: "${NEGOTIATOR_CLIENT_SECRET_CZ_MMCI}"

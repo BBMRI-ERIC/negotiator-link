@@ -103,11 +103,6 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
     }
 
     HelpdeskClient client = clients.get(config.type());
-    if (client == null) {
-      log.error("No adapter for type '{}' (org '{}')", config.type(), orgExtId);
-      return null;
-    }
-
     return new DispatchContext(ticketId, config, client);
   }
 

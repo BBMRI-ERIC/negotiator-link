@@ -11,6 +11,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionEven
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionWithPostMessageEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorResourceEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketStateChangedEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -125,6 +126,20 @@ class ZammadCallbackAdapterTest {
     assertThat(adapter.parseCallback(payload)).contains(expected);
   }
 
+  @Test
+  void parseCallback_stateUpdated_returnsTicketStateChangedEvent() {
+    var payload = ticketStateUpdatedPayload("7", "open");
+
+    assertThat(adapter.parseCallback(payload)).contains(new TicketStateChangedEvent("7", "open"));
+  }
+
+  @Test
+  void parseCallback_stateUpdatedWithBlankState_returnsEmpty() {
+    var payload = ticketStateUpdatedPayload("8", "   ");
+
+    assertThat(adapter.parseCallback(payload)).isEmpty();
+  }
+
   @ParameterizedTest(name = "{0}")
   @MethodSource("emptyResultPayloads")
   void parseCallback_returnsEmpty(String description, Map<String, Object> payload) {
@@ -223,6 +238,14 @@ class ZammadCallbackAdapterTest {
 
     assertThat(adapter.extractCallbackId(first)).contains("delivery-1");
     assertThat(adapter.extractCallbackId(second)).contains("delivery-2");
+  }
+
+  private static Map<String, Object> ticketStateUpdatedPayload(String ticketId, String state) {
+    Map<String, Object> ticket = new HashMap<>();
+    ticket.put("id", ticketId);
+    ticket.put("state_updated", true);
+    ticket.put("state", state);
+    return Map.of("ticket", ticket);
   }
 
   private static Map<String, Object> ticketNode(

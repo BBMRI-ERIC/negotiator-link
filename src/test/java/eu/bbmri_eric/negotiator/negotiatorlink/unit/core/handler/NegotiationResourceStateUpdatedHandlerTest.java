@@ -168,28 +168,6 @@ class NegotiationResourceStateUpdatedHandlerTest {
   }
 
   @Test
-  void handle_noAdapterForType_doesNothing() {
-    var config = createConfig(TicketStrategy.PER_RESOURCE);
-    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
-            NEGOTIATION_ID, RESOURCE_ID))
-        .thenReturn(Optional.of(mapping()));
-    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
-
-    var handlerWithNoAdapters =
-        new NegotiationResourceStateUpdatedHandler(
-            ticketMappingRepository,
-            originatedTransitionRepository,
-            registry,
-            Map.of(),
-            objectMapper,
-            timelinePropagationService);
-
-    handlerWithNoAdapters.handle(eventData());
-
-    verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
-  }
-
-  @Test
   void handle_adapterThrows_doesNotPropagateException() {
     var config = createConfig(TicketStrategy.PER_RESOURCE);
     when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(

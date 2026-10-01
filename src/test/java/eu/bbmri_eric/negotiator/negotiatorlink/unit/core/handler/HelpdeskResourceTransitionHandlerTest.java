@@ -23,6 +23,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HelpdeskResourceTran
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.service.ResourceTransitionService;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorResourceEvent;
 import java.util.List;
 import java.util.Map;
@@ -61,13 +62,14 @@ class HelpdeskResourceTransitionHandlerTest {
   @BeforeEach
   void setUp() {
     config = organizationConfig(ORG_EXT_ID, TicketStrategy.PER_RESOURCE);
+    ResourceTransitionService resourceTransitionService =
+        new ResourceTransitionService(
+            negotiatorClient, originatedTransitionRepository, resourceEventsConfig());
     handler =
         new HelpdeskResourceTransitionHandler(
             ticketMappingRepository,
-            originatedTransitionRepository,
-            negotiatorClient,
-            Map.of(HelpdeskType.ZAMMAD, helpdeskClient),
-            resourceEventsConfig());
+            resourceTransitionService,
+            Map.of(HelpdeskType.ZAMMAD, helpdeskClient));
   }
 
   @Test

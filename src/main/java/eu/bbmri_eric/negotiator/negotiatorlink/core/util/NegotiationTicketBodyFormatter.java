@@ -56,6 +56,9 @@ public final class NegotiationTicketBodyFormatter {
   // Public API
   // ------------
 
+  /**
+   * @return HTML string representing the ticket body for a single resource.
+   */
   public static String getTicketBodyWithSingleResource(
       EntityModelNegotiationDTO negotiation, EntityModelResourceWithStatusDTO resource) {
     return wrapper(
@@ -63,6 +66,25 @@ public final class NegotiationTicketBodyFormatter {
         .render();
   }
 
+  /**
+   * @return HTML string representing the updated ticket body for a single resource.
+   */
+  public static String getUpdatedTicketBodyWithSingleResource(
+      EntityModelNegotiationDTO negotiation, EntityModelResourceWithStatusDTO resource) {
+    return updateNote() + getTicketBodyWithSingleResource(negotiation, resource);
+  }
+
+  /**
+   * @return HTML string representing the updated ticket body for multiple resources.
+   */
+  public static String getUpdatedTicketBodyWithMultipleResources(
+      EntityModelNegotiationDTO negotiation, List<EntityModelResourceWithStatusDTO> resources) {
+    return updateNote() + getTicketBodyWithMultipleResources(negotiation, resources);
+  }
+
+  /**
+   * @return HTML string representing the ticket body for multiple resources.
+   */
   public static String getTicketBodyWithMultipleResources(
       EntityModelNegotiationDTO negotiation, List<EntityModelResourceWithStatusDTO> resources) {
     return wrapper(
@@ -235,6 +257,10 @@ public final class NegotiationTicketBodyFormatter {
     String titleStr = title.toString().trim();
     if (!titleStr.isBlank() && resourceName != null) titleStr = titleStr + " — " + resourceName;
     return titleStr.isEmpty() ? Optional.empty() : Optional.of(titleStr);
+  }
+
+  private static String updateNote() {
+    return "<p><strong>&#8505; The negotiation has been updated. Current details are shown below.</strong></p>";
   }
 
   // -----------
