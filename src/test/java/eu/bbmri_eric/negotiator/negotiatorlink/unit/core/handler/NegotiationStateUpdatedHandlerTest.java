@@ -97,11 +97,8 @@ class NegotiationStateUpdatedHandlerTest {
 
     handler.handle(approveEventData());
 
-    var allResources = List.of(resource1, resource2);
-    verify(helpdeskClient)
-        .createTicket(eq(perResourceRequest(negotiation, resource1, allResources)), eq(config));
-    verify(helpdeskClient)
-        .createTicket(eq(perResourceRequest(negotiation, resource2, allResources)), eq(config));
+    verify(helpdeskClient).createTicket(eq(perResourceRequest(negotiation, resource1)), eq(config));
+    verify(helpdeskClient).createTicket(eq(perResourceRequest(negotiation, resource2)), eq(config));
     verify(helpdeskClient).linkRelatedTickets(eq(List.of(ticket1, ticket2)), eq(config));
     verify(ticketMappingRepository).save(eq(mappingFor(ticket1, "1", resource1)));
     verify(ticketMappingRepository).save(eq(mappingFor(ticket2, "2", resource2)));
@@ -121,8 +118,7 @@ class NegotiationStateUpdatedHandlerTest {
 
     handler.handle(approveEventData());
 
-    var allResources = List.of(resource1, resource2);
-    var expectedRequest = perNegotiationRequest(negotiation, allResources, allResources);
+    var expectedRequest = perNegotiationRequest(negotiation, List.of(resource1, resource2));
 
     verify(helpdeskClient, times(1)).createTicket(eq(expectedRequest), eq(config));
     verify(helpdeskClient, never()).linkRelatedTickets(any(), any());
@@ -144,7 +140,7 @@ class NegotiationStateUpdatedHandlerTest {
     handler.handle(approveEventData());
 
     verify(helpdeskClient, times(1))
-        .createTicket(eq(perResourceRequest(negotiation, resource, List.of(resource))), eq(config));
+        .createTicket(eq(perResourceRequest(negotiation, resource)), eq(config));
     verify(helpdeskClient, never()).linkRelatedTickets(any(), any());
   }
 
@@ -416,28 +412,22 @@ class NegotiationStateUpdatedHandlerTest {
   }
 
   private CreateTicketRequest perResourceRequest(
-      EntityModelNegotiationDTO negotiation,
-      EntityModelResourceWithStatusDTO resource,
-      List<EntityModelResourceWithStatusDTO> allResources) {
+      EntityModelNegotiationDTO negotiation, EntityModelResourceWithStatusDTO resource) {
     return new CreateTicketRequest(
         NegotiationTicketBodyFormatter.buildTitle(negotiation, resource.getName()),
         NEGOTIATION_STATE,
         RESOURCE_STATE,
-        NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
-            negotiation, resource, allResources),
+        NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(negotiation, resource),
         List.of(PDF_SUMMARY));
   }
 
   private CreateTicketRequest perNegotiationRequest(
-      EntityModelNegotiationDTO negotiation,
-      List<EntityModelResourceWithStatusDTO> resources,
-      List<EntityModelResourceWithStatusDTO> allResources) {
+      EntityModelNegotiationDTO negotiation, List<EntityModelResourceWithStatusDTO> resources) {
     return new CreateTicketRequest(
         NegotiationTicketBodyFormatter.buildTitle(negotiation, null),
         NEGOTIATION_STATE,
         RESOURCE_STATE,
-        NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(
-            negotiation, resources, allResources),
+        NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(negotiation, resources),
         List.of(PDF_SUMMARY));
   }
 

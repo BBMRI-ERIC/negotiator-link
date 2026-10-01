@@ -110,7 +110,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     groupByOrg(resources)
         .forEach(
             (orgExtId, orgResources) ->
-                ticketOrg(negotiation, orgExtId, orgResources, resources, attachments));
+                ticketOrg(negotiation, orgExtId, orgResources, attachments));
 
     if (!resolvedAttachments.isEmpty()) {
       attachmentForwardingService.recordForwarded(
@@ -124,7 +124,6 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       EntityModelNegotiationDTO negotiation,
       String orgExtId,
       List<EntityModelResourceWithStatusDTO> orgResources,
-      List<EntityModelResourceWithStatusDTO> allResources,
       List<Attachment> ticketFiles) {
     OrgTicketContext context = resolveOrgContext(negotiation.getId(), orgExtId);
     if (context == null) {
@@ -133,9 +132,9 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
 
     try {
       if (context.config().ticketStrategy() == TicketStrategy.PER_NEGOTIATION) {
-        handlePerNegotiation(negotiation, orgResources, context, allResources, ticketFiles);
+        handlePerNegotiation(negotiation, orgResources, context, ticketFiles);
       } else {
-        handlePerResource(negotiation, orgResources, context, allResources, ticketFiles);
+        handlePerResource(negotiation, orgResources, context, ticketFiles);
       }
     } catch (Exception e) {
       log.error(
@@ -161,12 +160,10 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       EntityModelNegotiationDTO negotiation,
       List<EntityModelResourceWithStatusDTO> resources,
       OrgTicketContext context,
-      List<EntityModelResourceWithStatusDTO> allResources,
       List<Attachment> ticketFiles) {
 
     String body =
-        NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(
-            negotiation, resources, allResources);
+        NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(negotiation, resources);
     String title = NegotiationTicketBodyFormatter.buildTitle(negotiation, null);
 
     CreateTicketRequest request =
@@ -191,7 +188,6 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       EntityModelNegotiationDTO negotiation,
       List<EntityModelResourceWithStatusDTO> resources,
       OrgTicketContext context,
-      List<EntityModelResourceWithStatusDTO> allResources,
       List<Attachment> ticketFiles) {
 
     List<CreatedTicket> createdTickets = new ArrayList<>();
@@ -201,8 +197,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
 
     for (EntityModelResourceWithStatusDTO resource : resources) {
       String body =
-          NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
-              negotiation, resource, allResources);
+          NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(negotiation, resource);
 
       String title = NegotiationTicketBodyFormatter.buildTitle(negotiation, resource.getName());
 

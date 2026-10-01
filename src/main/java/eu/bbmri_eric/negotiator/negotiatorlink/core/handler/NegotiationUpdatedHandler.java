@@ -47,7 +47,6 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
       String negotiationId,
       EntityModelNegotiationDTO negotiation,
       Map<String, EntityModelResourceWithStatusDTO> resourceById,
-      List<EntityModelResourceWithStatusDTO> allResources,
       List<TicketMapping> allMappings) {}
 
   @Override
@@ -98,17 +97,14 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
   private NegotiationContext buildContext(
       String negotiationId, List<TicketMapping> mappings, OrganizationConfig config) {
     EntityModelNegotiationDTO negotiation = negotiatorClient.getNegotiation(negotiationId, config);
-    List<EntityModelResourceWithStatusDTO> allResources =
-        negotiatorClient.getResources(negotiationId, config);
-    // Build a lookup from resourceId (String) → resource for fast per-ticket filtering below.
     Map<String, EntityModelResourceWithStatusDTO> resourceById =
-        allResources.stream()
+        negotiatorClient.getResources(negotiationId, config).stream()
             .collect(
                 Collectors.toMap(
                     resource -> String.valueOf(resource.getId()),
                     Function.identity(),
                     (existing, duplicate) -> existing));
-    return new NegotiationContext(negotiationId, negotiation, resourceById, allResources, mappings);
+    return new NegotiationContext(negotiationId, negotiation, resourceById, mappings);
   }
 
   private void processTicket(
@@ -190,7 +186,7 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
               .filter(Objects::nonNull)
               .toList();
       return NegotiationTicketBodyFormatter.getUpdatedTicketBodyWithMultipleResources(
-          context.negotiation(), ticketResources, context.allResources());
+          context.negotiation(), ticketResources);
     }
 
     // PER_RESOURCE: find the single resource for this ticket.
@@ -201,7 +197,7 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
             .map(mapping -> context.resourceById().get(mapping.getId().getResourceId()))
             .orElseThrow();
     return NegotiationTicketBodyFormatter.getUpdatedTicketBodyWithSingleResource(
-        context.negotiation(), resource, context.allResources());
+        context.negotiation(), resource);
   }
 
   private static Map<String, String> getDistinctTicketIdToOrgExtId(List<TicketMapping> mappings) {
