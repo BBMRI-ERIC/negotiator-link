@@ -369,7 +369,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
         createdBy != null ? new Sender(createdBy.getName(), createdBy.getEmail()) : null;
     String signedText = PostUtil.signPost(postText, sender);
     try {
-      context.client().addComment(ticketId, signedText, context.config());
+      context.client().addComment(ticketId, signedText, CommentType.PLAIN_TEXT, context.config());
       log.info("Posted comment '{}' to ticket '{}'", postId, ticketId);
     } catch (Exception e) {
       log.error("Failed to post comment '{}' to ticket '{}'", postId, ticketId, e);
