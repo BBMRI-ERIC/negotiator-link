@@ -12,6 +12,7 @@ public record OrganizationConfig(
     Map<String, Object> platformConfig,
     Map<String, String> negotiationStateToTicketState,
     Map<String, String> resourceStateToTicketState,
+    Map<String, String> ticketStateToResourceEvent,
     NegotiatorCredentials negotiatorCredentials) {
 
   public OrganizationConfig {
@@ -19,5 +20,6 @@ public record OrganizationConfig(
     platformConfig = Map.copyOf(platformConfig);
     negotiationStateToTicketState = Map.copyOf(negotiationStateToTicketState);
     resourceStateToTicketState = Map.copyOf(resourceStateToTicketState);
+    ticketStateToResourceEvent = Map.copyOf(ticketStateToResourceEvent);
   }
 }

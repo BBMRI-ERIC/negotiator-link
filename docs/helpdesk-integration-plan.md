@@ -435,7 +435,9 @@ the help desk article's `created_by` field. Actor identity propagation as a dedi
 **OPEN QUESTION:** Does we want to allow post messages also for CONCLUDED negotiation state? Currently negotiator
 disable posts when state changed IN_PROGRESS → ABANDONED, however not for PAUSED → ABANDONED which is probably the
 implementation bug.
-**RESPONSE:** the messages will not be allowed for ABANDONED state.
+**RESPONSE:** the negotiator-link will call the negotiator endpoint `GET /v3/negotiations/{negotiationId}` and check
+the value of `privatePostsEnabled` flag. Based on that it will be decide whether the private posts are currently
+allowed for the negotiation or not.
 
 Overview of allowed post visibility types by negotiation state:
 
@@ -1477,7 +1479,7 @@ To support this flow, a new `TicketStateChangedEvent` is added to `HelpdeskCallb
 this event type. A new trigger must be configured in the help desk (Trigger 3) that fires when the ticket state
 changes; the middleware bot account must be excluded from this trigger to prevent loops.
 
-**Access form payload updates:** When a researcher or admin updates the access form payload, change the negotiation
+**Access form payload updates:** When a researcher or admin updates the access form payload, change the negotiation 
 display ID or transfer the negotiation to a different researcher, the middleware receives a `negotiation.updated` webhook,
 which contains the negotiation ID of the updated negotiation. The middleware needs to fetch the full negottiation with
 the attachments and put the message to the helpdesk ticket with new negotiation body, as it is done after the ticket creation

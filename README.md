@@ -244,6 +244,55 @@ In Zammad: **Admin → Manage → Triggers → New Trigger**
 - make sure in expert mode under Condition that the logic AND is selected.
 - **Execute changes on objects**: `Webhook → negotiator-link`
 
+**Create webhook + trigger for ticket state changes (drive resource state from the ticket lifecycle):**
+
+This lets a representative move the resource state by changing the *native* ticket state (e.g. `open`
+→ `MARK_AS_CHECKING_AVAILABILITY`), without touching the `Request Resource State Transition` field. The
+mapping from ticket state to resource event is configured per organization in negotiator-link via
+`ticketStateToResourceEvent` (see below). Invalid transitions are silently dropped — no rejection
+comment is posted on the ticket.
+
+First create a dedicated webhook so the payload signals a state change:
+In Zammad: **Admin → Integrations → Webhooks → New Webhook**
+
+- **Name**: `negotiator-link: ticket state updated`
+- **Endpoint**: `http://negotiator-link:8080/webhooks/helpdesk/bbmri-eric%3AID%3ASE_890`
+- **HTTP method**: POST
+- **SSL Verification**: No (in production it would be "Yes")
+- **HMAC SHA1 signature token**: `<value of ZAMMAD_MHH_CALLBACK_SECRET from .env>`
+- **Custom payload** (enable custom payload):
+  ```json
+  { "ticket": { "state_updated": true, "id": "#{ticket.id}", "state": "#{ticket.state}" } }
+  ```
+
+Then the trigger:
+In Zammad: **Admin → Manage → Triggers → New Trigger**
+
+- **Name**: `negotiator-link: ticket state updated`
+- **Action execution**: Selective
+- **Conditions**: `Ticket → State → has changed` AND `Updated by → is not → <negotiator-link bot user>`
+- make sure in expert mode under Condition that the logic AND is selected.
+- **Execute changes on objects**: `Webhook → negotiator-link: ticket state updated`
+
+> **Loop guard:** the `Updated by → is not → <negotiator-link bot user>` condition is mandatory.
+> negotiator-link itself changes the ticket state when a resource reaches a mapped state (see
+> `resourceStateToTicketState`, e.g. `RESOURCE_MADE_AVAILABLE → closed`). Excluding the bot user
+> prevents those middleware-driven state changes from re-triggering this webhook and looping.
+
+**Configure the ticket-state → resource-event mapping in negotiator-link:**
+
+Add a `ticketStateToResourceEvent` map to the organization entry in negotiator-link's configuration
+(`application.yml`). The map is optional — when absent, the feature is disabled for that organization.
+
+```yaml
+negotiator-link:
+  organizations:
+    - organizationExternalId: "bbmri:DE:MHH"
+      # ...
+      ticketStateToResourceEvent:
+        open: "MARK_AS_CHECKING_AVAILABILITY"
+```
+
 ### Test users
 
 The OIDC mock is pre-configured with the following test accounts for Negotiator:

@@ -67,6 +67,7 @@ class ZammadClientTest {
             Map.of("group", "Sales", "botEmail", "negotiator-link@mhh.de"),
             Map.of(),
             Map.of(),
+            Map.of(),
             new NegotiatorCredentials("test-client-id", "test-client-secret"));
   }
 

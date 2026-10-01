@@ -1,50 +1,31 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorLinkProperties;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedTransition;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionEvent;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.service.ResourceTransitionService;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.service.ResourceTransitionService.InvalidResource;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class HelpdeskResourceTransitionHandler
     implements HelpdeskCallbackHandler<ResourceTransitionEvent> {
 
   private final TicketMappingRepository ticketMappingRepository;
-  private final OriginatedTransitionRepository originatedTransitionRepository;
-  private final NegotiatorClient negotiatorClient;
+  private final ResourceTransitionService resourceTransitionService;
   private final Map<HelpdeskType, HelpdeskClient> clients;
-  private final Map<String, String> eventToTargetState;
-
-  private record InvalidResource(String resourceSourceId, Set<String> allowedEvents) {}
-
-  public HelpdeskResourceTransitionHandler(
-      TicketMappingRepository ticketMappingRepository,
-      OriginatedTransitionRepository originatedTransitionRepository,
-      NegotiatorClient negotiatorClient,
-      Map<HelpdeskType, HelpdeskClient> clients,
-      NegotiatorLinkProperties negotiatorLinkProperties) {
-    this.ticketMappingRepository = ticketMappingRepository;
-    this.originatedTransitionRepository = originatedTransitionRepository;
-    this.negotiatorClient = negotiatorClient;
-    this.clients = clients;
-    this.eventToTargetState = negotiatorLinkProperties.getResourceEvents();
-  }
 
   @Override
   public HelpdeskCallbackType getSupportedType() {
@@ -52,7 +33,6 @@ public class HelpdeskResourceTransitionHandler
   }
 
   @Override
-  @Transactional
   public void handle(ResourceTransitionEvent transitionEvent, OrganizationConfig config) {
     String ticketId = transitionEvent.ticketId();
     String requestedEvent = transitionEvent.resourceTransitionEvent();
@@ -69,122 +49,23 @@ public class HelpdeskResourceTransitionHandler
       return;
     }
 
-    HelpdeskClient client = clients.get(config.type());
-
-    if (config.ticketStrategy() == TicketStrategy.PER_RESOURCE) {
-      handlePerResource(
-          mappings.getFirst(), requestedEvent, transitionEvent.resourceState(), client, config);
-    } else {
-      handlePerNegotiation(
-          mappings, requestedEvent, transitionEvent.resourceState(), client, config);
-    }
+    resourceTransitionService
+        .apply(mappings, requestedEvent, config)
+        .ifPresent(
+            rejection -> {
+              HelpdeskClient client = clients.get(config.type());
+              String systemComment =
+                  buildRejectionMessage(
+                      requestedEvent, rejection.invalidResources(), rejection.allInvalid());
+              client.updateResourceState(ticketId, transitionEvent.resourceState(), config);
+              client.addSystemComment(ticketId, systemComment, config);
+            });
   }
 
-  private void handlePerResource(
-      TicketMapping mapping,
-      String requestedEvent,
-      String resourceState,
-      HelpdeskClient client,
-      OrganizationConfig config) {
-
-    String negotiationId = mapping.getId().getNegotiationId();
-    String ticketId = mapping.getId().getHelpdeskTicketId();
-    String resourceSourceId = mapping.getResourceSourceId();
-
-    Set<String> allowedEvents =
-        negotiatorClient.getPossibleResourceEvents(negotiationId, resourceSourceId, config);
-
-    if (allowedEvents.contains(requestedEvent)) {
-      log.info(
-          "Applying transition '{}' to resource '{}' in negotiation '{}'",
-          requestedEvent,
-          resourceSourceId,
-          negotiationId);
-      negotiatorClient.sendResourceEvent(negotiationId, resourceSourceId, requestedEvent, config);
-    } else {
-      log.info(
-          "Transition '{}' rejected for resource '{}' in negotiation '{}' — allowed: {}",
-          requestedEvent,
-          resourceSourceId,
-          negotiationId,
-          allowedEvents);
-      client.updateResourceState(ticketId, resourceState, config);
-      client.addSystemComment(
-          ticketId, buildRejectionMessage(requestedEvent, allowedEvents), config);
-    }
-  }
-
-  private void handlePerNegotiation(
-      List<TicketMapping> mappings,
-      String requestedEvent,
-      String resourceState,
-      HelpdeskClient client,
-      OrganizationConfig config) {
-
-    String negotiationId = mappings.getFirst().getId().getNegotiationId();
-    String ticketId = mappings.getFirst().getId().getHelpdeskTicketId();
-
-    List<InvalidResource> invalidResources = getInvalidResources(mappings, requestedEvent, config);
-    if (!invalidResources.isEmpty()) {
-      log.info(
-          "Bulk transition '{}' rejected for negotiation '{}' — {} resource(s) cannot accept it",
-          requestedEvent,
-          negotiationId,
-          invalidResources.size());
-      String systemComment =
-          buildBulkRejectionMessage(
-              requestedEvent, invalidResources, mappings.size() == invalidResources.size());
-      client.updateResourceState(ticketId, resourceState, config);
-      client.addSystemComment(ticketId, systemComment, config);
-      return;
-    }
-
-    List<Long> resourceIds =
-        mappings.stream().map(m -> Long.parseLong(m.getId().getResourceId())).toList();
-    String targetState = eventToTargetState.get(requestedEvent);
-    if (targetState == null) {
-      throw new IllegalStateException(
-          "No target state configured for event '%s'".formatted(requestedEvent));
-    }
-
-    originatedTransitionRepository.save(
-        new OriginatedTransition(negotiationId, ticketId, mappings.size(), targetState));
-
-    log.info(
-        "Applying bulk transition '{}' to {} resource(s) in negotiation '{}'",
-        requestedEvent,
-        resourceIds.size(),
-        negotiationId);
-    negotiatorClient.sendBulkResourceEvent(negotiationId, resourceIds, targetState, config);
-  }
-
-  private List<InvalidResource> getInvalidResources(
-      List<TicketMapping> mappings, String requestedEvent, OrganizationConfig config) {
-    String negotiationId = mappings.getFirst().getId().getNegotiationId();
-    return mappings.stream()
-        .map(
-            m ->
-                new InvalidResource(
-                    m.getResourceSourceId(),
-                    negotiatorClient.getPossibleResourceEvents(
-                        negotiationId, m.getResourceSourceId(), config)))
-        .filter(r -> !r.allowedEvents().contains(requestedEvent))
-        .toList();
-  }
-
-  private static String buildRejectionMessage(String requested, Set<String> allowed) {
-    String allowedEvents = renderAllowedEvents(allowed);
-    return "Transition '"
-        + toHumanReadable(requested)
-        + "' is not allowed from the current state. "
-        + "Allowed transitions: "
-        + allowedEvents;
-  }
-
-  private static String buildBulkRejectionMessage(
+  private static String buildRejectionMessage(
       String requested, List<InvalidResource> invalidResources, boolean allInvalid) {
     if (allInvalid && hasAllSameAllowedEvents(invalidResources)) {
-      return buildRejectionMessage(requested, invalidResources.getFirst().allowedEvents());
+      return buildSingleRejectionMessage(requested, invalidResources.getFirst().allowedEvents());
     }
     var sb = new StringBuilder();
     sb.append("Transition '")
@@ -200,6 +81,15 @@ public class HelpdeskResourceTransitionHandler
     }
     sb.append("Please resolve the state discrepancy in the Negotiator UI.");
     return sb.toString();
+  }
+
+  private static String buildSingleRejectionMessage(String requested, Set<String> allowed) {
+    String allowedEvents = renderAllowedEvents(allowed);
+    return "Transition '"
+        + toHumanReadable(requested)
+        + "' is not allowed from the current state. "
+        + "Allowed transitions: "
+        + allowedEvents;
   }
 
   private static boolean hasAllSameAllowedEvents(List<InvalidResource> invalidResources) {
