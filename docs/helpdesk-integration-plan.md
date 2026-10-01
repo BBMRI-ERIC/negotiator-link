@@ -430,7 +430,10 @@ the help desk article's `created_by` field. Actor identity propagation as a dedi
 
 **OPEN QUESTION:** Does we want to allow post messages also for CONCLUDED negotiation state? Currently negotiator
 disable posts when state changed IN_PROGRESS → ABANDONED, however not for PAUSED → ABANDONED which is probably the
-implementation bug
+implementation bug.
+**RESPONSE:** the negotiator-link will call the negotiator endpoint `GET /v3/negotiations/{negotiationId}` and check
+the value of `privatePostsEnabled` flag. Based on that it will be decide whether the private posts are currently
+allowed for the negotiation or not.
 
 Overview of allowed post visibility types by negotiation state:
 
@@ -681,7 +684,7 @@ maintains a separate token cache per organization. All tokens are refreshed auto
 Authorization for all representative actions (reading negotiations, posting messages, triggering state transitions) is
 enforced through the standard `resource_representative_link` relationship. A Negotiator admin must assign each org's
 middleware `Person` account as representative of all of that organization's resources before the integration can
-function. 
+function.
 
 The `clientId`, `clientSecret`, and `NEGOTIATOR_WEBHOOK_SECRET` are injected exclusively via environment variables —
 never hardcoded in configuration files.
@@ -1094,7 +1097,7 @@ outbound request bodies and the inbound payload mapping cannot drift. Future `ad
 - `createTicket()` — calls `POST /api/v1/tickets`,
   sets `negotiation_state`, `negotiator_resource_state`, and `negotiator_resource_transition_event: null` as top-level
   custom fields, includes an initial `article` in the request body. The Zammad response contains both `id` (ticket ID)
-  and `number` (ticket number); both are captured and returned in the `CreatedTicket` record. 
+  and `number` (ticket number); both are captured and returned in the `CreatedTicket` record.
 - `updateNegotiationState()` — calls `PUT /api/v1/tickets/{id}` setting `negotiation_state`.
 - `updateResourceState()` — calls `PUT /api/v1/tickets/{id}` setting `negotiator_resource_state` and
   `negotiator_resource_transition_event: null`.
@@ -1463,20 +1466,38 @@ To support this flow, a new `TicketStateChangedEvent` is added to `HelpdeskCallb
 this event type. A new trigger must be configured in the help desk (Trigger 3) that fires when the ticket state
 changes; the middleware bot account must be excluded from this trigger to prevent loops.
 
-**Access form payload updates:** When the researcher updates the negotiation access form, the help desk ticket
-description should be refreshed to reflect the new content, and any attachments uploaded during the edit must also be
-forwarded to the help desk. This requires a new webhook event to be introduced in Negotiator — currently no such event
-exists. The existing `negotiation.info.updated` event (`WebhookEventType.NEGOTIATION_INFO_UPDATED`) is **not** suitable
-for this purpose: it is fired by `InformationSubmissionServiceImpl` when a representative submits an
-`InformationSubmission` (the Information Requirements feature), not when the researcher edits the negotiation payload.
-`NegotiationServiceImpl.updateNegotiation()` updates `negotiation.payload` at line 195 but publishes no application
-event and dispatches no webhook. A new `NegotiationPayloadUpdatedEvent` Spring application event must therefore be
-introduced in Negotiator, published from `NegotiationServiceImpl` after the payload is saved, and wired into the webhook
-dispatch system following the same pattern as existing events — a new `WebhookEventType` constant (e.g.
-`NEGOTIATION_PAYLOAD_UPDATED`), a new webhook payload DTO carrying `negotiationId`, and a new `WebhookMappingStrategy`
-registration. On the middleware side a new `NegotiationPayloadUpdatedHandler` fetches the updated negotiation from
-Negotiator via a secondary REST call, posts the refreshed content as a new comment to all mapped tickets, and forwards
-any new attachments that have not yet been forwarded (see attachment handling below).
+**Access form payload updates:** When a researcher or admin updates the access form payload, change the negotiation 
+display ID or transfer the negotiation to a different researcher, the middleware receives a `negotiation.updated` webhook,
+which contains the negotiation ID of the updated negotiation. The middleware needs to fetch the full negottiation with
+the attachments and put the message to the helpdesk ticket with new negotiation body, as it is done after the ticket creation
+and it needs to also transfer the attachments if they were added during the access form update.
+
+**Propagate timeline logs:** when the negotiation state or resource state changes, the Negotiator saves a timeline log entry,
+which is visible in the Negotiator UI. The middleware should fetch the timeline log entry and add it as a system comment to
+the corresponding help desk ticket. This ensures that representatives have a complete view of the negotiation's history.
+The timeline log entry can be fetched via `GET /v3/negotiations/{negotiationId}/timeline` endpoint (returned
+timelines are sorted from oldest to newest). However, there is no ID of the timeline in the response and the middleware
+needs to know which timeline entry is new. It needs to store for example the timestamp of the last timeline entry that was added
+to the ticket. Here is the example of the Negotiator response when fetching timelines:
+
+```json
+{
+  "_embedded": {
+    "timelineEvents": [
+      {
+        "triggeredBy": "TheResearcher",
+        "text": "TheResearcher changed the status of the Negotiation to Draft",
+        "timestamp": "2024-01-03T08:00:00"
+      },
+      {
+        "triggeredBy": "TheResearcher",
+        "text": "TheResearcher changed the status of the Negotiation to Under review",
+        "timestamp": "2024-01-03T11:00:00"
+      }
+    ]
+  }
+}
+```
 
 **Attachments:** Attachment forwarding in milestone 2 is intentionally scoped to two triggers: ticket creation
 (`NegotiationStateUpdatedHandler`) and access form payload updates (`NegotiationPayloadUpdatedHandler`). Forwarding
@@ -1545,27 +1566,7 @@ confirmed during implementation planning for this milestone.
 
 ### Milestone 4
 
-**Scope:** Milestone 4 handles the case where a negotiation is transferred to a different researcher (author change). This
-is the only remaining Negotiator-level event that affects the help desk ticket but is not yet covered.
-
-Negotiation transfer is performed via `PATCH /v3/negotiations/{id}` with `authorSubjectId` in `NegotiationUpdateDTO` (
-`NegotiationServiceImpl.java:201-208`). The transfer simply updates `negotiation.createdBy` and saves. No
-`ApplicationEvent` is published and no webhook event type for transfer currently exists.
-
-Milestone 4 therefore requires a Negotiator change before middleware work can begin: a new `NegotiationTransferredEvent`
-Spring application event published from `NegotiationServiceImpl` at the point where
-`negotiationEntity.setCreatedBy(person)` is called, a new `NEGOTIATION_TRANSFERRED` webhook event type constant, a new
-payload DTO carrying `negotiationId` and the new author's identifier, and a new `WebhookMappingStrategy` registration
-following the exact same pattern as all existing webhook events.
-
-On the middleware side a new `NegotiationTransferredHandler` receives the event and updates all tickets for that
-negotiation to reflect the new requester identity. The exact representation in the help desk ticket (e.g. updating the
-ticket description or adding a system comment noting the transfer) is an adapter-level decision implemented in adapter
-it self. For Zammad, it will be done with a system comment via `ZammadClient`.
-
-### Milestone 5
-
-**Scope:** Milestone 5 addresses reliability and observability of the middleware.
+**Scope:** Milestone 4 addresses reliability and observability of the middleware.
 
 **Reliability — handling Negotiator downtime:** In the current synchronous design, if Negotiator is unavailable when a
 help desk callback arrives, the middleware's outbound REST call fails and the event is lost with no recovery path. Milestone
@@ -1592,9 +1593,9 @@ multi-value `negotiationId` filter (so the catch-up pass can batch-query posts f
 Prometheus and visualized in Grafana dashboards, giving operators visibility into webhook delivery rates, processing
 latency, and error counts across both directions of the integration.
 
-### Milestone 6
+### Milestone 5
 
-**Scope:** Milestone 6 replaces synchronous webhook processing with an asynchronous queue-based model, addressing the
+**Scope:** Milestone 5 replaces synchronous webhook processing with an asynchronous queue-based model, addressing the
 Negotiator delivery timeout constraint and enabling horizontal scaling.
 
 In the current synchronous design all processing (secondary REST calls to Negotiator, help desk API calls) happens
@@ -1602,12 +1603,12 @@ within the HTTP request thread that received the webhook. Negotiator's read time
 `WebhookTimeoutProperties.java`). Under load or when Negotiator or help desk APIs are slow, the middleware risks missing
 this window, causing Negotiator to record the delivery as failed.
 
-Milestone 6 introduces an internal queue for both inbound directions. When `NegotiatorWebhookController` or
+Milestone 5 introduces an internal queue for both inbound directions. When `NegotiatorWebhookController` or
 `HelpdeskCallbackController` receives a verified request, it enqueues the event and returns HTTP 200 immediately. A
 separate worker pool dequeues events and processes them asynchronously, with no time pressure from the inbound HTTP
 timeout.
 
-Before milestone 6 implementation begins, the choice of queue infrastructure technology (e.g. database-backed queue,
+Before milestone 5 implementation begins, the choice of queue infrastructure technology (e.g. database-backed queue,
 RabbitMQ, Redis Streams) will be discussed and agreed with the developers of the Negotiator application so it meet their
 expectations.
 

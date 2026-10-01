@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -23,7 +24,7 @@ public class OrganizationConfigRegistry {
 
   public OrganizationConfigRegistry(NegotiatorLinkProperties properties) {
     this.configs =
-        properties.getOrganizations().stream().map(OrganizationConfigRegistry::toConfig).toList();
+        properties.getOrganizations().stream().map(entry -> toConfig(entry, properties)).toList();
     validate(this.configs);
     log.info("Loaded {} organization configuration(s)", this.configs.size());
   }
@@ -38,8 +39,11 @@ public class OrganizationConfigRegistry {
     return configs;
   }
 
-  private static OrganizationConfig toConfig(NegotiatorLinkProperties.OrgEntry entry) {
+  private static OrganizationConfig toConfig(
+      NegotiatorLinkProperties.OrgEntry entry, NegotiatorLinkProperties properties) {
     var nc = entry.getNegotiatorCredentials();
+    NegotiatorLinkProperties.HelpdeskDefaults typeDefaults =
+        properties.getDefaults().get(entry.getType());
     return new OrganizationConfig(
         entry.getOrganizationExternalId(),
         entry.getType(),
@@ -48,9 +52,35 @@ public class OrganizationConfigRegistry {
         entry.getCredentials(),
         entry.getCallbackSecret(),
         entry.getPlatformConfig(),
-        entry.getNegotiationStateToTicketState(),
-        entry.getResourceStateToTicketState(),
+        resolveMap(
+            entry.getNegotiationStateToTicketState(),
+            typeDefaults,
+            NegotiatorLinkProperties.HelpdeskDefaults::getNegotiationStateToTicketState),
+        resolveMap(
+            entry.getResourceStateToTicketState(),
+            typeDefaults,
+            NegotiatorLinkProperties.HelpdeskDefaults::getResourceStateToTicketState),
+        resolveMap(
+            entry.getTicketStateToResourceEvent(),
+            typeDefaults,
+            NegotiatorLinkProperties.HelpdeskDefaults::getTicketStateToResourceEvent),
         new NegotiatorCredentials(nc.getClientId(), nc.getClientSecret()));
+  }
+
+  private static Map<String, String> resolveMap(
+      Map<String, String> orgValue,
+      NegotiatorLinkProperties.HelpdeskDefaults typeDefaults,
+      Function<NegotiatorLinkProperties.HelpdeskDefaults, Map<String, String>> getter) {
+    if (orgValue != null) {
+      return orgValue;
+    }
+    if (typeDefaults != null) {
+      Map<String, String> defaultValue = getter.apply(typeDefaults);
+      if (defaultValue != null) {
+        return defaultValue;
+      }
+    }
+    return Map.of();
   }
 
   private static void validate(List<OrganizationConfig> configs) {

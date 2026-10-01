@@ -27,6 +27,15 @@ negotiator-link:
     connect-timeout: PT5S
     read-timeout: PT10S
   organizations: []
+  defaults:
+    ZAMMAD:
+      negotiationStateToTicketState:
+        ABANDONED: "closed"
+        CONCLUDED: "closed"
+      resourceStateToTicketState:
+        RESOURCE_NOT_MADE_AVAILABLE: "closed"
+      ticketStateToResourceEvent:
+        open: "MARK_AS_CHECKING_AVAILABILITY"
   cleanup:
     cron: "0 0 0 * * *"
     cutoff-age: PT24H

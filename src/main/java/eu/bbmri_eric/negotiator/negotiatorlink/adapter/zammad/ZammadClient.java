@@ -1,6 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.adapter.zammad;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
@@ -84,14 +85,15 @@ public class ZammadClient implements HelpdeskClient {
   }
 
   @Override
-  public void addComment(String ticketId, String commentText, OrganizationConfig config) {
-    postArticle(ticketId, commentText, false, config);
+  public void addComment(
+      String ticketId, String commentText, CommentType commentType, OrganizationConfig config) {
+    postArticle(ticketId, commentText, commentType, false, config);
   }
 
   @Override
   public void addSystemComment(
       String ticketId, String systemCommentText, OrganizationConfig config) {
-    postArticle(ticketId, systemCommentText, true, config);
+    postArticle(ticketId, systemCommentText, CommentType.PLAIN_TEXT, true, config);
   }
 
   @Override
@@ -127,10 +129,12 @@ public class ZammadClient implements HelpdeskClient {
     return body;
   }
 
-  private Map<String, Object> buildArticleBody(String ticketId, String text, boolean internal) {
+  private Map<String, Object> buildArticleBody(
+      String ticketId, String text, CommentType commentType, boolean internal) {
     Map<String, Object> body = new HashMap<>();
     body.put("ticket_id", Long.parseLong(ticketId));
     body.put("body", text);
+    body.put("content_type", commentType == CommentType.HTML ? "text/html" : "text/plain");
     body.put("type", ARTICLE_TYPE_NOTE);
     body.put("internal", internal);
     return body;
@@ -147,8 +151,15 @@ public class ZammadClient implements HelpdeskClient {
   }
 
   private void postArticle(
-      String ticketId, String text, boolean internal, OrganizationConfig config) {
-    post(buildClient(config), TICKET_ARTICLES_PATH, buildArticleBody(ticketId, text, internal));
+      String ticketId,
+      String text,
+      CommentType commentType,
+      boolean internal,
+      OrganizationConfig config) {
+    post(
+        buildClient(config),
+        TICKET_ARTICLES_PATH,
+        buildArticleBody(ticketId, text, commentType, internal));
   }
 
   private void putTicket(String ticketId, Map<String, Object> body, OrganizationConfig config) {

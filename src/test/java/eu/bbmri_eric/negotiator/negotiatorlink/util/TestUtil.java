@@ -18,11 +18,11 @@ import java.util.HexFormat;
 import java.util.Map;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import lombok.NoArgsConstructor;
 import org.springframework.mock.web.MockHttpServletRequest;
 
+@NoArgsConstructor(access = lombok.AccessLevel.PRIVATE)
 public final class TestUtil {
-
-  private TestUtil() {}
 
   public static String hmacSha1Hex(String secret, byte[] data)
       throws NoSuchAlgorithmException, InvalidKeyException {
@@ -70,6 +70,13 @@ public final class TestUtil {
         + "\",\"userId\":1,\"organizationId\":"
         + organizationId
         + "}}";
+  }
+
+  public static String negotiationUpdatedPayload(String negotiationId) {
+    return "{\"type\":\"negotiation.updated\","
+        + "\"data\":{\"negotiationId\":\""
+        + negotiationId
+        + "\"}}";
   }
 
   public static String resourceStateUpdatedPayload(
@@ -168,6 +175,16 @@ public final class TestUtil {
       TicketStrategy strategy,
       Map<String, String> negotiationStateToTicketState,
       Map<String, String> resourceStateToTicketState) {
+    return organizationConfig(
+        orgExtId, strategy, negotiationStateToTicketState, resourceStateToTicketState, Map.of());
+  }
+
+  public static OrganizationConfig organizationConfig(
+      String orgExtId,
+      TicketStrategy strategy,
+      Map<String, String> negotiationStateToTicketState,
+      Map<String, String> resourceStateToTicketState,
+      Map<String, String> ticketStateToResourceEvent) {
     return new OrganizationConfig(
         orgExtId,
         HelpdeskType.ZAMMAD,
@@ -178,6 +195,7 @@ public final class TestUtil {
         Map.of("group", "3"),
         negotiationStateToTicketState,
         resourceStateToTicketState,
+        ticketStateToResourceEvent,
         new NegotiatorCredentials("test-client-id", "test-client-secret"));
   }
 }

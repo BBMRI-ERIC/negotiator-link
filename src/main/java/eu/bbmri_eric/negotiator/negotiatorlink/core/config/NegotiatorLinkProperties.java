@@ -13,6 +13,7 @@ public class NegotiatorLinkProperties {
 
   private List<OrgEntry> organizations = new ArrayList<>();
   private Map<String, String> resourceEvents = new HashMap<>();
+  private Map<HelpdeskType, HelpdeskDefaults> defaults = new HashMap<>();
 
   @Data
   public static class OrgEntry {
@@ -24,9 +25,18 @@ public class NegotiatorLinkProperties {
     private Map<String, String> credentials = new HashMap<>();
     private String callbackSecret;
     private Map<String, Object> platformConfig = new HashMap<>();
-    private Map<String, String> negotiationStateToTicketState = new HashMap<>();
-    private Map<String, String> resourceStateToTicketState = new HashMap<>();
+    // null = absent (inherit type defaults); empty map = explicit opt-out
+    private Map<String, String> negotiationStateToTicketState;
+    private Map<String, String> resourceStateToTicketState;
+    private Map<String, String> ticketStateToResourceEvent;
     private NegotiatorCredentialsEntry negotiatorCredentials = new NegotiatorCredentialsEntry();
+  }
+
+  @Data
+  public static class HelpdeskDefaults {
+    private Map<String, String> negotiationStateToTicketState;
+    private Map<String, String> resourceStateToTicketState;
+    private Map<String, String> ticketStateToResourceEvent;
   }
 
   @Data

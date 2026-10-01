@@ -32,6 +32,8 @@ negotiator-link:
         ABANDONED: "closed"
       resourceStateToTicketState:
         RESOURCE_MADE_AVAILABLE: "closed"
+      ticketStateToResourceEvent:
+        open: "MARK_AS_CHECKING_AVAILABILITY"
       negotiatorCredentials:
         clientId: "test-client-id-mhh"
         clientSecret: "test-client-secret-mhh"
@@ -45,11 +47,48 @@ negotiator-link:
       platformConfig:
         group: "Access"
         botEmail: "negotiator-link@lumc.nl"
-      resourceStateToTicketState:
-        RESOURCE_MADE_AVAILABLE: "closed"
       negotiatorCredentials:
         clientId: "test-client-id-lumc"
         clientSecret: "test-client-secret-lumc"
+    - organizationExternalId: "bbmri:CZ:MMCI"
+      type: "ZAMMAD"
+      ticketStrategy: "PER_RESOURCE"
+      baseUrl: "https://zammad.mmci.cz"
+      credentials:
+        apiToken: "test-api-token-mmci"
+      callbackSecret: "test-callback-secret-mmci"
+      platformConfig:
+        group: "Access"
+        botEmail: "negotiator-link@mmci.cz"
+      negotiationStateToTicketState: {}
+      resourceStateToTicketState: {}
+      ticketStateToResourceEvent: {}
+      negotiatorCredentials:
+        clientId: "test-client-id-mmci"
+        clientSecret: "test-client-secret-mmci"
+    - organizationExternalId: "bbmri:FI:FIMM"
+      type: "ZAMMAD"
+      ticketStrategy: "PER_RESOURCE"
+      baseUrl: "https://zammad.fimm.fi"
+      credentials:
+        apiToken: "test-api-token-fimm"
+      callbackSecret: "test-callback-secret-fimm"
+      platformConfig:
+        group: "Access"
+        botEmail: "negotiator-link@fimm.fi"
+      negotiatorCredentials:
+        clientId: "test-client-id-fimm"
+        clientSecret: "test-client-secret-fimm"
+  defaults:
+    ZAMMAD:
+      negotiationStateToTicketState:
+        ABANDONED: "closed"
+        CONCLUDED: "closed"
+      resourceStateToTicketState:
+        RESOURCE_NOT_MADE_AVAILABLE: "closed"
+        RESOURCE_MADE_AVAILABLE: "closed"
+      ticketStateToResourceEvent:
+        open: "MARK_AS_CHECKING_AVAILABILITY"
   resource-events:
     MARK_AS_CHECKING_AVAILABILITY: CHECKING_AVAILABILITY
     STEP_AWAY: RESOURCE_UNAVAILABLE
