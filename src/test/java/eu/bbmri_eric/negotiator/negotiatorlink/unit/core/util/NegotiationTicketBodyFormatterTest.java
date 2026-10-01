@@ -57,7 +57,7 @@ class NegotiationTicketBodyFormatterTest {
 
     assertThat(sectionHeaders(doc))
         .containsExactly(
-            "PROJECT", "REQUEST", "ETHICS VOTE", "SEARCH PARAMETERS", "REQUESTED RESOURCES");
+            "PROJECT", "REQUEST", "ETHICS VOTE", "SEARCH PARAMETERS", "REQUESTED RESOURCE");
   }
 
   @Test

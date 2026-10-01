@@ -60,7 +60,7 @@ public final class NegotiationTicketBodyFormatter {
       EntityModelNegotiationDTO negotiation, EntityModelResourceWithStatusDTO resource) {
     return wrapper(
             commonSections(negotiation),
-            sectionHeader("REQUESTED RESOURCES"),
+            sectionHeader("REQUESTED RESOURCE"),
             singleResourceTable(resource))
         .render();
   }
