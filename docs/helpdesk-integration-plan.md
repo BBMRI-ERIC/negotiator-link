@@ -435,7 +435,9 @@ the help desk article's `created_by` field. Actor identity propagation as a dedi
 **OPEN QUESTION:** Does we want to allow post messages also for CONCLUDED negotiation state? Currently negotiator
 disable posts when state changed IN_PROGRESS → ABANDONED, however not for PAUSED → ABANDONED which is probably the
 implementation bug.
-**RESPONSE:** the messages will not be allowed for ABANDONED state.
+**RESPONSE:** the negotiator-link will call the negotiator endpoint `GET /v3/negotiations/{negotiationId}` and check
+the value of `privatePostsEnabled` flag. Based on that it will be decide whether the private posts are currently
+allowed for the negotiation or not.
 
 Overview of allowed post visibility types by negotiation state:
 
