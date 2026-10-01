@@ -71,7 +71,7 @@ public final class NegotiationTicketBodyFormatter {
             commonSections(negotiation),
             sectionHeader("REQUESTED RESOURCES"),
             resourcesList(resources),
-            fieldsTable(List.of(Field.scalar("State (all resources)", sharedState(resources)))))
+            fieldsTable(List.of(Field.scalar("Status (all resources)", sharedState(resources)))))
         .render();
   }
 
@@ -119,7 +119,7 @@ public final class NegotiationTicketBodyFormatter {
       fields.add(Field.scalar("Requester", author.getName()));
       fields.add(Field.scalar("Email", author.getEmail()));
     }
-    fields.add(Field.scalar("State", negotiation.getStatus()));
+    fields.add(Field.scalar("Status", negotiation.getStatus()));
     fields.add(Field.scalar("Negotiation ID", negotiation.getDisplayId()));
 
     return each(h2("Negotiator Access Request").withStyle(TITLE_STYLE), fieldsTable(fields));
@@ -153,7 +153,7 @@ public final class NegotiationTicketBodyFormatter {
         List.of(
             Field.scalar("Name", resource.getName()),
             Field.scalar("ID", resource.getSourceId()),
-            Field.scalar("State", stateOf(resource))));
+            Field.scalar("Status", stateOf(resource))));
   }
 
   private static DomContent resourcesList(List<EntityModelResourceWithStatusDTO> resources) {
