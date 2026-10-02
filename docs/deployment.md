@@ -208,11 +208,11 @@ needed — only configuration. On the VM:
 3. **Apply the change:**
    ```bash
    cd ~/negotiator-link
-   sudo docker compose -f compose.prod.yml up -d
+   sudo docker compose -f compose.prod.yml up -d --force-recreate negotiator-link
    ```
-   `up -d` recreates the negotiator-link container so it picks up the new `.env` values and re-reads
-   `organizations.yml` (the config is read once at startup). No `--build` is required, and the
-   database and its data are untouched.
+   `--force-recreate negotiator-link` stops and recreates only the application container so it picks
+   up the new `.env` values and re-reads `organizations.yml` at startup. No `--build` is required,
+   and the database container and its data are untouched.
 4. **Verify** the container came up cleanly with the new org and check for config errors:
    ```bash
    sudo docker compose -f compose.prod.yml ps
