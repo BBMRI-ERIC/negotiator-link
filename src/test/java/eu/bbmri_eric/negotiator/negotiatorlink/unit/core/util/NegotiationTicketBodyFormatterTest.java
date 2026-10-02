@@ -47,7 +47,7 @@ class NegotiationTicketBodyFormatterTest {
     assertThat(doc.selectFirst("h2").text()).isEqualTo("Negotiator Access Request");
     assertThat(fieldValue(doc, "Requester")).isEqualTo("adam.researcher@gmail.com");
     assertThat(fieldValue(doc, "Email")).isEqualTo("adam.researcher@gmail.com");
-    assertThat(fieldValue(doc, "Status")).isEqualTo("IN_PROGRESS");
+    assertThat(fieldValue(doc, "Status")).isEqualTo("In Progress");
     assertThat(fieldValue(doc, "Negotiation ID")).isEqualTo("1");
   }
 
@@ -113,7 +113,7 @@ class NegotiationTicketBodyFormatterTest {
 
     assertThat(fieldValue(doc, "Name")).isEqualTo("Dummy test collection");
     assertThat(fieldValue(doc, "ID")).isEqualTo("bbmri-eric:ID:SE_890:collection:dummy_collection");
-    assertThat(allFieldValues(doc, "Status")).contains("IN_PROGRESS", "SUBMITTED");
+    assertThat(allFieldValues(doc, "Status")).contains("In Progress", "Submitted");
   }
 
   @Test
@@ -152,7 +152,7 @@ class NegotiationTicketBodyFormatterTest {
             NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(
                 negotiation, List.of(r1, r2)));
 
-    assertThat(fieldValue(doc, "Status (all resources)")).isEqualTo("SUBMITTED");
+    assertThat(fieldValue(doc, "Status (all resources)")).isEqualTo("Submitted");
   }
 
   @Test

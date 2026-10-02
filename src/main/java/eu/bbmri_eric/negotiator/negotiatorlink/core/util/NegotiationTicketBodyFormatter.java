@@ -1,5 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.util;
 
+import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil.enumToText;
 import static j2html.TagCreator.br;
 import static j2html.TagCreator.div;
 import static j2html.TagCreator.each;
@@ -119,7 +120,7 @@ public final class NegotiationTicketBodyFormatter {
       fields.add(Field.scalar("Requester", author.getName()));
       fields.add(Field.scalar("Email", author.getEmail()));
     }
-    fields.add(Field.scalar("Status", negotiation.getStatus()));
+    fields.add(Field.scalar("Status", enumToText(negotiation.getStatus())));
     fields.add(Field.scalar("Negotiation ID", negotiation.getDisplayId()));
 
     return each(h2("Negotiator Access Request").withStyle(TITLE_STYLE), fieldsTable(fields));
@@ -201,14 +202,16 @@ public final class NegotiationTicketBodyFormatter {
   }
 
   private static String stateOf(EntityModelResourceWithStatusDTO resource) {
-    return resource.getCurrentState() != null ? resource.getCurrentState().getValue() : null;
+    return resource.getCurrentState() != null
+        ? enumToText(resource.getCurrentState().getValue())
+        : null;
   }
 
   private static String sharedState(List<EntityModelResourceWithStatusDTO> resources) {
     return resources.stream()
         .map(EntityModelResourceWithStatusDTO::getCurrentState)
         .filter(Objects::nonNull)
-        .map(EntityModelResourceWithStatusDTO.CurrentStateEnum::getValue)
+        .map(stateEnum -> enumToText(stateEnum.getValue()))
         .findFirst()
         .orElse(null);
   }
