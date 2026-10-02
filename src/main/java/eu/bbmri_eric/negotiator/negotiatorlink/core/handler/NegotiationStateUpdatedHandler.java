@@ -1,5 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
+import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil.enumToText;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
@@ -243,19 +245,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
             Comparator.comparing(
                 EntityModelPostDTO::getCreationDate,
                 Comparator.nullsLast(Comparator.naturalOrder())))
-        .forEach(
-            post -> {
-              UserResponseModel createdBy = post.getCreatedBy();
-              Sender sender =
-                  createdBy != null ? new Sender(createdBy.getName(), createdBy.getEmail()) : null;
-              String signedText = PostUtil.signPost(post.getText(), sender);
-              try {
-                client.addComment(ticketId, signedText, CommentType.PLAIN_TEXT, config);
-                log.info("Posted comment '{}' to ticket '{}'", post.getId(), ticketId);
-              } catch (Exception e) {
-                log.error("Failed to post comment '{}' to ticket '{}'", post.getId(), ticketId, e);
-              }
-            });
+        .forEach(post -> addPostAsComment(ticketId, post, config, client));
   }
 
   private void saveMapping(
@@ -341,8 +331,10 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       return;
     }
 
+    EntityModelPostDTO post = fetchPost(negotiationId, event.getPostId(), ticketToOrgExtId);
+
     ticketToOrgExtId.forEach(
-        (ticketId, orgExtId) -> updateNegotiationStateInTicket(ticketId, orgExtId, toState));
+        (ticketId, orgExtId) -> updateNegotiationStateInTicket(ticketId, orgExtId, toState, post));
   }
 
   private Map<String, String> getDistinctTicketIdToOrgExtId(String negotiationId) {
@@ -353,7 +345,8 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     return ticketToOrgExtId;
   }
 
-  private void updateNegotiationStateInTicket(String ticketId, String orgExtId, String toState) {
+  private void updateNegotiationStateInTicket(
+      String ticketId, String orgExtId, String toState, EntityModelPostDTO post) {
     OrganizationConfig config = registry.findByExternalId(orgExtId).orElse(null);
     if (config == null) {
       log.debug("Organization '{}' not in config — skipping", orgExtId);
@@ -363,14 +356,54 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     try {
       log.info("Updating negotiation state on ticket '{}' to state '{}'", ticketId, toState);
       client.updateNegotiationState(ticketId, toState, config);
+      client.addSystemComment(
+          ticketId, "Negotiation status changed to '%s'".formatted(enumToText(toState)), config);
+      addPostAsComment(ticketId, post, config, client);
 
       String ticketState = config.negotiationStateToTicketState().get(toState);
-      if (ticketState == null) {
-        return;
+      if (ticketState != null) {
+        client.updateTicketState(ticketId, ticketState, config);
       }
-      client.updateTicketState(ticketId, ticketState, config);
     } catch (Exception e) {
-      log.error("fail in updating negotiation state on ticket '{}'", ticketId, e);
+      log.error("Fail in updating negotiation state on ticket '{}'", ticketId, e);
     }
+  }
+
+  private EntityModelPostDTO fetchPost(
+      String negotiationId, String postId, Map<String, String> ticketToOrgExtId) {
+    if (postId == null) {
+      return null;
+    }
+    String orgExtId = ticketToOrgExtId.values().stream().findFirst().orElseThrow();
+    OrganizationConfig config = registry.findByExternalId(orgExtId).orElse(null);
+    if (config == null) {
+      log.debug("Organization '{}' not in config — skipping", orgExtId);
+      return null;
+    }
+    try {
+      return negotiatorClient.getPost(negotiationId, postId, config);
+    } catch (Exception e) {
+      log.error(
+          "Failed to fetch post '{}' while updating the state of negotiation '{}'",
+          postId,
+          negotiationId,
+          e);
+      return null;
+    }
+  }
+
+  /** Posts the given post as a comment on the ticket, if present. */
+  private void addPostAsComment(
+      String ticketId, EntityModelPostDTO post, OrganizationConfig config, HelpdeskClient client) {
+    if (post == null || post.getText() == null) {
+      return;
+    }
+    UserResponseModel createdBy = post.getCreatedBy();
+    String postText = post.getText();
+    Sender sender =
+        createdBy != null ? new Sender(createdBy.getName(), createdBy.getEmail()) : null;
+    String signedText = PostUtil.signPost(postText, sender);
+    client.addComment(ticketId, signedText, CommentType.PLAIN_TEXT, config);
+    log.info("Posted comment '{}' to ticket '{}'", post.getId(), ticketId);
   }
 }

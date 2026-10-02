@@ -21,6 +21,28 @@ class PostUtilTest {
     assertThat(PostUtil.signPost(text, sender)).isEqualTo(expected);
   }
 
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("enumToTextCases")
+  void enumToText_capitalizesEachUnderscoreSeparatedWord(
+      String description, String value, String expected) {
+    assertThat(PostUtil.enumToText(value)).isEqualTo(expected);
+  }
+
+  static Stream<Arguments> enumToTextCases() {
+    return Stream.of(
+        Arguments.of("single word is title-cased", "PAUSED", "Paused"),
+        Arguments.of("two words joined with a space", "IN_PROGRESS", "In Progress"),
+        Arguments.of(
+            "multiple words joined with spaces", "RESOURCE_AVAILABLE", "Resource Available"),
+        Arguments.of(
+            "longer multi-word state",
+            "RESOURCE_UNAVAILABLE_WILLING_TO_COLLECT",
+            "Resource Unavailable Willing To Collect"),
+        Arguments.of("single character word", "A", "A"),
+        Arguments.of(
+            "first character is kept verbatim and the rest lowercased", "cONCLUDED", "Concluded"));
+  }
+
   static Stream<Arguments> signPostCases() {
     return Stream.of(
         Arguments.of("null sender returns text unchanged", TEXT, null, TEXT),

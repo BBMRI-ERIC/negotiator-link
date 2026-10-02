@@ -1485,32 +1485,8 @@ which contains the negotiation ID of the updated negotiation. The middleware nee
 the attachments and put the message to the helpdesk ticket with new negotiation body, as it is done after the ticket creation
 and it needs to also transfer the attachments if they were added during the access form update.
 
-**Propagate timeline logs:** when the negotiation state or resource state changes, the Negotiator saves a timeline log entry,
-which is visible in the Negotiator UI. The middleware should fetch the timeline log entry and add it as a system comment to
-the corresponding help desk ticket. This ensures that representatives have a complete view of the negotiation's history.
-The timeline log entry can be fetched via `GET /v3/negotiations/{negotiationId}/timeline` endpoint (returned
-timelines are sorted from oldest to newest). However, there is no ID of the timeline in the response and the middleware
-needs to know which timeline entry is new. It needs to store for example the timestamp of the last timeline entry that was added
-to the ticket. Here is the example of the Negotiator response when fetching timelines:
-
-```json
-{
-  "_embedded": {
-    "timelineEvents": [
-      {
-        "triggeredBy": "TheResearcher",
-        "text": "TheResearcher changed the status of the Negotiation to Draft",
-        "timestamp": "2024-01-03T08:00:00"
-      },
-      {
-        "triggeredBy": "TheResearcher",
-        "text": "TheResearcher changed the status of the Negotiation to Under review",
-        "timestamp": "2024-01-03T11:00:00"
-      }
-    ]
-  }
-}
-```
+**Propagate timeline logs:** It was decided not to use timelines from the Negotiator side. Instead, the middleware will
+add a system comment to the ticket whenever a negotiation state or resource state transition occurs.
 
 **Attachments:** Attachment forwarding in milestone 2 is intentionally scoped to two triggers: ticket creation
 (`NegotiationStateUpdatedHandler`) and access form payload updates (`NegotiationUpdatedHandler`). Forwarding
@@ -1618,6 +1594,15 @@ timeout.
 Before milestone 5 implementation begins, the choice of queue infrastructure technology (e.g. database-backed queue,
 RabbitMQ, Redis Streams) will be discussed and agreed with the developers of the Negotiator application so it meet their
 expectations.
+
+### Milestone 6
+
+**Scope:** Milestone 6 will be about finishing the noce-to-have features and addressing potential improvements discovered
+    during the implementation of the previous milestones.
+
+1. **Resolve status labels from Negotiator endpoint** - currently the status labels are created from the negotiation
+   and resource state values, when sending the logs to the help desk. PostUtil.enumToText() is used for that. This
+   should be replaced by a call of `GET /resource-lifecycle/states/{state}` and `GET /negotiation-lifecycle/states/{state}` endpoints.
 
 ## 8. Out of Scope
 

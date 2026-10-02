@@ -152,7 +152,7 @@ In Zammad: **Admin → System → Objects → Ticket → New Attribute**
 *Field 1 — negotiation state (display only):*
 
 - **Name**: `negotiation_state`
-- **Display**: `Negotiation State`
+- **Display**: `Negotiation Status`
 - **Type**: Single Selection Field
 - **Required**: No
 - **Default**: *(leave empty)*
@@ -165,7 +165,7 @@ In Zammad: **Admin → System → Objects → Ticket → New Attribute**
 *Field 2 — resource state (display only):*
 
 - **Name**: `negotiator_resource_state`
-- **Display**: `Resource State`
+- **Display**: `Resource Status`
 - **Type**: Single Selection Field
 - **Required**: No
 - **Default**: *(leave empty)*
@@ -229,7 +229,7 @@ Set for each of the following resource states: SUBMITTED, REPRESENTATIVE_UNREACH
 And set it to read-only also when the negotiation state is not IN_PROGRESS:
 - **Name**: `negotiator-link: lock resource transition when negotiatio state is not IN_PROGRESS`
 - **Object**: Ticket
-- **Conditions**: Negotiation State → is not → IN_PROGRESS
+- **Conditions**: Negotiation Status → is not → IN_PROGRESS
 - **Actions**:
   - `negotiator_resource_transition_event` → **Set fixed to** *(read-only)*
 - Priority: 505
