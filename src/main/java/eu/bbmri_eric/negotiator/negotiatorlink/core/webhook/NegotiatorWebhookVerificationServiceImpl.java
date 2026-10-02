@@ -1,6 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.webhook;
 
 import com.standardwebhooks.Webhook;
+import com.standardwebhooks.exceptions.EmptyWebhookSecretException;
 import com.standardwebhooks.exceptions.WebhookVerificationException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.nio.charset.StandardCharsets;
@@ -19,7 +20,8 @@ public class NegotiatorWebhookVerificationServiceImpl
   private final Webhook webhook;
 
   public NegotiatorWebhookVerificationServiceImpl(
-      @Value("${negotiator-link.webhook.secret}") String secret) {
+      @Value("${negotiator-link.webhook.secret}") String secret)
+      throws EmptyWebhookSecretException {
     if (StringUtils.isBlank(secret)) {
       throw new IllegalStateException(
           "NEGOTIATOR_WEBHOOK_SECRET must not be blank — set the environment variable");
