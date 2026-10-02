@@ -99,17 +99,11 @@ class NegotiationUpdatedHandlerTest {
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
     when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config)).thenReturn(negotiation);
     when(negotiatorClient.getResources(NEGOTIATION_ID, config)).thenReturn(List.of(resource));
-    stubPdfSummary();
 
     handler.handle(updatedEventNode(NEGOTIATION_ID));
 
     verify(helpdeskClient, times(1))
-        .addComment(
-            eq(TICKET_ID),
-            contains("updated"),
-            eq(CommentType.HTML),
-            argThat(this::isPdfSummaryOnly),
-            eq(config));
+        .addComment(eq(TICKET_ID), contains("updated"), eq(CommentType.HTML), eq(config));
   }
 
   @Test
@@ -132,24 +126,13 @@ class NegotiationUpdatedHandlerTest {
     when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config1)).thenReturn(negotiation);
     when(negotiatorClient.getResources(NEGOTIATION_ID, config1))
         .thenReturn(List.of(resource1, resource2));
-    stubPdfSummary();
 
     handler.handle(updatedEventNode(NEGOTIATION_ID));
 
     verify(helpdeskClient, times(1))
-        .addComment(
-            eq(TICKET_ID),
-            contains("updated"),
-            eq(CommentType.HTML),
-            argThat(this::isPdfSummaryOnly),
-            eq(config1));
+        .addComment(eq(TICKET_ID), contains("updated"), eq(CommentType.HTML), eq(config1));
     verify(helpdeskClient, times(1))
-        .addComment(
-            eq(ticketId2),
-            contains("updated"),
-            eq(CommentType.HTML),
-            argThat(this::isPdfSummaryOnly),
-            eq(config2));
+        .addComment(eq(ticketId2), contains("updated"), eq(CommentType.HTML), eq(config2));
     verify(attachmentForwardingService, never())
         .recordForwardedAttachments(any(), any(), any(), any());
   }
@@ -175,7 +158,6 @@ class NegotiationUpdatedHandlerTest {
     when(attachmentForwardingService.notYetForwardedToTicket(
             ORG_EXT_ID, TICKET_ID, List.of(attachment)))
         .thenReturn(List.of(attachment));
-    stubPdfSummary();
 
     handler.handle(updatedEventNode(NEGOTIATION_ID));
 
@@ -184,7 +166,6 @@ class NegotiationUpdatedHandlerTest {
             eq(TICKET_ID),
             contains("negotiation has been updated"),
             eq(CommentType.HTML),
-            argThat(this::isPdfSummaryOnly),
             eq(config));
     verify(helpdeskClient, times(1))
         .addComment(
@@ -228,7 +209,6 @@ class NegotiationUpdatedHandlerTest {
     when(attachmentForwardingService.notYetForwardedToTicket(
             orgExtId2, ticketId2, List.of(attachment)))
         .thenReturn(List.of(attachment));
-    stubPdfSummary();
     doThrow(new RuntimeException("helpdesk down"))
         .when(helpdeskClient)
         .addComment(
@@ -262,17 +242,11 @@ class NegotiationUpdatedHandlerTest {
     when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config)).thenReturn(negotiation);
     when(negotiatorClient.getResources(NEGOTIATION_ID, config))
         .thenReturn(List.of(resource1, resource2));
-    stubPdfSummary();
 
     handler.handle(updatedEventNode(NEGOTIATION_ID));
 
     verify(helpdeskClient, times(1))
-        .addComment(
-            eq(TICKET_ID),
-            contains("updated"),
-            eq(CommentType.HTML),
-            argThat(this::isPdfSummaryOnly),
-            eq(config));
+        .addComment(eq(TICKET_ID), contains("updated"), eq(CommentType.HTML), eq(config));
   }
 
   @Test
@@ -295,35 +269,15 @@ class NegotiationUpdatedHandlerTest {
     when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config1)).thenReturn(negotiation);
     when(negotiatorClient.getResources(NEGOTIATION_ID, config1))
         .thenReturn(List.of(resource1, resource2));
-    stubPdfSummary();
     doThrow(new RuntimeException("helpdesk down"))
         .when(helpdeskClient)
-        .addComment(eq(TICKET_ID), anyString(), any(), anyList(), eq(config1));
+        .addComment(eq(TICKET_ID), anyString(), any(), eq(config1));
 
     handler.handle(updatedEventNode(NEGOTIATION_ID));
 
     // First ticket failed but second must still be attempted.
     verify(helpdeskClient, times(1))
-        .addComment(
-            eq(ticketId2),
-            contains("updated"),
-            eq(CommentType.HTML),
-            argThat(this::isPdfSummaryOnly),
-            eq(config2));
-  }
-
-  private void stubPdfSummary() {
-    var summary =
-        new Attachment(
-            "negotiation_summary_2026-09-26_143207.pdf", "application/pdf", "%PDF".getBytes());
-    when(attachmentForwardingService.getNegotiationPdfSummary(eq(NEGOTIATION_ID), any()))
-        .thenReturn(summary);
-  }
-
-  private boolean isPdfSummaryOnly(List<Attachment> attachments) {
-    return attachments.size() == 1
-        && "application/pdf".equals(attachments.getFirst().contentType())
-        && attachments.getFirst().filename().startsWith("negotiation_summary_");
+        .addComment(eq(ticketId2), contains("updated"), eq(CommentType.HTML), eq(config2));
   }
 
   private JsonNode updatedEventNode(String negotiationId) throws Exception {

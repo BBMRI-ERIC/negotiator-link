@@ -56,9 +56,6 @@ class NegotiationStateUpdatedHandlerTest {
   private static final Long ORG_INTERNAL_ID = 10L;
   private static final String TICKET_ID = "ticket-42";
   private static final String RESOURCE_STATE = "SUBMITTED";
-  private static final Attachment PDF_SUMMARY =
-      new Attachment(
-          "negotiation_summary_2026-09-26_143207.pdf", "application/pdf", "%PDF".getBytes());
 
   @Mock private NegotiatorClient negotiatorClient;
   @Mock private OrganizationConfigRegistry registry;
@@ -215,9 +212,9 @@ class NegotiationStateUpdatedHandlerTest {
 
     handler.handle(approveEventData());
 
-    // Ticket carries both the payload attachment and the always-appended PDF summary.
+    // Ticket carries the forwardable payload attachment.
     verify(helpdeskClient)
-        .createTicket(argThat(request -> request.attachments().size() == 2), eq(config));
+        .createTicket(argThat(request -> request.attachments().size() == 1), eq(config));
     verify(attachmentForwardingService)
         .recordForwardedAttachments(NEGOTIATION_ID, ORG_EXT_ID, TICKET_ID, List.of("a-1"));
     verify(attachmentForwardingService, never()).notYetForwardedToTicket(any(), any(), any());
@@ -400,8 +397,6 @@ class NegotiationStateUpdatedHandlerTest {
       List<EntityModelResourceWithStatusDTO> resources) {
     stubResources(negotiation, config, resources);
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
-    when(attachmentForwardingService.getNegotiationPdfSummary(eq(NEGOTIATION_ID), eq(config)))
-        .thenReturn(PDF_SUMMARY);
   }
 
   private void stubResources(
@@ -420,7 +415,7 @@ class NegotiationStateUpdatedHandlerTest {
         NEGOTIATION_STATE,
         RESOURCE_STATE,
         NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(negotiation, resource),
-        List.of(PDF_SUMMARY));
+        List.of());
   }
 
   private CreateTicketRequest perNegotiationRequest(
@@ -430,7 +425,7 @@ class NegotiationStateUpdatedHandlerTest {
         NEGOTIATION_STATE,
         RESOURCE_STATE,
         NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(negotiation, resources),
-        List.of(PDF_SUMMARY));
+        List.of());
   }
 
   private TicketMapping mappingFor(

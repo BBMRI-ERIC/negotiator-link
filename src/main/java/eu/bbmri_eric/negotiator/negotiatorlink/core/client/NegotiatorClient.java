@@ -226,31 +226,6 @@ public class NegotiatorClient {
         .body(byte[].class);
   }
 
-  /**
-   * Generate and download the PDF summary of a negotiation.
-   *
-   * <p>Bypasses the generated {@code NegotiationsApi.generateNegotiationPdf} since the generated
-   * {@code ApiClient.selectHeaderAccept} collapses the advertised accept types to {@code
-   * application/json}, so the request that reaches Negotiator's PDF endpoint fails content
-   * negotiation with 406 (surfaced as 403). Calling the authenticated {@link RestClient} directly
-   * lets us send the correct {@code Accept: application/pdf}.
-   *
-   * <p>Attachments are intentionally not included in the PDF.
-   *
-   * @param negotiationId the ID of the negotiation to summarize
-   * @param config organization configuration to use for this request
-   * @return the raw PDF bytes
-   */
-  public byte[] generateNegotiationPdf(String negotiationId, OrganizationConfig config) {
-    return getOrCreateClient(config)
-        .restClient()
-        .get()
-        .uri(baseUrl + "/v3/negotiations/{id}/pdf", negotiationId)
-        .accept(MediaType.APPLICATION_PDF)
-        .retrieve()
-        .body(byte[].class);
-  }
-
   private PerOrgClient getOrCreateClient(OrganizationConfig config) {
     // Cached per organizationExternalId under the assumption that per-org credentials are
     // immutable at runtime. This holds because credentials originate from environment variables,

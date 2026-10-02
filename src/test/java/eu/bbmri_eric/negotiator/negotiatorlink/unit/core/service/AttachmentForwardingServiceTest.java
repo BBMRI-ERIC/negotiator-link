@@ -114,19 +114,6 @@ class AttachmentForwardingServiceTest {
     verifyNoInteractions(forwardedAttachmentRepository);
   }
 
-  @Test
-  void getNegotiationPdfSummary_returnsPdfWithTimestampedName() {
-    byte[] pdf = "%PDF-bytes".getBytes();
-    when(negotiatorClient.generateNegotiationPdf(NEGOTIATION_ID, config)).thenReturn(pdf);
-
-    Attachment summary = service.getNegotiationPdfSummary(NEGOTIATION_ID, config);
-
-    assertThat(summary.content()).isEqualTo(pdf);
-    assertThat(summary.contentType()).isEqualTo("application/pdf");
-    assertThat(summary.filename()).matches("negotiation_summary_\\d{4}-\\d{2}-\\d{2}_\\d{6}\\.pdf");
-    verifyNoInteractions(forwardedAttachmentRepository);
-  }
-
   private AttachmentMetadataDTO metadata(
       String id, String organizationId, String name, String contentType) {
     return new AttachmentMetadataDTO()
