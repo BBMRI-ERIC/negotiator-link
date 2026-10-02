@@ -65,6 +65,10 @@ class NegotiatorWebhookControllerTest {
   private static final long ORG_ID = 10L;
   private static final String RESOURCE_SOURCE_ID = "bbmri:NL:LUMC:collection:res1";
   private static final String RESOURCE_ORG_EXT_ID = "bbmri:NL:LUMC";
+  private static final String AVAILABLE_SYSTEM_COMMENT =
+      "Resource '%s' changed the status to 'Resource Made Available'".formatted(RESOURCE_SOURCE_ID);
+  private static final String CONCLUDED_SYSTEM_COMMENT =
+      "Negotiation status changed to 'Concluded'";
 
   @Autowired private MockMvc mockMvc;
   @Autowired private TicketMappingRepository ticketMappingRepository;
@@ -248,10 +252,10 @@ class NegotiatorWebhookControllerTest {
             eq(TICKET_B), eq(NegotiatorNegotiationEvent.CONCLUDE.toState()), any());
     Mockito.doNothing()
         .when(helpdeskClient)
-        .addSystemComment(eq(TICKET_A), eq("Negotiation status changed to 'Concluded'"), any());
+        .addSystemComment(eq(TICKET_A), eq(CONCLUDED_SYSTEM_COMMENT), any());
     Mockito.doNothing()
         .when(helpdeskClient)
-        .addSystemComment(eq(TICKET_B), eq("Negotiation status changed to 'Concluded'"), any());
+        .addSystemComment(eq(TICKET_B), eq(CONCLUDED_SYSTEM_COMMENT), any());
     String body =
         negotiationStateChangedPayload(
             NEGOTIATION_ID,
@@ -301,10 +305,7 @@ class NegotiatorWebhookControllerTest {
         .updateResourceState(eq(TICKET_RESOURCE), eq(toState), any());
     Mockito.doNothing()
         .when(helpdeskClient)
-        .addSystemComment(
-            eq(TICKET_RESOURCE),
-            eq("Resources changed to status 'Resource Made Available'"),
-            any());
+        .addSystemComment(eq(TICKET_RESOURCE), eq(AVAILABLE_SYSTEM_COMMENT), any());
     String body =
         resourceStateUpdatedPayload(
             NEGOTIATION_ID,

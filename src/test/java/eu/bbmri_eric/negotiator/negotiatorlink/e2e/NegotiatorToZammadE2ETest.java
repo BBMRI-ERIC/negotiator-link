@@ -55,6 +55,9 @@ class NegotiatorToZammadE2ETest {
   private static final String TICKET_ARTICLES_URL = ZAMMAD_BASE + "/api/v1/ticket_articles";
   private static final String ORG_EXT_ID = "bbmri:DE:MHH";
   private static final Long ORG_ID = 1L;
+  private static final String PAUSED_SYSTEM_COMMENT = "Negotiation status changed to 'Paused'";
+  private static final String CHECKING_AVAILABILITY_SYS_COMMENT =
+      "Resource 'src-e2e-1' changed the status to 'Checking Availability'";
 
   @Autowired private MockMvc mockMvc;
   @Autowired private TicketMappingRepository ticketMappingRepository;
@@ -139,7 +142,7 @@ class NegotiatorToZammadE2ETest {
         .expect(requestTo(TICKET_ARTICLES_URL))
         .andExpect(method(HttpMethod.POST))
         .andExpect(jsonPath("$.ticket_id").value(Integer.parseInt(ticketId)))
-        .andExpect(jsonPath("$.body").value("Resource status changed to 'Checking Availability'"))
+        .andExpect(jsonPath("$.body").value(CHECKING_AVAILABILITY_SYS_COMMENT))
         .andExpect(jsonPath("$.internal").value(true))
         .andRespond(withSuccess());
 
@@ -236,7 +239,7 @@ class NegotiatorToZammadE2ETest {
         .expect(requestTo(TICKET_ARTICLES_URL))
         .andExpect(method(HttpMethod.POST))
         .andExpect(jsonPath("$.ticket_id").value(Integer.parseInt(ticketId1)))
-        .andExpect(jsonPath("$.body").value("Negotiation status changed to 'Paused'"))
+        .andExpect(jsonPath("$.body").value(PAUSED_SYSTEM_COMMENT))
         .andExpect(jsonPath("$.internal").value(true))
         .andRespond(withSuccess());
 
@@ -260,7 +263,7 @@ class NegotiatorToZammadE2ETest {
         .expect(requestTo(TICKET_ARTICLES_URL))
         .andExpect(method(HttpMethod.POST))
         .andExpect(jsonPath("$.ticket_id").value(Integer.parseInt(ticketId2)))
-        .andExpect(jsonPath("$.body").value("Negotiation status changed to 'Paused'"))
+        .andExpect(jsonPath("$.body").value(PAUSED_SYSTEM_COMMENT))
         .andExpect(jsonPath("$.internal").value(true))
         .andRespond(withSuccess());
 

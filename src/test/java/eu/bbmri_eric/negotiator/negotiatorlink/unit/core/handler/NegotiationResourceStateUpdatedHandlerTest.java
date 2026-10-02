@@ -39,10 +39,8 @@ class NegotiationResourceStateUpdatedHandlerTest {
   private static final String TICKET_ID = "ticket-42";
   private static final String ORG_EXT_ID = "bbmri:DE:MHH";
   private static final String NEW_STATE = "RESOURCE_AVAILABLE";
-  private static final String PER_NEGOTIATION_COMMENT =
-      "Resources changed to status 'Resource Available'";
-  private static final String PER_RESOURCE_COMMENT =
-      "Resource status changed to 'Resource Available'";
+  private static final String SYSTEM_COMMENT =
+      "Resource 'res-1' changed the status to 'Resource Available'";
 
   @Mock private TicketMappingRepository ticketMappingRepository;
   @Mock private OriginatedTransitionRepository originatedTransitionRepository;
@@ -88,7 +86,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
     handler.handle(eventData(NEW_STATE));
 
     verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
-    verify(helpdeskClient).addSystemComment(eq(TICKET_ID), eq(PER_NEGOTIATION_COMMENT), eq(config));
+    verify(helpdeskClient).addSystemComment(eq(TICKET_ID), eq(SYSTEM_COMMENT), eq(config));
   }
 
   @Test
@@ -105,7 +103,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
     handler.handle(eventData(NEW_STATE));
 
     verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
-    verify(helpdeskClient).addSystemComment(eq(TICKET_ID), eq(PER_RESOURCE_COMMENT), eq(config));
+    verify(helpdeskClient).addSystemComment(eq(TICKET_ID), eq(SYSTEM_COMMENT), eq(config));
   }
 
   @Test
@@ -127,7 +125,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
 
     verify(originatedTransitionRepository).save(transition);
     verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
-    verify(helpdeskClient).addSystemComment(eq(TICKET_ID), eq(PER_NEGOTIATION_COMMENT), eq(config));
+    verify(helpdeskClient).addSystemComment(eq(TICKET_ID), eq(SYSTEM_COMMENT), eq(config));
     verify(originatedTransitionRepository, never()).deleteById(any());
   }
 
@@ -210,9 +208,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
 
     var order = inOrder(helpdeskClient);
     order.verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
-    order
-        .verify(helpdeskClient)
-        .addSystemComment(eq(TICKET_ID), eq(PER_RESOURCE_COMMENT), eq(config));
+    order.verify(helpdeskClient).addSystemComment(eq(TICKET_ID), eq(SYSTEM_COMMENT), eq(config));
     order.verify(helpdeskClient).updateTicketState(eq(TICKET_ID), eq("closed"), eq(config));
   }
 
@@ -230,7 +226,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
     handler.handle(eventData(NEW_STATE));
 
     verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
-    verify(helpdeskClient).addSystemComment(eq(TICKET_ID), eq(PER_RESOURCE_COMMENT), eq(config));
+    verify(helpdeskClient).addSystemComment(eq(TICKET_ID), eq(SYSTEM_COMMENT), eq(config));
     verify(helpdeskClient, never()).updateTicketState(any(), any(), any());
   }
 
