@@ -64,8 +64,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
   private record CreateNegotiationContext(
       EntityModelNegotiationDTO negotiation,
       List<EntityModelResourceWithStatusDTO> negotiationResources,
-      List<ResolvedAttachment> resolvedAttachments,
-      Attachment pdfSummary) {}
+      List<ResolvedAttachment> resolvedAttachments) {}
 
   @Override
   public String getSupportedEventType() {
@@ -115,10 +114,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     List<ResolvedAttachment> resolvedAttachments =
         attachmentForwardingService.resolveForwardablePayloadAttachments(
             negotiationId, result.config());
-    Attachment pdfSummary =
-        attachmentForwardingService.getNegotiationPdfSummary(negotiationId, result.config());
-    return Optional.of(
-        new CreateNegotiationContext(negotiation, resources, resolvedAttachments, pdfSummary));
+    return Optional.of(new CreateNegotiationContext(negotiation, resources, resolvedAttachments));
   }
 
   /** Creates tickets for a single organization's resources, skipping/logging on any failure. */
@@ -166,7 +162,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
             negotiation.getStatus(),
             resolveInitialState(resources.getFirst()),
             body,
-            ticketFiles(context));
+            payloadAttachments(context));
 
     CreatedTicket created = client.createTicket(request, config);
     log.info(
@@ -199,7 +195,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
               negotiation.getStatus(),
               resolveInitialState(resource),
               body,
-              ticketFiles(context));
+              payloadAttachments(context));
 
       CreatedTicket created = client.createTicket(request, config);
       log.info(
@@ -267,15 +263,8 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
             orgExtId));
   }
 
-  /**
-   * The files attached to a new ticket: the forwardable payload attachments plus the PDF summary.
-   */
-  private List<Attachment> ticketFiles(CreateNegotiationContext context) {
-    List<Attachment> files =
-        new ArrayList<>(
-            context.resolvedAttachments().stream().map(ResolvedAttachment::attachment).toList());
-    files.add(context.pdfSummary());
-    return files;
+  private List<Attachment> payloadAttachments(CreateNegotiationContext context) {
+    return context.resolvedAttachments().stream().map(ResolvedAttachment::attachment).toList();
   }
 
   private String resolveInitialState(EntityModelResourceWithStatusDTO resource) {

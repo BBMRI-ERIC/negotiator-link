@@ -10,7 +10,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService.ResolvedAttachment;
@@ -48,8 +47,7 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
       EntityModelNegotiationDTO negotiation,
       Map<String, EntityModelResourceWithStatusDTO> resourceById,
       List<TicketMapping> allMappings,
-      List<ResolvedAttachment> candidateAttachments,
-      Attachment pdfSummary) {}
+      List<ResolvedAttachment> candidateAttachments) {}
 
   @Override
   public String getSupportedEventType() {
@@ -94,10 +92,8 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
                     (existing, duplicate) -> existing));
     List<ResolvedAttachment> candidateAttachments =
         attachmentForwardingService.resolveForwardablePayloadAttachments(negotiationId, config);
-    Attachment pdfSummary =
-        attachmentForwardingService.getNegotiationPdfSummary(negotiationId, config);
     return new NegotiationContext(
-        negotiationId, negotiation, resourceById, mappings, candidateAttachments, pdfSummary);
+        negotiationId, negotiation, resourceById, mappings, candidateAttachments);
   }
 
   private void processTicket(String ticketId, String orgExtId, NegotiationContext context) {
@@ -118,7 +114,7 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
       NegotiationContext context) {
     String body = buildBody(ticketId, config.ticketStrategy(), context);
     try {
-      client.addComment(ticketId, body, CommentType.HTML, List.of(context.pdfSummary()), config);
+      client.addComment(ticketId, body, CommentType.HTML, config);
       log.info(
           "Posted negotiation update comment to ticket '{}' (negotiation '{}')",
           ticketId,

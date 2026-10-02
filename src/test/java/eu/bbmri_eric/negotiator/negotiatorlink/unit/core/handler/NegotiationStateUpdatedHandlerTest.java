@@ -59,9 +59,6 @@ class NegotiationStateUpdatedHandlerTest {
   private static final String PAUSED_SYSTEM_COMMENT = "Negotiation status changed to 'Paused'";
   private static final String CONCLUDED_SYSTEM_COMMENT =
       "Negotiation status changed to 'Concluded'";
-  private static final Attachment PDF_SUMMARY =
-      new Attachment(
-          "negotiation_summary_2026-09-26_143207.pdf", "application/pdf", "%PDF".getBytes());
 
   @Mock private NegotiatorClient negotiatorClient;
   @Mock private OrganizationConfigRegistry registry;
@@ -218,9 +215,9 @@ class NegotiationStateUpdatedHandlerTest {
 
     handler.handle(approveEventData());
 
-    // Ticket carries both the payload attachment and the always-appended PDF summary.
+    // Ticket carries the forwardable payload attachment.
     verify(helpdeskClient)
-        .createTicket(argThat(request -> request.attachments().size() == 2), eq(config));
+        .createTicket(argThat(request -> request.attachments().size() == 1), eq(config));
     verify(attachmentForwardingService)
         .recordForwardedAttachments(NEGOTIATION_ID, ORG_EXT_ID, TICKET_ID, List.of("a-1"));
     verify(attachmentForwardingService, never()).notYetForwardedToTicket(any(), any(), any());
