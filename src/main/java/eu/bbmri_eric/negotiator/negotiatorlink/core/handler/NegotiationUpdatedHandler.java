@@ -11,6 +11,8 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigReg
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService.ResolvedAttachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFormatter;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
@@ -36,7 +38,16 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
   private final OrganizationConfigRegistry registry;
   private final Map<HelpdeskType, HelpdeskClient> clients;
   private final TicketMappingRepository ticketMappingRepository;
+  private final AttachmentForwardingService attachmentForwardingService;
   private final ObjectMapper objectMapper;
+
+  /** Negotiation-wide data shared by every updated ticket, resolved once per event. */
+  private record NegotiationContext(
+      String negotiationId,
+      EntityModelNegotiationDTO negotiation,
+      Map<String, EntityModelResourceWithStatusDTO> resourceById,
+      List<TicketMapping> allMappings,
+      List<ResolvedAttachment> candidateAttachments) {}
 
   @Override
   public String getSupportedEventType() {
@@ -54,95 +65,130 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
       return;
     }
 
-    List<TicketMapping> allMappings = ticketMappingRepository.findByIdNegotiationId(negotiationId);
-    if (allMappings.isEmpty()) {
+    List<TicketMapping> mappings = ticketMappingRepository.findByIdNegotiationId(negotiationId);
+    if (mappings.isEmpty()) {
       log.debug("No mapped tickets for negotiation '{}' — skipping update comment", negotiationId);
       return;
     }
 
-    Map<String, String> ticketToOrgExtId = getDistinctTicketIdToOrgExtId(allMappings);
-    String anyOrgExtId = allMappings.getFirst().getOrganizationExtId();
-    OrganizationConfig fetchConfig = registry.findByExternalId(anyOrgExtId).orElseThrow();
+    OrganizationConfig fetchConfig =
+        registry.findByExternalId(mappings.getFirst().getOrganizationExtId()).orElseThrow();
 
-    EntityModelNegotiationDTO negotiation =
-        negotiatorClient.getNegotiation(negotiationId, fetchConfig);
-    List<EntityModelResourceWithStatusDTO> allResources =
-        negotiatorClient.getResources(negotiationId, fetchConfig);
+    NegotiationContext context = buildContext(negotiationId, mappings, fetchConfig);
 
-    // Build a lookup from resourceId (String) → resource for fast per-ticket filtering below.
+    getDistinctTicketIdToOrgExtId(mappings)
+        .forEach((ticketId, orgExtId) -> processTicket(ticketId, orgExtId, context));
+  }
+
+  private NegotiationContext buildContext(
+      String negotiationId, List<TicketMapping> mappings, OrganizationConfig config) {
+    EntityModelNegotiationDTO negotiation = negotiatorClient.getNegotiation(negotiationId, config);
     Map<String, EntityModelResourceWithStatusDTO> resourceById =
-        allResources.stream()
+        negotiatorClient.getResources(negotiationId, config).stream()
             .collect(
                 Collectors.toMap(
                     resource -> String.valueOf(resource.getId()),
                     Function.identity(),
                     (existing, duplicate) -> existing));
-
-    ticketToOrgExtId.forEach(
-        (ticketId, orgExtId) ->
-            postUpdateComment(
-                negotiationId, ticketId, orgExtId, negotiation, resourceById, allMappings));
+    List<ResolvedAttachment> candidateAttachments =
+        attachmentForwardingService.resolveForwardablePayloadAttachments(negotiationId, config);
+    return new NegotiationContext(
+        negotiationId, negotiation, resourceById, mappings, candidateAttachments);
   }
 
-  private void postUpdateComment(
-      String negotiationId,
-      String ticketId,
-      String orgExtId,
-      EntityModelNegotiationDTO negotiation,
-      Map<String, EntityModelResourceWithStatusDTO> resourceById,
-      List<TicketMapping> allMappings) {
-
+  private void processTicket(String ticketId, String orgExtId, NegotiationContext context) {
     OrganizationConfig config = registry.findByExternalId(orgExtId).orElse(null);
     if (config == null) {
       log.warn("Org '{}' not in config for ticket '{}' — skipping", orgExtId, ticketId);
       return;
     }
     HelpdeskClient client = clients.get(config.type());
-    String body =
-        buildBody(ticketId, config.ticketStrategy(), negotiation, resourceById, allMappings);
+    postUpdateComment(ticketId, config, client, context);
+    forwardNewAttachments(ticketId, orgExtId, config, client, context);
+  }
+
+  private void postUpdateComment(
+      String ticketId,
+      OrganizationConfig config,
+      HelpdeskClient client,
+      NegotiationContext context) {
+    String body = buildBody(ticketId, config.ticketStrategy(), context);
     try {
       client.addComment(ticketId, body, CommentType.HTML, config);
       log.info(
           "Posted negotiation update comment to ticket '{}' (negotiation '{}')",
           ticketId,
-          negotiationId);
+          context.negotiationId());
     } catch (Exception e) {
       log.error(
           "Failed to post update comment to ticket '{}' for negotiation '{}'",
+          ticketId,
+          context.negotiationId(),
+          e);
+    }
+  }
+
+  private void forwardNewAttachments(
+      String ticketId,
+      String orgExtId,
+      OrganizationConfig config,
+      HelpdeskClient client,
+      NegotiationContext context) {
+    String negotiationId = context.negotiationId();
+    List<ResolvedAttachment> toForward =
+        attachmentForwardingService.notYetForwardedToTicket(
+            orgExtId, ticketId, context.candidateAttachments());
+    if (toForward.isEmpty()) {
+      return;
+    }
+    try {
+      client.addComment(
+          ticketId,
+          "New negotiation-level attachments added by requestor. See the files below.",
+          CommentType.PLAIN_TEXT,
+          toForward.stream().map(ResolvedAttachment::attachment).toList(),
+          config);
+      attachmentForwardingService.recordForwardedAttachments(
+          negotiationId,
+          orgExtId,
+          ticketId,
+          toForward.stream().map(ResolvedAttachment::attachmentId).toList());
+      log.info(
+          "Forwarded {} file(s) to ticket '{}' (negotiation '{}')",
+          toForward.size(),
+          ticketId,
+          negotiationId);
+    } catch (Exception e) {
+      log.error(
+          "Failed to forward attachments to ticket '{}' for negotiation '{}'",
           ticketId,
           negotiationId,
           e);
     }
   }
 
-  private String buildBody(
-      String ticketId,
-      TicketStrategy strategy,
-      EntityModelNegotiationDTO negotiation,
-      Map<String, EntityModelResourceWithStatusDTO> resourceById,
-      List<TicketMapping> allMappings) {
-
+  private String buildBody(String ticketId, TicketStrategy strategy, NegotiationContext context) {
     if (strategy == TicketStrategy.PER_NEGOTIATION) {
       // Collect all resources that belong to this ticket.
       List<EntityModelResourceWithStatusDTO> ticketResources =
-          allMappings.stream()
+          context.allMappings().stream()
               .filter(mapping -> mapping.getId().getHelpdeskTicketId().equals(ticketId))
-              .map(mapping -> resourceById.get(mapping.getId().getResourceId()))
+              .map(mapping -> context.resourceById().get(mapping.getId().getResourceId()))
               .filter(Objects::nonNull)
               .toList();
       return NegotiationTicketBodyFormatter.getUpdatedTicketBodyWithMultipleResources(
-          negotiation, ticketResources);
+          context.negotiation(), ticketResources);
     }
 
     // PER_RESOURCE: find the single resource for this ticket.
     EntityModelResourceWithStatusDTO resource =
-        allMappings.stream()
+        context.allMappings().stream()
             .filter(mapping -> mapping.getId().getHelpdeskTicketId().equals(ticketId))
             .findFirst()
-            .map(mapping -> resourceById.get(mapping.getId().getResourceId()))
+            .map(mapping -> context.resourceById().get(mapping.getId().getResourceId()))
             .orElseThrow();
     return NegotiationTicketBodyFormatter.getUpdatedTicketBodyWithSingleResource(
-        negotiation, resource);
+        context.negotiation(), resource);
   }
 
   private static Map<String, String> getDistinctTicketIdToOrgExtId(List<TicketMapping> mappings) {

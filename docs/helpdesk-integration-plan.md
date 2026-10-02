@@ -420,11 +420,15 @@ When a representative sends an external message from the help desk, the middlewa
 the help desk platform distinguishes between internal and external articles (e.g. Zammad), only external articles are
 processed; internal articles are silently ignored as they are intended for intra-organization communication only.
 
-Before forwarding the message to Negotiator, the middleware checks whether the negotiation is in a state that allows
-posts (IN_PROGRESS, PAUSED, CONCLUDED). If the negotiation state does not permit posting, the middleware does not
-forward the message and instead adds a system comment to the ticket explaining the reason.
+Before forwarding the message to Negotiator, the middleware asks the Negotiator whether the negotiation currently
+accepts private posts by calling `GET /v3/negotiations/{negotiationId}` and reading the `privatePostsEnabled` flag on
+the returned negotiation. The Negotiator is the authoritative source of this decision — the middleware does not compute
+it from the negotiation state itself, since the same state (e.g. ABANDONED) can permit or forbid posting depending on
+the state it was reached from. If `privatePostsEnabled` is not `true` — or the negotiation cannot be fetched — the
+middleware fails closed: it does not forward the message and instead adds a system comment to the ticket explaining the
+reason.
 
-If the state permits posting, the middleware calls `POST /v3/negotiations/{negotiationId}/posts` on Negotiator with
+If posting is permitted, the middleware calls `POST /v3/negotiations/{negotiationId}/posts` on Negotiator with
 visibility type `PRIVATE`. The post text is prefixed with the sender's identity (`From: <name> <email>`) extracted from
 the help desk article's `created_by` field. Actor identity propagation as a dedicated Negotiator field is out of scope — see Section 8.1.
 
@@ -980,8 +984,11 @@ operations — the resolved `HelpdeskClient` instance, and performs exactly the 
   record then calls the bulk `PATCH /v3/negotiations/{id}/resources` endpoint, on partial or full invalidity calls
   `adapter.updateResourceState()` to clear the field and `adapter.addSystemComment()` listing which resources cannot
   accept the transition
-- `HelpdeskPostHandler` — writes hash of post text and `ticketId` to `originated_posts` before calling Negotiator; calls
-  `NegotiatorClient.createPost()` with visibility type always set to `PRIVATE`
+- `HelpdeskPostHandler` — first calls `NegotiatorClient.getNegotiation()` and forwards the message only when the
+  returned `privatePostsEnabled` flag is `true` (failing closed on any error or a false/absent flag, and adding a system
+  comment to the ticket to explain the rejection); on the allowed path it writes the hash of the post text and
+  `ticketId` to `originated_posts` before calling `NegotiatorClient.createPost()` with visibility type always set to
+  `PRIVATE`
 
 Each handler has a single, testable responsibility. No handler contains routing logic. Routing is always resolved before
 the handler is called. Some other handlers like NegotiationInfoUpdatedHandler, `HelpdeskTicketStateChangedHandler`, etc. will be added during milestone 2 and 3 (see
@@ -1134,7 +1141,8 @@ record CreateTicketRequest(
         String title,            // pre-built ticket title
         String negotiationState, // "IN_PROGRESS" — initial value for negotiation_state field
         String resourceState,    // "SUBMITTED" — initial value for negotiator_resource_state field
-        String ticketBody        // ticket body
+        String ticketBody,        // ticket body
+        @Nonnull List<Attachment> attachments  // negotiation-level attachments to include in the ticket
 )
 
 record CreatedTicket(
@@ -1182,6 +1190,11 @@ enum HelpdeskCallbackType {
     RESOURCE_TRANSITION_WITH_POST_MESSAGE,
     TICKET_STATE_CHANGED
 }
+
+record Attachment( // represents a Negotiator attachment to be included in a help desk ticket
+        String filename,
+        String contentType,
+        byte[] content)
 ```
 
 ---
@@ -1472,57 +1485,44 @@ which contains the negotiation ID of the updated negotiation. The middleware nee
 the attachments and put the message to the helpdesk ticket with new negotiation body, as it is done after the ticket creation
 and it needs to also transfer the attachments if they were added during the access form update.
 
-**Propagate timeline logs:** when the negotiation state or resource state changes, the Negotiator saves a timeline log entry,
-which is visible in the Negotiator UI. The middleware should fetch the timeline log entry and add it as a system comment to
-the corresponding help desk ticket. This ensures that representatives have a complete view of the negotiation's history.
-The timeline log entry can be fetched via `GET /v3/negotiations/{negotiationId}/timeline` endpoint (returned
-timelines are sorted from oldest to newest). However, there is no ID of the timeline in the response and the middleware
-needs to know which timeline entry is new. It needs to store for example the timestamp of the last timeline entry that was added
-to the ticket. Here is the example of the Negotiator response when fetching timelines:
-
-```json
-{
-  "_embedded": {
-    "timelineEvents": [
-      {
-        "triggeredBy": "TheResearcher",
-        "text": "TheResearcher changed the status of the Negotiation to Draft",
-        "timestamp": "2024-01-03T08:00:00"
-      },
-      {
-        "triggeredBy": "TheResearcher",
-        "text": "TheResearcher changed the status of the Negotiation to Under review",
-        "timestamp": "2024-01-03T11:00:00"
-      }
-    ]
-  }
-}
-```
+**Propagate timeline logs:** It was decided not to use timelines from the Negotiator side. Instead, the middleware will
+add a system comment to the ticket whenever a negotiation state or resource state transition occurs.
 
 **Attachments:** Attachment forwarding in milestone 2 is intentionally scoped to two triggers: ticket creation
-(`NegotiationStateUpdatedHandler`) and access form payload updates (`NegotiationPayloadUpdatedHandler`). Forwarding
+(`NegotiationStateUpdatedHandler`) and access form payload updates (`NegotiationUpdatedHandler`). Forwarding
 attachments from posts is deferred until the Negotiator team extends the `negotiation.post.added` webhook payload to
 include the attachments linked to that post; once that change is available, post-attachment forwarding will be added in
 a later milestone.
 
-The middleware maintains a `forwarded_attachments` table to track which attachments have already been transferred for
-each negotiation, so that each attachment is forwarded at most once regardless of how many forwarding triggers fire:
+The middleware maintains a `forwarded_negotiation_payload_attachment` table to track which attachments have already
+been transferred to each ticket, so that each attachment is forwarded at most once per ticket regardless of how many
+forwarding triggers fire. The grain is the ticket, not the negotiation: scoping per ticket means a failed forward to one
+ticket does not suppress forwarding to the other tickets of the same negotiation, nor a later retry of the failed one. A
+ticket id is only unique within one organization's help desk, so the key is `(organization_ext_id, ticket_id,
+attachment_id)`. `negotiation_id` is kept as a descriptive column (it is not needed for uniqueness and is not queried on
+its own).
 
-| Column           | Type      | Constraints  |
-|------------------|-----------|--------------|
-| `negotiation_id` | VARCHAR   | composite PK |
-| `attachment_id`  | VARCHAR   | composite PK |
-| `forwarded_at`   | TIMESTAMP | NOT NULL     |
+| Column                | Type      | Constraints  |
+|-----------------------|-----------|--------------|
+| `organization_ext_id` | VARCHAR   | composite PK |
+| `ticket_id`           | VARCHAR   | composite PK |
+| `attachment_id`       | VARCHAR   | composite PK |
+| `negotiation_id`      | VARCHAR   | NOT NULL     |
+| `forwarded_at`        | TIMESTAMP | NOT NULL     |
 
-When ticket creation or `NegotiationPayloadUpdatedHandler` fires, it fetches the full list of attachments
-for the negotiation from Negotiator via `GET /v3/negotiations/{negotiationId}/attachments`, subtracts the IDs already
-present in `forwarded_attachments`, and forwards only the delta. Before forwarding, each attachment is filtered: only
-attachments with no `organizationId` set are forwarded. Attachments that carry an `organizationId` were added in a
-private post scoped to a specific organization; these are not forwarded in milestone 2 and will instead be forwarded
-alongside the originating post once the Negotiator team includes attachment references in the
-`negotiation.post.added` webhook payload. For each attachment that passes the filter, the binary content is fetched
-from `GET /attachments/{id}` and uploaded to the corresponding help desk ticket as a standalone attachment. A row is
-inserted into `forwarded_attachments` after each successful upload.
+When ticket creation or `NegotiationUpdatedHandler` fires, it fetches the full list of attachments
+for the negotiation from Negotiator via `GET /v3/negotiations/{negotiationId}/attachments` once per event. Before
+forwarding, each attachment is filtered: only attachments with no `organizationId` set are forwarded. Attachments that
+carry an `organizationId` were added in a private post scoped to a specific organization; these are not forwarded in
+milestone 2 and will instead be forwarded alongside the originating post once the Negotiator team includes attachment
+references in the `negotiation.post.added` webhook payload. Each attachment that passes the filter is downloaded once per
+event via `GET /v3/attachments/{id}` and the same bytes are fanned out to the tickets. The already-forwarded subtraction
+is per ticket: on a payload update the handler subtracts the ids already recorded for that `(organization_ext_id,
+ticket_id)` and forwards only the delta in a separate comment that makes clear the files come from the requestor's
+negotiation, recording each ticket's forwarded ids immediately after that ticket's comment succeeds. On creation the
+files ride the initial ticket article (a brand-new ticket has nothing recorded yet, so no subtraction is needed) and the
+forwarded ids are recorded per ticket once creation succeeds. A failed forward therefore leaves that ticket's rows
+absent, so a re-fired event retries only that ticket.
 
 Attachment forwarding from the help desk to Negotiator (reverse direction) is also deferred to a later milestone.
 
@@ -1537,32 +1537,15 @@ negotiation lifecycle.
 The integration should expose this same document inside the help desk ticket so that representatives working exclusively
 in the help desk have the full negotiation context without needing to open Negotiator.
 
-**When to send the PDF:** Two triggers are proposed, but the exact policy must be confirmed before implementation:
+**When to send the PDF:** Two triggers for sending the PDF are defined:
 
-1. **On ticket creation** — immediately after `NegotiationApprovedHandler` successfully creates the ticket(s), the PDF
-   is fetched and attached. This gives representatives the full negotiation snapshot from the moment the ticket lands in
-   their queue.
-2. **When a resource reaches its final state** — when the resource-level state machine transitions to a terminal state,
-   a fresh PDF is fetched and attached to the corresponding ticket. This captures
-   the final agreed outcome.
+1. **On ticket creation** — the PDF summary should be downloaded and passed as an attachment to the 
+   `createTicket()` call in `NegotiationApprovedHandler`.
+2. **On negotiation update** - the PDF summary should be downloaded and passed as an attachment to the
+   new ticket body.
 
-Both triggers can fire for the same ticket; the result is two PDF attachments at different points in time, each
-reflecting the negotiation state at the moment of attachment.
-
-**Negotiator API:** A dedicated PDF export endpoint must exist on the Negotiator side. The middleware calls it to fetch
-the binary PDF before attaching it to the ticket. The exact endpoint path and authentication requirements must be
-confirmed during implementation planning for this milestone.
-
-**Middleware changes:**
-
-- `NegotiationApprovedHandler` — after ticket creation succeeds, call the PDF export endpoint, then upload the binary
-  to each newly created ticket via the adapter's attachment API.
-- `NegotiationResourceStateChangedHandler` — after updating the ticket's `negotiator_resource_state` field, check
-  whether the new state is terminal (determined by the configured resource state machine); if so, fetch and attach the
-  PDF.
-- A method on `NegotiatorClient` encapsulates the PDF fetch so both handlers reuse the same logic.
-- The adapter interface gains an `attachFile(ticketId, filename, contentType, bytes)` method used by both handlers and
-  by the attachment forwarding introduced in milestone 2.
+**Negotiator API:** There is dedicated PDF export endpoint on the Negotiator side "/negotiations/{id}/pdf". 
+The middleware calls it to fetch the binary PDF before attaching it to the ticket.
 
 ### Milestone 4
 
@@ -1611,6 +1594,15 @@ timeout.
 Before milestone 5 implementation begins, the choice of queue infrastructure technology (e.g. database-backed queue,
 RabbitMQ, Redis Streams) will be discussed and agreed with the developers of the Negotiator application so it meet their
 expectations.
+
+### Milestone 6
+
+**Scope:** Milestone 6 will be about finishing the noce-to-have features and addressing potential improvements discovered
+    during the implementation of the previous milestones.
+
+1. **Resolve status labels from Negotiator endpoint** - currently the status labels are created from the negotiation
+   and resource state values, when sending the logs to the help desk. PostUtil.enumToText() is used for that. This
+   should be replaced by a call of `GET /resource-lifecycle/states/{state}` and `GET /negotiation-lifecycle/states/{state}` endpoints.
 
 ## 8. Out of Scope
 

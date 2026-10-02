@@ -15,16 +15,16 @@
     <description>Middleware service for Negotiator help desk integration</description>
     <properties>
         <java.version>21</java.version>
-        <springdoc.version>3.1.0</springdoc.version>
-        <flyway.version>13.4.0</flyway.version>
+        <springdoc.version>3.1.1</springdoc.version>
+        <flyway.version>13.8.0</flyway.version>
         <postgresql.version>42.7.13</postgresql.version>
-        <lombok.version>1.18.46</lombok.version>
-        <openapi-generator.version>7.23.0</openapi-generator.version>
-        <wiremock.version>3.13.0</wiremock.version>
-        <okhttp.version>5.1.0</okhttp.version>
-        <jsoup.version>1.18.1</jsoup.version>
-        <jackson-databind-nullable.version>0.2.6</jackson-databind-nullable.version>
-        <standardwebhooks.version>1.1.1</standardwebhooks.version>
+        <lombok.version>1.18.48</lombok.version>
+        <openapi-generator.version>7.25.0</openapi-generator.version>
+        <wiremock.version>3.13.2</wiremock.version>
+        <okhttp.version>5.5.0</okhttp.version>
+        <jsoup.version>1.23.2</jsoup.version>
+        <jackson-databind-nullable.version>0.2.11</jackson-databind-nullable.version>
+        <standardwebhooks.version>1.2.0</standardwebhooks.version>
         <j2html.version>1.6.0</j2html.version>
         <fmt-maven-plugin.version>2.29</fmt-maven-plugin.version>
         <jacoco.version>0.8.15</jacoco.version>
@@ -265,6 +265,11 @@
                         <goals>
                             <goal>report</goal>
                         </goals>
+                        <configuration>
+                            <excludes>
+                                <exclude>eu/bbmri_eric/negotiator/negotiatorlink/generated/**</exclude>
+                            </excludes>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>

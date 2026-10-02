@@ -1,7 +1,9 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.handler;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -21,7 +23,10 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationUpdatedHandler;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService.ResolvedAttachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +52,7 @@ class NegotiationUpdatedHandlerTest {
   @Mock private OrganizationConfigRegistry registry;
   @Mock private HelpdeskClient helpdeskClient;
   @Mock private TicketMappingRepository ticketMappingRepository;
+  @Mock private AttachmentForwardingService attachmentForwardingService;
 
   private final ObjectMapper objectMapper = new ObjectMapper();
   private NegotiationUpdatedHandler handler;
@@ -59,6 +65,7 @@ class NegotiationUpdatedHandlerTest {
             registry,
             Map.of(HelpdeskType.ZAMMAD, helpdeskClient),
             ticketMappingRepository,
+            attachmentForwardingService,
             objectMapper);
   }
 
@@ -68,14 +75,14 @@ class NegotiationUpdatedHandlerTest {
 
     handler.handle(updatedEventNode(NEGOTIATION_ID));
 
-    verify(helpdeskClient, never()).addComment(anyString(), anyString(), any(), any());
+    verify(helpdeskClient, never()).addComment(anyString(), anyString(), any(), anyList(), any());
   }
 
   @Test
   void handle_nullNegotiationId_doesNotAddComment() throws Exception {
     handler.handle(updatedEventNode(null));
 
-    verify(helpdeskClient, never()).addComment(anyString(), anyString(), any(), any());
+    verify(helpdeskClient, never()).addComment(anyString(), anyString(), any(), anyList(), any());
     verify(ticketMappingRepository, never()).findByIdNegotiationId(anyString());
   }
 
@@ -126,6 +133,97 @@ class NegotiationUpdatedHandlerTest {
         .addComment(eq(TICKET_ID), contains("updated"), eq(CommentType.HTML), eq(config1));
     verify(helpdeskClient, times(1))
         .addComment(eq(ticketId2), contains("updated"), eq(CommentType.HTML), eq(config2));
+    verify(attachmentForwardingService, never())
+        .recordForwardedAttachments(any(), any(), any(), any());
+  }
+
+  @Test
+  void handle_newAttachments_forwardsThemInSeparateCommentAndRecordsForTicket() throws Exception {
+    var config = TestUtil.organizationConfig(ORG_EXT_ID, TicketStrategy.PER_RESOURCE);
+    var negotiation = TestUtil.negotiation(NEGOTIATION_ID, DISPLAY_ID, "IN_PROGRESS");
+    var resource =
+        TestUtil.resource(1L, RESOURCE_SOURCE_ID, "My Collection", ORG_EXT_ID, ORG_INTERNAL_ID);
+    var mapping = mapping(NEGOTIATION_ID, TICKET_ID, RESOURCE_ID, RESOURCE_SOURCE_ID);
+    var attachment =
+        new ResolvedAttachment(
+            "a-1", new Attachment("public.txt", "text/plain", "bytes".getBytes()));
+
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID))
+        .thenReturn(List.of(mapping));
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+    when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config)).thenReturn(negotiation);
+    when(negotiatorClient.getResources(NEGOTIATION_ID, config)).thenReturn(List.of(resource));
+    when(attachmentForwardingService.resolveForwardablePayloadAttachments(NEGOTIATION_ID, config))
+        .thenReturn(List.of(attachment));
+    when(attachmentForwardingService.notYetForwardedToTicket(
+            ORG_EXT_ID, TICKET_ID, List.of(attachment)))
+        .thenReturn(List.of(attachment));
+
+    handler.handle(updatedEventNode(NEGOTIATION_ID));
+
+    verify(helpdeskClient, times(1))
+        .addComment(
+            eq(TICKET_ID),
+            contains("negotiation has been updated"),
+            eq(CommentType.HTML),
+            eq(config));
+    verify(helpdeskClient, times(1))
+        .addComment(
+            eq(TICKET_ID),
+            contains("negotiation-level attachments"),
+            eq(CommentType.PLAIN_TEXT),
+            argThat(files -> files.size() == 1),
+            eq(config));
+    verify(attachmentForwardingService)
+        .recordForwardedAttachments(NEGOTIATION_ID, ORG_EXT_ID, TICKET_ID, List.of("a-1"));
+  }
+
+  @Test
+  void handle_attachmentForwardFailsForOneTicket_recordsOnlyTheSucceededTicket() throws Exception {
+    var orgExtId2 = "bbmri:NL:AMC";
+    var ticketId2 = "ticket-99";
+    var config1 = TestUtil.organizationConfig(ORG_EXT_ID, TicketStrategy.PER_RESOURCE);
+    var config2 = TestUtil.organizationConfig(orgExtId2, TicketStrategy.PER_RESOURCE);
+    var negotiation = TestUtil.negotiation(NEGOTIATION_ID, DISPLAY_ID, "IN_PROGRESS");
+    var resource1 =
+        TestUtil.resource(1L, RESOURCE_SOURCE_ID, "Collection 1", ORG_EXT_ID, ORG_INTERNAL_ID);
+    var resource2 = TestUtil.resource(2L, "src-2", "Collection 2", orgExtId2, 20L);
+    var mapping1 = mapping(NEGOTIATION_ID, TICKET_ID, "1", RESOURCE_SOURCE_ID);
+    var mapping2 = mapping(NEGOTIATION_ID, ticketId2, "2", "src-2", orgExtId2);
+    var attachment =
+        new ResolvedAttachment(
+            "a-1", new Attachment("public.txt", "text/plain", "bytes".getBytes()));
+
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID))
+        .thenReturn(List.of(mapping1, mapping2));
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config1));
+    when(registry.findByExternalId(orgExtId2)).thenReturn(Optional.of(config2));
+    when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config1)).thenReturn(negotiation);
+    when(negotiatorClient.getResources(NEGOTIATION_ID, config1))
+        .thenReturn(List.of(resource1, resource2));
+    when(attachmentForwardingService.resolveForwardablePayloadAttachments(NEGOTIATION_ID, config1))
+        .thenReturn(List.of(attachment));
+    when(attachmentForwardingService.notYetForwardedToTicket(
+            ORG_EXT_ID, TICKET_ID, List.of(attachment)))
+        .thenReturn(List.of(attachment));
+    when(attachmentForwardingService.notYetForwardedToTicket(
+            orgExtId2, ticketId2, List.of(attachment)))
+        .thenReturn(List.of(attachment));
+    doThrow(new RuntimeException("helpdesk down"))
+        .when(helpdeskClient)
+        .addComment(
+            eq(TICKET_ID),
+            contains("negotiation-level attachments"),
+            eq(CommentType.PLAIN_TEXT),
+            anyList(),
+            eq(config1));
+
+    handler.handle(updatedEventNode(NEGOTIATION_ID));
+
+    verify(attachmentForwardingService, never())
+        .recordForwardedAttachments(NEGOTIATION_ID, ORG_EXT_ID, TICKET_ID, List.of("a-1"));
+    verify(attachmentForwardingService)
+        .recordForwardedAttachments(NEGOTIATION_ID, orgExtId2, ticketId2, List.of("a-1"));
   }
 
   @Test
