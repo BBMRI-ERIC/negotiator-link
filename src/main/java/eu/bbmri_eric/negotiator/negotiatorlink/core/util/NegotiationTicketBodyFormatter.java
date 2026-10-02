@@ -1,5 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.util;
 
+import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil.enumToText;
 import static j2html.TagCreator.br;
 import static j2html.TagCreator.div;
 import static j2html.TagCreator.each;
@@ -34,7 +35,7 @@ import lombok.extern.slf4j.Slf4j;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class NegotiationTicketBodyFormatter {
 
-  private static final String EMPTY_VALUE = "\u2014";
+  private static final String EMPTY_VALUE = "—";
 
   private static final String WRAPPER_STYLE =
       "font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;"
@@ -56,43 +57,33 @@ public final class NegotiationTicketBodyFormatter {
   // Public API
   // ------------
 
-  /**
-   * @return HTML string representing the ticket body for a single resource.
-   */
   public static String getTicketBodyWithSingleResource(
       EntityModelNegotiationDTO negotiation, EntityModelResourceWithStatusDTO resource) {
     return wrapper(
-            commonSections(negotiation), sectionHeader("RESOURCE"), singleResourceTable(resource))
+            commonSections(negotiation),
+            sectionHeader("REQUESTED RESOURCE"),
+            singleResourceTable(resource))
         .render();
   }
 
-  /**
-   * @return HTML string representing the updated ticket body for a single resource.
-   */
+  public static String getTicketBodyWithMultipleResources(
+      EntityModelNegotiationDTO negotiation, List<EntityModelResourceWithStatusDTO> resources) {
+    return wrapper(
+            commonSections(negotiation),
+            sectionHeader("REQUESTED RESOURCES"),
+            resourcesList(resources),
+            fieldsTable(List.of(Field.scalar("Status (all resources)", sharedState(resources)))))
+        .render();
+  }
+
   public static String getUpdatedTicketBodyWithSingleResource(
       EntityModelNegotiationDTO negotiation, EntityModelResourceWithStatusDTO resource) {
     return updateNote() + getTicketBodyWithSingleResource(negotiation, resource);
   }
 
-  /**
-   * @return HTML string representing the updated ticket body for multiple resources.
-   */
   public static String getUpdatedTicketBodyWithMultipleResources(
       EntityModelNegotiationDTO negotiation, List<EntityModelResourceWithStatusDTO> resources) {
     return updateNote() + getTicketBodyWithMultipleResources(negotiation, resources);
-  }
-
-  /**
-   * @return HTML string representing the ticket body for multiple resources.
-   */
-  public static String getTicketBodyWithMultipleResources(
-      EntityModelNegotiationDTO negotiation, List<EntityModelResourceWithStatusDTO> resources) {
-    return wrapper(
-            commonSections(negotiation),
-            sectionHeader("RESOURCES"),
-            resourcesList(resources),
-            fieldsTable(List.of(Field.scalar("State (all resources)", sharedState(resources)))))
-        .render();
   }
 
   public static String buildTitle(EntityModelNegotiationDTO negotiation, String resourceName) {
@@ -129,7 +120,7 @@ public final class NegotiationTicketBodyFormatter {
       fields.add(Field.scalar("Requester", author.getName()));
       fields.add(Field.scalar("Email", author.getEmail()));
     }
-    fields.add(Field.scalar("State", negotiation.getStatus()));
+    fields.add(Field.scalar("Status", enumToText(negotiation.getStatus())));
     fields.add(Field.scalar("Negotiation ID", negotiation.getDisplayId()));
 
     return each(h2("Negotiator Access Request").withStyle(TITLE_STYLE), fieldsTable(fields));
@@ -163,7 +154,7 @@ public final class NegotiationTicketBodyFormatter {
         List.of(
             Field.scalar("Name", resource.getName()),
             Field.scalar("ID", resource.getSourceId()),
-            Field.scalar("State", stateOf(resource))));
+            Field.scalar("Status", stateOf(resource))));
   }
 
   private static DomContent resourcesList(List<EntityModelResourceWithStatusDTO> resources) {
@@ -211,14 +202,16 @@ public final class NegotiationTicketBodyFormatter {
   }
 
   private static String stateOf(EntityModelResourceWithStatusDTO resource) {
-    return resource.getCurrentState() != null ? resource.getCurrentState().getValue() : null;
+    return resource.getCurrentState() != null
+        ? enumToText(resource.getCurrentState().getValue())
+        : null;
   }
 
   private static String sharedState(List<EntityModelResourceWithStatusDTO> resources) {
     return resources.stream()
         .map(EntityModelResourceWithStatusDTO::getCurrentState)
         .filter(Objects::nonNull)
-        .map(EntityModelResourceWithStatusDTO.CurrentStateEnum::getValue)
+        .map(stateEnum -> enumToText(stateEnum.getValue()))
         .findFirst()
         .orElse(null);
   }
