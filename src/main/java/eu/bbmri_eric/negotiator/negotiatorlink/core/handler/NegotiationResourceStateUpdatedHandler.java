@@ -196,7 +196,8 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
   private void postSystemCommentAboutTheChange(
       String resourceSourceId, String toState, DispatchContext context) {
     String message =
-        String.format("Resource '%s' changed the status to '%s'", resourceSourceId, enumToText(toState));
+        String.format(
+            "Resource '%s' changed the status to '%s'", resourceSourceId, enumToText(toState));
     context.client().addSystemComment(context.ticketId(), message, context.config());
   }
 
