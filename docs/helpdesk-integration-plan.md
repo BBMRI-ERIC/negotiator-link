@@ -1595,6 +1595,15 @@ Before milestone 5 implementation begins, the choice of queue infrastructure tec
 RabbitMQ, Redis Streams) will be discussed and agreed with the developers of the Negotiator application so it meet their
 expectations.
 
+### Milestone 6
+
+**Scope:** Milestone 6 will be about finishing the noce-to-have features and addressing potential improvements discovered
+    during the implementation of the previous milestones.
+
+1. **Resolve status labels from Negotiator endpoint** - currently the status labels are created from the negotiation
+   and resource state values, when sending the logs to the help desk. PostUtil.enumToText() is used for that. This
+   should be replaced by a call of `GET /resource-lifecycle/states/{state}` and `GET /negotiation-lifecycle/states/{state}` endpoints.
+
 ## 8. Out of Scope
 
 ### 8.1 Actor Identity Propagation to Negotiator
