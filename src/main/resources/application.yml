@@ -39,6 +39,9 @@ negotiator-link:
   cleanup:
     cron: "0 0 0 * * *"
     cutoff-age: PT24H
+  inbox:
+    batch-size: 50
+    poll-delay-ms: 1000
   resource-events:
     MARK_AS_CHECKING_AVAILABILITY: CHECKING_AVAILABILITY
     STEP_AWAY: RESOURCE_UNAVAILABLE

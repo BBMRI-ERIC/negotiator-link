@@ -1,6 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.e2e;
 
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.hmacSha1Hex;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -14,6 +15,8 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.InboxStatus;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.InboxEventRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostCreateDTO;
@@ -21,6 +24,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorResourceEvent;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -89,6 +93,7 @@ class ZammadToNegotiatorE2ETest {
 
   @Autowired private MockMvc mockMvc;
   @Autowired private TicketMappingRepository ticketMappingRepository;
+  @Autowired private InboxEventRepository inboxEventRepository;
   @Autowired private RestClient.Builder restClientBuilder;
 
   @MockitoBean private NegotiatorClient negotiatorClient;
@@ -290,15 +295,24 @@ class ZammadToNegotiatorE2ETest {
   private void postCallback(String orgExternalId, String secret, String body) throws Exception {
     byte[] bodyBytes = body.getBytes(StandardCharsets.UTF_8);
     String sig = "sha1=" + hmacSha1Hex(secret, bodyBytes);
+    String deliveryId = orgExternalId + "-" + System.nanoTime();
 
     mockMvc
         .perform(
             post("/webhooks/helpdesk/{org}", orgExternalId)
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .header("X-Hub-Signature", sig)
-                .header("X-Zammad-Delivery", orgExternalId + "-" + System.nanoTime())
+                .header("X-Zammad-Delivery", deliveryId)
                 .content(bodyBytes))
         .andExpect(status().isOk());
+    await()
+        .atMost(Duration.ofSeconds(10))
+        .until(
+            () ->
+                inboxEventRepository
+                    .findBySourceAndDeliveryId(orgExternalId, deliveryId)
+                    .map(e -> e.getStatus() != InboxStatus.RECEIVED)
+                    .orElse(false));
   }
 
   private static String loadFile(String filename) {

@@ -1,9 +1,12 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.job;
 
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.InboxStatus;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.InboxEventRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -12,18 +15,21 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Component
-public class StaleOriginatedRecordsCleanupJob {
+public class StaleRecordsCleanupJob {
 
   private final OriginatedPostRepository originatedPostRepository;
   private final OriginatedTransitionRepository originatedTransitionRepository;
+  private final InboxEventRepository inboxEventRepository;
   private final Duration cutoffAge;
 
-  public StaleOriginatedRecordsCleanupJob(
+  public StaleRecordsCleanupJob(
       OriginatedPostRepository originatedPostRepository,
       OriginatedTransitionRepository originatedTransitionRepository,
+      InboxEventRepository inboxEventRepository,
       @Value("${negotiator-link.cleanup.cutoff-age:PT24H}") Duration cutoffAge) {
     this.originatedPostRepository = originatedPostRepository;
     this.originatedTransitionRepository = originatedTransitionRepository;
+    this.inboxEventRepository = inboxEventRepository;
     this.cutoffAge = cutoffAge;
   }
 
@@ -33,10 +39,14 @@ public class StaleOriginatedRecordsCleanupJob {
     Instant cutoff = Instant.now().minus(cutoffAge);
     long deletedPosts = originatedPostRepository.deleteByCreatedAtBefore(cutoff);
     long deletedTransitions = originatedTransitionRepository.deleteByCreatedAtBefore(cutoff);
+    long deletedInbox =
+        inboxEventRepository.deleteByStatusInAndReceivedAtBefore(
+            List.of(InboxStatus.PROCESSED, InboxStatus.SKIPPED), cutoff);
     log.info(
-        "Cleaned up stale originated records older than {}: {} posts, {} transitions",
+        "Cleaned up stale records older than {}: {} posts, {} transitions, {} inbox events",
         cutoffAge,
         deletedPosts,
-        deletedTransitions);
+        deletedTransitions,
+        deletedInbox);
   }
 }

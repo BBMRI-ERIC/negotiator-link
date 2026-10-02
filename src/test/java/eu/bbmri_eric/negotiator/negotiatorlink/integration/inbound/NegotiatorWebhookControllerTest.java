@@ -8,6 +8,7 @@ import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.resourceStat
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.signedWebhookPayload;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.utf8;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
@@ -27,6 +28,9 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedPost;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedTransition;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.EventSource;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.InboxStatus;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.InboxEventRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
@@ -34,6 +38,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDT
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorNegotiationEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorResourceEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.BeforeAll;
@@ -74,6 +79,7 @@ class NegotiatorWebhookControllerTest {
   @Autowired private TicketMappingRepository ticketMappingRepository;
   @Autowired private OriginatedTransitionRepository originatedTransitionRepository;
   @Autowired private OriginatedPostRepository originatedPostRepository;
+  @Autowired private InboxEventRepository inboxEventRepository;
   @MockitoSpyBean private HelpdeskClient helpdeskClient;
   @MockitoBean private NegotiatorClient negotiatorClient;
 
@@ -475,12 +481,29 @@ class NegotiatorWebhookControllerTest {
 
   private ResultActions performWebhook(String webhookId, Instant timestamp, String body)
       throws Exception {
-    return mockMvc.perform(
-        post("/webhooks/negotiator")
-            .contentType(MediaType.APPLICATION_OCTET_STREAM)
-            .header("Webhook-Id", webhookId)
-            .header("Webhook-Timestamp", timestamp.getEpochSecond())
-            .header("Webhook-Signature", signedWebhookPayload(secret, webhookId, timestamp, body))
-            .content(utf8(body)));
+    ResultActions result =
+        mockMvc.perform(
+            post("/webhooks/negotiator")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header("Webhook-Id", webhookId)
+                .header("Webhook-Timestamp", timestamp.getEpochSecond())
+                .header(
+                    "Webhook-Signature", signedWebhookPayload(secret, webhookId, timestamp, body))
+                .content(utf8(body)));
+    if (result.andReturn().getResponse().getStatus() == 200) {
+      awaitProcessed(EventSource.NEGOTIATOR.name(), webhookId);
+    }
+    return result;
+  }
+
+  private void awaitProcessed(String source, String deliveryId) {
+    await()
+        .atMost(Duration.ofSeconds(10))
+        .until(
+            () ->
+                inboxEventRepository
+                    .findBySourceAndDeliveryId(source, deliveryId)
+                    .map(e -> e.getStatus() != InboxStatus.RECEIVED)
+                    .orElse(false));
   }
 }
