@@ -1,5 +1,5 @@
 # ============================================================================
-# organizations.prod.yml — REFERENCE / TEMPLATE for negotiator-link org config
+# organizations.prod.yml — Template for negotiator-link org config
 # ============================================================================
 #
 # What this file is:
@@ -15,8 +15,6 @@
 # Secrets:
 #   NEVER hardcode credentials here. The ${...} placeholders are resolved at
 #   runtime from environment variables supplied via `.env` on the VM.
-#     • SAFE TO COMMIT: this template (placeholders + non-secret settings).
-#     • NEVER COMMIT:   the filled-in organizations.yml on the VM.
 # ============================================================================
 
 # ----------------------------------------------------------------------------
@@ -105,18 +103,3 @@ negotiator-link:
         #   this organization (client registered in Negotiator).
         clientId: "${NEGOTIATOR_CLIENT_ORG1_ID}"
         clientSecret: "${NEGOTIATOR_CLIENT_ORG1_SECRET}"
-
-# ============================================================================
-# Field reference (applies to every item under `organizations:`)
-# ----------------------------------------------------------------------------
-#   organizationExternalId  (string)  Negotiator org external ID; routing key.
-#   type                    (enum)    ZAMMAD | ALVAO.
-#   ticketStrategy          (enum)    PER_RESOURCE | PER_NEGOTIATION.
-#   baseUrl                 (string)  Help-desk instance base URL.
-#   credentials             (map)     Platform-specific API creds
-#   callbackSecret          (string)  Secret to verify inbound help-desk callbacks.
-#   platformConfig          (map)     Platform-specific settings
-#   negotiationStateToTicketState (map)  Negotiation state -> ticket state.
-#   resourceStateToTicketState    (map)  Resource state    -> ticket state.
-#   negotiatorCredentials   (obj)     clientId + clientSecret for Negotiator OAuth2.
-#   ticketStateToResourceEvent    (map)  PLANNED — ticket state -> resource event.
