@@ -208,6 +208,32 @@ class OrganizationConfigRegistryTest {
     return entry;
   }
 
+  @Test
+  void ticketStrategy_whenAbsentFromOrg_inheritsOrganizationDefault() {
+    var entry = zammadEntry();
+    entry.setTicketStrategy(null);
+    var props = propsWithEntry(entry);
+    var orgDefaults = new NegotiatorLinkProperties.OrganizationDefaults();
+    orgDefaults.setTicketStrategy(TicketStrategy.PER_NEGOTIATION);
+    props.setOrganizationDefaults(orgDefaults);
+    var registry = new OrganizationConfigRegistry(props);
+    assertThat(registry.findByExternalId(ORG_EXTERNAL_ID).orElseThrow().ticketStrategy())
+        .isEqualTo(TicketStrategy.PER_NEGOTIATION);
+  }
+
+  @Test
+  void ticketStrategy_whenSetOnOrg_overridesOrganizationDefault() {
+    var entry = zammadEntry();
+    entry.setTicketStrategy(TicketStrategy.PER_RESOURCE);
+    var props = propsWithEntry(entry);
+    var orgDefaults = new NegotiatorLinkProperties.OrganizationDefaults();
+    orgDefaults.setTicketStrategy(TicketStrategy.PER_NEGOTIATION);
+    props.setOrganizationDefaults(orgDefaults);
+    var registry = new OrganizationConfigRegistry(props);
+    assertThat(registry.findByExternalId(ORG_EXTERNAL_ID).orElseThrow().ticketStrategy())
+        .isEqualTo(TicketStrategy.PER_RESOURCE);
+  }
+
   private static NegotiatorLinkProperties propsWithEntry(NegotiatorLinkProperties.OrgEntry entry) {
     var props = new NegotiatorLinkProperties();
     props.setOrganizations(List.of(entry));
@@ -217,7 +243,7 @@ class OrganizationConfigRegistryTest {
   private static NegotiatorLinkProperties propsWithEntryAndDefaults(
       NegotiatorLinkProperties.OrgEntry entry, NegotiatorLinkProperties.HelpdeskDefaults defaults) {
     var props = propsWithEntry(entry);
-    props.getDefaults().put(HelpdeskType.ZAMMAD, defaults);
+    props.getHelpdeskDefaults().put(HelpdeskType.ZAMMAD, defaults);
     return props;
   }
 }
