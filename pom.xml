@@ -22,7 +22,7 @@
         <openapi-generator.version>7.25.0</openapi-generator.version>
         <wiremock.version>3.13.2</wiremock.version>
         <okhttp.version>5.1.0</okhttp.version>
-        <jsoup.version>1.18.1</jsoup.version>
+        <jsoup.version>1.23.2</jsoup.version>
         <jackson-databind-nullable.version>0.2.11</jackson-databind-nullable.version>
         <standardwebhooks.version>1.2.0</standardwebhooks.version>
         <j2html.version>1.6.0</j2html.version>
