@@ -597,8 +597,6 @@ class NegotiationStateUpdatedHandlerTest {
       List<EntityModelResourceWithStatusDTO> resources) {
     stubResources(negotiation, config, resources);
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
-    when(attachmentForwardingService.getNegotiationPdfSummary(eq(NEGOTIATION_ID), eq(config)))
-        .thenReturn(PDF_SUMMARY);
   }
 
   private void stubResources(
@@ -617,7 +615,7 @@ class NegotiationStateUpdatedHandlerTest {
         NEGOTIATION_STATE,
         RESOURCE_STATE,
         NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(negotiation, resource),
-        List.of(PDF_SUMMARY));
+        List.of());
   }
 
   private CreateTicketRequest perNegotiationRequest(
@@ -627,7 +625,7 @@ class NegotiationStateUpdatedHandlerTest {
         NEGOTIATION_STATE,
         RESOURCE_STATE,
         NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(negotiation, resources),
-        List.of(PDF_SUMMARY));
+        List.of());
   }
 
   private TicketMapping mappingFor(
