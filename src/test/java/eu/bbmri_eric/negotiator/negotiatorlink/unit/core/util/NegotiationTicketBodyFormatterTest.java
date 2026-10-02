@@ -47,7 +47,7 @@ class NegotiationTicketBodyFormatterTest {
     assertThat(doc.selectFirst("h2").text()).isEqualTo("Negotiator Access Request");
     assertThat(fieldValue(doc, "Requester")).isEqualTo("adam.researcher@gmail.com");
     assertThat(fieldValue(doc, "Email")).isEqualTo("adam.researcher@gmail.com");
-    assertThat(fieldValue(doc, "State")).isEqualTo("IN_PROGRESS");
+    assertThat(fieldValue(doc, "Status")).isEqualTo("In Progress");
     assertThat(fieldValue(doc, "Negotiation ID")).isEqualTo("1");
   }
 
@@ -113,8 +113,7 @@ class NegotiationTicketBodyFormatterTest {
 
     assertThat(fieldValue(doc, "Name")).isEqualTo("Dummy test collection");
     assertThat(fieldValue(doc, "ID")).isEqualTo("bbmri-eric:ID:SE_890:collection:dummy_collection");
-    // Two "State" labels exist (negotiation + resource); assert the resource one is present.
-    assertThat(allFieldValues(doc, "State")).contains("IN_PROGRESS", "SUBMITTED");
+    assertThat(allFieldValues(doc, "Status")).contains("In Progress", "Submitted");
   }
 
   @Test
@@ -143,7 +142,7 @@ class NegotiationTicketBodyFormatterTest {
   }
 
   @Test
-  void getTicketBodyWithMultipleResources_rendersSharedState() {
+  void getTicketBodyWithMultipleResources_rendersSharedStatus() {
     var negotiation = createNegotiation(true);
     var r1 = createResource("A", "id-a");
     var r2 = createResource("B", "id-b");
@@ -153,7 +152,7 @@ class NegotiationTicketBodyFormatterTest {
             NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(
                 negotiation, List.of(r1, r2)));
 
-    assertThat(fieldValue(doc, "State (all resources)")).isEqualTo("SUBMITTED");
+    assertThat(fieldValue(doc, "Status (all resources)")).isEqualTo("Submitted");
   }
 
   @Test
@@ -254,7 +253,7 @@ class NegotiationTicketBodyFormatterTest {
     throw new AssertionError("No field row found with label: " + label);
   }
 
-  /** All value-cell texts for every row matching the label (labels can repeat, e.g. "State"). */
+  /** All value-cell texts for every row matching the label (labels can repeat, e.g. "Status"). */
   private static List<String> allFieldValues(Document doc, String label) {
     return doc.select("table tr").stream()
         .map(row -> row.select("> td"))
