@@ -75,12 +75,12 @@ commands with `sudo`).
 
 Committed in the repository (templates — safe to commit):
 
-| File | Purpose |
-|---|---|
-| `compose.prod.yml` | Production Compose: negotiator-link + PostgreSQL only |
-| `.env.production.example` | Template for the environment/secrets file |
+| File                     | Purpose |
+|--------------------------|---|
+| `compose.prod.yml`       | Production Compose: negotiator-link + PostgreSQL only |
+| `.env.prod.example`      | Template for the environment/secrets file |
 | `organizations.prod.yml` | Template for the organization config |
-| `Dockerfile` | Multi-stage build (Maven → JRE); reused as-is |
+| `Dockerfile`             | Multi-stage build (Maven → JRE); reused as-is |
 
 Created on the VM from the templates (**never committed** — contain secrets / environment-specific
 values):
