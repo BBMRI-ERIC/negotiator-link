@@ -1,4 +1,4 @@
-package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.routing;
+package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.job;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
