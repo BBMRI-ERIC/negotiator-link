@@ -90,14 +90,14 @@ conditions to prevent feedback loops (see Step 8).
 
 In Zammad: **Admin → Users → New User**
 
-- **First name**: `negotiator-link`
+- **First name**: `Negotiator Service Account`
 - **Email**: `negotiator-link@local.dev`
 - **Role**: `negotiator-link` (the role created in Step 5 — uncheck the default `Agent` role)
-- **Password**: any value (the account is only used via API token, never interactively)
+- **Password**: any value
 
 ### Step 7 — Create a Zammad API token
 
-Log into Zammad as the `negotiator-link` bot user created in Step 6.
+Log into Zammad as the `Negotiator Service Account` bot user created in Step 6.
 
 Go to **Avatar (top right) → Profile → Token Access → Create**.
 Give it a name (e.g. `negotiator-link`) and enable all permissions. Copy the token into `.env` as
@@ -152,7 +152,7 @@ In Zammad: **Admin → System → Objects → Ticket → New Attribute**
 *Field 1 — negotiation state (display only):*
 
 - **Name**: `negotiation_state`
-- **Display**: `Negotiation State`
+- **Display**: `Negotiation Status`
 - **Type**: Single Selection Field
 - **Required**: No
 - **Default**: *(leave empty)*
@@ -165,7 +165,7 @@ In Zammad: **Admin → System → Objects → Ticket → New Attribute**
 *Field 2 — resource state (display only):*
 
 - **Name**: `negotiator_resource_state`
-- **Display**: `Resource State`
+- **Display**: `Resource Status`
 - **Type**: Single Selection Field
 - **Required**: No
 - **Default**: *(leave empty)*
@@ -229,7 +229,7 @@ Set for each of the following resource states: SUBMITTED, REPRESENTATIVE_UNREACH
 And set it to read-only also when the negotiation state is not IN_PROGRESS:
 - **Name**: `negotiator-link: lock resource transition when negotiatio state is not IN_PROGRESS`
 - **Object**: Ticket
-- **Conditions**: Negotiation State → is not → IN_PROGRESS
+- **Conditions**: Negotiation Status → is not → IN_PROGRESS
 - **Actions**:
   - `negotiator_resource_transition_event` → **Set fixed to** *(read-only)*
 - Priority: 505
