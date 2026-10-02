@@ -1,6 +1,8 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.util;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -35,5 +37,11 @@ public final class PostUtil {
     int firstNewline = text.indexOf('\n');
     int blankLine = text.indexOf("\n\n");
     return blankLine > 0 && firstNewline == blankLine;
+  }
+
+  public static String enumToText(String value) {
+    return Arrays.stream(value.split("_"))
+        .map(word -> word.substring(0, 1).toUpperCase() + word.substring(1).toLowerCase())
+        .collect(Collectors.joining(" "));
   }
 }

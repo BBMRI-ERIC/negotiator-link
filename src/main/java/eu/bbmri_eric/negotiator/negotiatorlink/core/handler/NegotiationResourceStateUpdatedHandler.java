@@ -1,5 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
+import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil.enumToText;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
@@ -107,7 +109,7 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
   private void dispatchStateUpdate(
       NegotiationResourceStateUpdatedWebhookEvent event, DispatchContext context) {
     String negotiationId = event.getNegotiationId();
-    String resourceId = event.getResourceId();
+    String resourceSourceId = event.getResourceId();
     String toState = event.getToState().getValue();
     OriginatedTransition originated =
         originatedTransitionRepository
@@ -116,13 +118,14 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
 
     try {
       if (context.config.ticketStrategy() == TicketStrategy.PER_NEGOTIATION && originated != null) {
-        handleOriginatedTransition(originated, toState, context);
+        handleOriginatedTransition(originated, resourceSourceId, toState, context);
       } else {
         log.info(
             "Updating resource state to '{}' on ticket '{}' (Negotiator-triggered or from helpdesk with PER_RESOURCE strategy)",
             toState,
             context.ticketId());
         context.client().updateResourceState(context.ticketId(), toState, context.config());
+        postSystemCommentAboutTheChange(resourceSourceId, toState, context);
         applyTicketStateMapping(toState, context);
       }
     } catch (Exception e) {
@@ -131,13 +134,16 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
           toState,
           context.ticketId(),
           negotiationId,
-          resourceId,
+          resourceSourceId,
           e);
     }
   }
 
   private void handleOriginatedTransition(
-      OriginatedTransition originated, String toState, DispatchContext context) {
+      OriginatedTransition originated,
+      String resourceSourceId,
+      String toState,
+      DispatchContext context) {
     String ticketId = context.ticketId();
 
     // Lock the row for the duration of this transaction so concurrent webhooks for the same
@@ -161,6 +167,7 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
           toState);
       try {
         context.client().updateResourceState(ticketId, toState, context.config());
+        postSystemCommentAboutTheChange(resourceSourceId, toState, context);
         applyTicketStateMapping(toState, context);
       } catch (Exception e) {
         log.error(
@@ -184,6 +191,14 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
           expected,
           ticketId);
     }
+  }
+
+  private void postSystemCommentAboutTheChange(
+      String resourceSourceId, String toState, DispatchContext context) {
+    String message =
+        String.format(
+            "Resource '%s' changed the status to '%s'", resourceSourceId, enumToText(toState));
+    context.client().addSystemComment(context.ticketId(), message, context.config());
   }
 
   private void applyTicketStateMapping(String toState, DispatchContext context) {
