@@ -15,6 +15,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostCreateDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorResourceEvent;
 import java.io.IOException;
@@ -98,6 +99,8 @@ class ZammadToNegotiatorE2ETest {
   void setUp() {
     ticketMappingRepository.deleteAll();
     zammadServer = MockRestServiceServer.bindTo(restClientBuilder).build();
+    when(negotiatorClient.getNegotiation(eq(NEGOTIATION_ID), any(OrganizationConfig.class)))
+        .thenReturn(new EntityModelNegotiationDTO().privatePostsEnabled(true));
   }
 
   @Test
