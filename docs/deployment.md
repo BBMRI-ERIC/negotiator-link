@@ -111,3 +111,24 @@ needed — only configuration.
 > **help-desk webhook/triggers** must also be set up to point at negotiator-link (see the webhook
 > and trigger setup in the project `README.md`). Until both sides are configured, events will not
 > flow.
+
+## 7. Default values in organization config
+
+Two levels of defaults reduce repetition across organizations:
+
+**`organization-defaults`** — applies to every organization unless overridden on the entry:
+
+| Field | Default | Override |
+|---|---|---|
+| `ticketStrategy` | `PER_RESOURCE` | Set `ticketStrategy` on the org entry |
+
+**`helpdesk-defaults.<TYPE>`** — applies to all organizations of that help-desk type. Covers the following:
+
+| Type | `negotiationStateToTicketState` | `resourceStateToTicketState` | `ticketStateToResourceEvent` |
+|---|---|---|---|
+| `ZAMMAD` | `ABANDONED→closed`, `CONCLUDED→closed` | `RESOURCE_NOT_MADE_AVAILABLE→closed` | `open→MARK_AS_CHECKING_AVAILABILITY` |
+
+Override rules (same for both levels):
+- Set the field on the organization entry to **replace** the default.
+- Set it to an empty map (e.g. `negotiationStateToTicketState: {}`) to **disable** the default for that organization.
+- Omit it to **inherit** the default.

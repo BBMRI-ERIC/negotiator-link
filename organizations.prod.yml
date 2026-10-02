@@ -17,31 +17,6 @@
 #   runtime from environment variables supplied via `.env` on the VM.
 # ============================================================================
 
-# ----------------------------------------------------------------------------
-# Default state mappings
-# ----------------------------------------------------------------------------
-# Optional per-help-desk-type defaults for the state-mapping fields. When set,
-# an organization of that `type` inherits these mappings unless it defines its
-# own. This saves repeating the same mappings on every organization.
-#
-# Per-organization overrides:
-#   • Define the mapping on the organization to REPLACE the default for it.
-#   • Set it to an empty map (e.g. `negotiationStateToTicketState: {}`) to
-#     DISABLE the default for that organization.
-# The mappings shown on the example organizations below duplicates the defaults since they are only illustrative.
-# So in production, they can be omitted to use the defaults, or they can be overridden if needed.
-#
-#defaults:
-#  ZAMMAD:
-#    negotiationStateToTicketState:
-#      ABANDONED: "closed"
-#      CONCLUDED: "closed"
-#    resourceStateToTicketState:
-#      RESOURCE_NOT_MADE_AVAILABLE: "closed"
-#    ticketStateToResourceEvent:
-#      open: "MARK_AS_CHECKING_AVAILABILITY"
-
-
 negotiator-link:
   organizations:
     - organizationExternalId: "bbmri-eric:ID:SE_890"
