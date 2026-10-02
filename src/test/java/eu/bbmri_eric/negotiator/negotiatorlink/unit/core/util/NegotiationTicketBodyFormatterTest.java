@@ -56,7 +56,8 @@ class NegotiationTicketBodyFormatterTest {
     Document doc = renderSingle(createNegotiation(true), submittedResource());
 
     assertThat(sectionHeaders(doc))
-        .containsExactly("PROJECT", "REQUEST", "ETHICS VOTE", "SEARCH PARAMETERS", "RESOURCE");
+        .containsExactly(
+            "PROJECT", "REQUEST", "ETHICS VOTE", "SEARCH PARAMETERS", "REQUESTED RESOURCE");
   }
 
   @Test
@@ -130,7 +131,7 @@ class NegotiationTicketBodyFormatterTest {
             NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(
                 negotiation, List.of(r1, r2)));
 
-    Element resourcesHeader = findSectionHeader(doc, "RESOURCES");
+    Element resourcesHeader = findSectionHeader(doc, "REQUESTED RESOURCES");
     Element list = resourcesHeader.nextElementSibling();
     Elements items = list.select("> li");
 

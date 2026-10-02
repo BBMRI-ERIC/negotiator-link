@@ -34,7 +34,7 @@ import lombok.extern.slf4j.Slf4j;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class NegotiationTicketBodyFormatter {
 
-  private static final String EMPTY_VALUE = "\u2014";
+  private static final String EMPTY_VALUE = "—";
 
   private static final String WRAPPER_STYLE =
       "font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;"
@@ -56,43 +56,33 @@ public final class NegotiationTicketBodyFormatter {
   // Public API
   // ------------
 
-  /**
-   * @return HTML string representing the ticket body for a single resource.
-   */
   public static String getTicketBodyWithSingleResource(
       EntityModelNegotiationDTO negotiation, EntityModelResourceWithStatusDTO resource) {
     return wrapper(
-            commonSections(negotiation), sectionHeader("RESOURCE"), singleResourceTable(resource))
+            commonSections(negotiation),
+            sectionHeader("REQUESTED RESOURCE"),
+            singleResourceTable(resource))
         .render();
   }
 
-  /**
-   * @return HTML string representing the updated ticket body for a single resource.
-   */
+  public static String getTicketBodyWithMultipleResources(
+      EntityModelNegotiationDTO negotiation, List<EntityModelResourceWithStatusDTO> resources) {
+    return wrapper(
+            commonSections(negotiation),
+            sectionHeader("REQUESTED RESOURCES"),
+            resourcesList(resources),
+            fieldsTable(List.of(Field.scalar("State (all resources)", sharedState(resources)))))
+        .render();
+  }
+
   public static String getUpdatedTicketBodyWithSingleResource(
       EntityModelNegotiationDTO negotiation, EntityModelResourceWithStatusDTO resource) {
     return updateNote() + getTicketBodyWithSingleResource(negotiation, resource);
   }
 
-  /**
-   * @return HTML string representing the updated ticket body for multiple resources.
-   */
   public static String getUpdatedTicketBodyWithMultipleResources(
       EntityModelNegotiationDTO negotiation, List<EntityModelResourceWithStatusDTO> resources) {
     return updateNote() + getTicketBodyWithMultipleResources(negotiation, resources);
-  }
-
-  /**
-   * @return HTML string representing the ticket body for multiple resources.
-   */
-  public static String getTicketBodyWithMultipleResources(
-      EntityModelNegotiationDTO negotiation, List<EntityModelResourceWithStatusDTO> resources) {
-    return wrapper(
-            commonSections(negotiation),
-            sectionHeader("RESOURCES"),
-            resourcesList(resources),
-            fieldsTable(List.of(Field.scalar("State (all resources)", sharedState(resources)))))
-        .render();
   }
 
   public static String buildTitle(EntityModelNegotiationDTO negotiation, String resourceName) {

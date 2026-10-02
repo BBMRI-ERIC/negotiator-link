@@ -2,6 +2,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.handler;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.doThrow;
@@ -23,9 +24,12 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationStateUpdatedHandler;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreatedTicket;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService.ResolvedAttachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFormatter;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
@@ -57,6 +61,7 @@ class NegotiationStateUpdatedHandlerTest {
   @Mock private OrganizationConfigRegistry registry;
   @Mock private HelpdeskClient helpdeskClient;
   @Mock private TicketMappingRepository ticketMappingRepository;
+  @Mock private AttachmentForwardingService attachmentForwardingService;
 
   private final ObjectMapper objectMapper = new ObjectMapper();
   private NegotiationStateUpdatedHandler handler;
@@ -69,6 +74,7 @@ class NegotiationStateUpdatedHandlerTest {
             registry,
             Map.of(HelpdeskType.ZAMMAD, helpdeskClient),
             ticketMappingRepository,
+            attachmentForwardingService,
             objectMapper);
   }
 
@@ -185,6 +191,33 @@ class NegotiationStateUpdatedHandlerTest {
     when(helpdeskClient.createTicket(any(), any())).thenThrow(new RuntimeException("adapter down"));
 
     assertDoesNotThrow(() -> handler.handle(approveEventData()));
+  }
+
+  @Test
+  void handleApprove_withPublicAttachments_addFilesOnCreate() {
+    var config = createConfig(TicketStrategy.PER_RESOURCE);
+    var resource = createResource("r-1", 1L);
+    var negotiation = createNegotiation();
+    var ticket = new CreatedTicket(TICKET_ID, "42");
+    var resolved =
+        new ResolvedAttachment(
+            "a-1", new Attachment("public.txt", "text/plain", "bytes".getBytes()));
+
+    stubHappyPath(negotiation, config, List.of(resource));
+    when(helpdeskClient.createTicket(any(CreateTicketRequest.class), eq(config)))
+        .thenReturn(ticket);
+    when(attachmentForwardingService.resolveForwardablePayloadAttachments(
+            eq(NEGOTIATION_ID), eq(config)))
+        .thenReturn(List.of(resolved));
+
+    handler.handle(approveEventData());
+
+    // Ticket carries the forwardable payload attachment.
+    verify(helpdeskClient)
+        .createTicket(argThat(request -> request.attachments().size() == 1), eq(config));
+    verify(attachmentForwardingService)
+        .recordForwardedAttachments(NEGOTIATION_ID, ORG_EXT_ID, TICKET_ID, List.of("a-1"));
+    verify(attachmentForwardingService, never()).notYetForwardedToTicket(any(), any(), any());
   }
 
   @Test
@@ -358,7 +391,6 @@ class NegotiationStateUpdatedHandlerTest {
     verify(ticketMappingRepository).save(eq(mappingFor(ticket, "1", resource)));
   }
 
-  /** Stubs the full happy path: negotiation, resources, and matching org config. */
   private void stubHappyPath(
       EntityModelNegotiationDTO negotiation,
       OrganizationConfig config,
@@ -382,7 +414,8 @@ class NegotiationStateUpdatedHandlerTest {
         NegotiationTicketBodyFormatter.buildTitle(negotiation, resource.getName()),
         NEGOTIATION_STATE,
         RESOURCE_STATE,
-        NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(negotiation, resource));
+        NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(negotiation, resource),
+        List.of());
   }
 
   private CreateTicketRequest perNegotiationRequest(
@@ -391,7 +424,8 @@ class NegotiationStateUpdatedHandlerTest {
         NegotiationTicketBodyFormatter.buildTitle(negotiation, null),
         NEGOTIATION_STATE,
         RESOURCE_STATE,
-        NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(negotiation, resources));
+        NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(negotiation, resources),
+        List.of());
   }
 
   private TicketMapping mappingFor(
