@@ -35,12 +35,6 @@ services:
     env_file:
       - .env
     environment:
-      # --- Database (hardcoded; DB lives on the same Compose network) ---
-      DB_URL: jdbc:postgresql://negotiator-link-postgresql:5432/negotiator_link
-      DB_USERNAME: negotiator_link
-      # --- Negotiator (defaults shown; override in .env if needed) ---
-      NEGOTIATOR_BASE_URL: ${NEGOTIATOR_BASE_URL:-https://negotiator.acc.bbmri-eric.eu/api}
-      NEGOTIATOR_ISSUER_URI: ${NEGOTIATOR_ISSUER_URI:-https://login.aai.lifescience-ri.eu/oidc/}
       # --- Organizations config file (bind-mounted below) ---
       ORGANIZATIONS_CONFIG_PATH: /config/organizations.yml
     volumes:
