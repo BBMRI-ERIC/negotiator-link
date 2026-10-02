@@ -20740,6 +20740,94 @@
   },
   "components": {
     "schemas": {
+      "NegotiationStateUpdatedWebhookEvent": {
+        "description": "Webhook data payload for a negotiation state transition.",
+        "properties": {
+          "negotiationId": {
+            "type": "string",
+            "description": "Identifier of the affected negotiation",
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          },
+          "fromState": {
+            "type": "string",
+            "description": "Source state before transition",
+            "enum": [
+              "DRAFT",
+              "SUBMITTED",
+              "APPROVED",
+              "DECLINED",
+              "IN_PROGRESS",
+              "PAUSED",
+              "CONCLUDED",
+              "ABANDONED"
+            ],
+            "example": "DRAFT"
+          },
+          "toState": {
+            "type": "string",
+            "description": "Target state after transition",
+            "enum": [
+              "DRAFT",
+              "SUBMITTED",
+              "APPROVED",
+              "DECLINED",
+              "IN_PROGRESS",
+              "PAUSED",
+              "CONCLUDED",
+              "ABANDONED"
+            ],
+            "example": "SUBMITTED"
+          },
+          "event": {
+            "type": "string",
+            "description": "State-machine event that triggered the transition",
+            "enum": [
+              "SUBMIT",
+              "APPROVE",
+              "DECLINE",
+              "START",
+              "PAUSE",
+              "UNPAUSE",
+              "ABANDON",
+              "CONCLUDE"
+            ],
+            "example": "SUBMIT"
+          },
+          "postId": {
+            "type": "string",
+            "description": "Optional identifier of the post submitted along with the state change",
+            "example": "bb50ca76-daa0-4a1e-9d74-c0ae90922554"
+          }
+        }
+      },
+      "NegotiationStateUpdatedWebhookEventEnvelope": {
+        "type": "object",
+        "description": "Outbound webhook envelope for event type 'negotiation.state.updated'.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Semantic webhook event type",
+            "enum": [
+              "negotiation.state.updated"
+            ],
+            "example": "negotiation.state.updated"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "UTC timestamp describing when the source event happened",
+            "example": "2026-04-24T07:12:30Z"
+          },
+          "data": {
+            "$ref": "#/components/schemas/NegotiationStateUpdatedWebhookEvent"
+          }
+        },
+        "required": [
+          "data",
+          "timestamp",
+          "type"
+        ]
+      },
       "NegotiationResourceUpdatedWebhookEvent": {
         "description": "Webhook data payload for newly added negotiation resources.",
         "properties": {
@@ -20778,6 +20866,59 @@
           "type"
         ]
       },
+      "NegotiationAddedWebhookEvent": {
+        "description": "Webhook data payload for a newly created negotiation.",
+        "properties": {
+          "negotiationId": {
+            "type": "string",
+            "description": "Identifier of the created negotiation",
+            "example": "negotiation-3"
+          },
+          "currentState": {
+            "type": "string",
+            "description": "Current negotiation state",
+            "enum": [
+              "DRAFT",
+              "SUBMITTED",
+              "APPROVED",
+              "DECLINED",
+              "IN_PROGRESS",
+              "PAUSED",
+              "CONCLUDED",
+              "ABANDONED"
+            ],
+            "example": "SUBMITTED"
+          }
+        }
+      },
+      "NegotiationAddedWebhookEventEnvelope": {
+        "type": "object",
+        "description": "Outbound webhook envelope for event type 'negotiation.added'.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Semantic webhook event type",
+            "enum": [
+              "negotiation.added"
+            ],
+            "example": "negotiation.added"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "UTC timestamp describing when the source event happened",
+            "example": "2026-04-24T07:12:30Z"
+          },
+          "data": {
+            "$ref": "#/components/schemas/NegotiationAddedWebhookEvent"
+          }
+        },
+        "required": [
+          "data",
+          "timestamp",
+          "type"
+        ]
+      },
       "NegotiationUpdatedWebhookEvent": {
         "description": "Webhook data payload for an updated negotiation.",
         "properties": {
@@ -20808,99 +20949,6 @@
           },
           "data": {
             "$ref": "#/components/schemas/NegotiationUpdatedWebhookEvent"
-          }
-        },
-        "required": [
-          "data",
-          "timestamp",
-          "type"
-        ]
-      },
-      "NegotiationPostAddedWebhookEvent": {
-        "description": "Webhook data payload for a newly created negotiation post.",
-        "properties": {
-          "postId": {
-            "type": "string",
-            "description": "Identifier of the created post",
-            "example": "post-1"
-          },
-          "negotiationId": {
-            "type": "string",
-            "description": "Identifier of the parent negotiation",
-            "example": "ab222d9c-4567-4c9a-8f0e-123456789abc"
-          },
-          "userId": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Identifier of the user that created the post",
-            "example": 1000
-          },
-          "organizationId": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Optional identifier of the organization context",
-            "example": 2000
-          }
-        }
-      },
-      "NegotiationPostAddedWebhookEventEnvelope": {
-        "type": "object",
-        "description": "Outbound webhook envelope for event type 'negotiation.post.added'.",
-        "properties": {
-          "type": {
-            "type": "string",
-            "description": "Semantic webhook event type",
-            "enum": [
-              "negotiation.post.added"
-            ],
-            "example": "negotiation.post.added"
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time",
-            "description": "UTC timestamp describing when the source event happened",
-            "example": "2026-04-24T07:12:30Z"
-          },
-          "data": {
-            "$ref": "#/components/schemas/NegotiationPostAddedWebhookEvent"
-          }
-        },
-        "required": [
-          "data",
-          "timestamp",
-          "type"
-        ]
-      },
-      "NegotiationInfoUpdatedWebhookEvent": {
-        "description": "Webhook data payload for updated negotiation information.",
-        "properties": {
-          "negotiationId": {
-            "type": "string",
-            "description": "Identifier of the affected negotiation",
-            "example": "negotiation-1"
-          }
-        }
-      },
-      "NegotiationInfoUpdatedWebhookEventEnvelope": {
-        "type": "object",
-        "description": "Outbound webhook envelope for event type 'negotiation.info.updated'.",
-        "properties": {
-          "type": {
-            "type": "string",
-            "description": "Semantic webhook event type",
-            "enum": [
-              "negotiation.info.updated"
-            ],
-            "example": "negotiation.info.updated"
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time",
-            "description": "UTC timestamp describing when the source event happened",
-            "example": "2026-04-24T07:12:30Z"
-          },
-          "data": {
-            "$ref": "#/components/schemas/NegotiationInfoUpdatedWebhookEvent"
           }
         },
         "required": [
@@ -21010,142 +21058,6 @@
           "type"
         ]
       },
-      "NegotiationStateUpdatedWebhookEvent": {
-        "description": "Webhook data payload for a negotiation state transition.",
-        "properties": {
-          "negotiationId": {
-            "type": "string",
-            "description": "Identifier of the affected negotiation",
-            "example": "negotiation-2"
-          },
-          "fromState": {
-            "type": "string",
-            "description": "Source state before transition",
-            "enum": [
-              "DRAFT",
-              "SUBMITTED",
-              "APPROVED",
-              "DECLINED",
-              "IN_PROGRESS",
-              "PAUSED",
-              "CONCLUDED",
-              "ABANDONED"
-            ],
-            "example": "DRAFT"
-          },
-          "toState": {
-            "type": "string",
-            "description": "Target state after transition",
-            "enum": [
-              "DRAFT",
-              "SUBMITTED",
-              "APPROVED",
-              "DECLINED",
-              "IN_PROGRESS",
-              "PAUSED",
-              "CONCLUDED",
-              "ABANDONED"
-            ],
-            "example": "SUBMITTED"
-          },
-          "event": {
-            "type": "string",
-            "description": "State-machine event that triggered the transition",
-            "enum": [
-              "SUBMIT",
-              "APPROVE",
-              "DECLINE",
-              "START",
-              "PAUSE",
-              "UNPAUSE",
-              "ABANDON",
-              "CONCLUDE"
-            ],
-            "example": "SUBMIT"
-          }
-        }
-      },
-      "NegotiationStateUpdatedWebhookEventEnvelope": {
-        "type": "object",
-        "description": "Outbound webhook envelope for event type 'negotiation.state.updated'.",
-        "properties": {
-          "type": {
-            "type": "string",
-            "description": "Semantic webhook event type",
-            "enum": [
-              "negotiation.state.updated"
-            ],
-            "example": "negotiation.state.updated"
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time",
-            "description": "UTC timestamp describing when the source event happened",
-            "example": "2026-04-24T07:12:30Z"
-          },
-          "data": {
-            "$ref": "#/components/schemas/NegotiationStateUpdatedWebhookEvent"
-          }
-        },
-        "required": [
-          "data",
-          "timestamp",
-          "type"
-        ]
-      },
-      "NegotiationAddedWebhookEvent": {
-        "description": "Webhook data payload for a newly created negotiation.",
-        "properties": {
-          "negotiationId": {
-            "type": "string",
-            "description": "Identifier of the created negotiation",
-            "example": "negotiation-3"
-          },
-          "currentState": {
-            "type": "string",
-            "description": "Current negotiation state",
-            "enum": [
-              "DRAFT",
-              "SUBMITTED",
-              "APPROVED",
-              "DECLINED",
-              "IN_PROGRESS",
-              "PAUSED",
-              "CONCLUDED",
-              "ABANDONED"
-            ],
-            "example": "SUBMITTED"
-          }
-        }
-      },
-      "NegotiationAddedWebhookEventEnvelope": {
-        "type": "object",
-        "description": "Outbound webhook envelope for event type 'negotiation.added'.",
-        "properties": {
-          "type": {
-            "type": "string",
-            "description": "Semantic webhook event type",
-            "enum": [
-              "negotiation.added"
-            ],
-            "example": "negotiation.added"
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time",
-            "description": "UTC timestamp describing when the source event happened",
-            "example": "2026-04-24T07:12:30Z"
-          },
-          "data": {
-            "$ref": "#/components/schemas/NegotiationAddedWebhookEvent"
-          }
-        },
-        "required": [
-          "data",
-          "timestamp",
-          "type"
-        ]
-      },
       "PingWebhookEvent": {
         "description": "Webhook data payload for a ping delivery.",
         "properties": {
@@ -21177,6 +21089,99 @@
           },
           "data": {
             "$ref": "#/components/schemas/PingWebhookEvent"
+          }
+        },
+        "required": [
+          "data",
+          "timestamp",
+          "type"
+        ]
+      },
+      "NegotiationPostAddedWebhookEvent": {
+        "description": "Webhook data payload for a newly created negotiation post.",
+        "properties": {
+          "postId": {
+            "type": "string",
+            "description": "Identifier of the created post",
+            "example": "post-1"
+          },
+          "negotiationId": {
+            "type": "string",
+            "description": "Identifier of the parent negotiation",
+            "example": "ab222d9c-4567-4c9a-8f0e-123456789abc"
+          },
+          "userId": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Identifier of the user that created the post",
+            "example": 1000
+          },
+          "organizationId": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Optional identifier of the organization context",
+            "example": 2000
+          }
+        }
+      },
+      "NegotiationPostAddedWebhookEventEnvelope": {
+        "type": "object",
+        "description": "Outbound webhook envelope for event type 'negotiation.post.added'.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Semantic webhook event type",
+            "enum": [
+              "negotiation.post.added"
+            ],
+            "example": "negotiation.post.added"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "UTC timestamp describing when the source event happened",
+            "example": "2026-04-24T07:12:30Z"
+          },
+          "data": {
+            "$ref": "#/components/schemas/NegotiationPostAddedWebhookEvent"
+          }
+        },
+        "required": [
+          "data",
+          "timestamp",
+          "type"
+        ]
+      },
+      "NegotiationInfoUpdatedWebhookEvent": {
+        "description": "Webhook data payload for updated negotiation information.",
+        "properties": {
+          "negotiationId": {
+            "type": "string",
+            "description": "Identifier of the affected negotiation",
+            "example": "negotiation-1"
+          }
+        }
+      },
+      "NegotiationInfoUpdatedWebhookEventEnvelope": {
+        "type": "object",
+        "description": "Outbound webhook envelope for event type 'negotiation.info.updated'.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Semantic webhook event type",
+            "enum": [
+              "negotiation.info.updated"
+            ],
+            "example": "negotiation.info.updated"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "UTC timestamp describing when the source event happened",
+            "example": "2026-04-24T07:12:30Z"
+          },
+          "data": {
+            "$ref": "#/components/schemas/NegotiationInfoUpdatedWebhookEvent"
           }
         },
         "required": [
@@ -21687,16 +21692,16 @@
             "description": "Timestamp of the last successful login",
             "example": "2021-01-01T12:00:00Z"
           },
-          "admin": {
+          "representativeOfAnyResource": {
             "type": "boolean"
           },
-          "networkManager": {
+          "admin": {
             "type": "boolean"
           },
           "serviceAccount": {
             "type": "boolean"
           },
-          "representativeOfAnyResource": {
+          "networkManager": {
             "type": "boolean"
           }
         }
@@ -23316,16 +23321,16 @@
             "description": "Timestamp of the last successful login",
             "example": "2021-01-01T12:00:00Z"
           },
-          "admin": {
+          "representativeOfAnyResource": {
             "type": "boolean"
           },
-          "networkManager": {
+          "admin": {
             "type": "boolean"
           },
           "serviceAccount": {
             "type": "boolean"
           },
-          "representativeOfAnyResource": {
+          "networkManager": {
             "type": "boolean"
           },
           "_links": {
@@ -23496,16 +23501,16 @@
               "type": "string"
             }
           },
-          "admin": {
+          "representativeOfAnyResource": {
             "type": "boolean"
           },
-          "networkManager": {
+          "admin": {
             "type": "boolean"
           },
           "serviceAccount": {
             "type": "boolean"
           },
-          "representativeOfAnyResource": {
+          "networkManager": {
             "type": "boolean"
           },
           "_links": {
@@ -23713,6 +23718,36 @@
       "EntityModelNetworkStatistics": {
         "type": "object",
         "properties": {
+          "numberOfSuccessfulNegotiations": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Number of successful negotiations in the network",
+            "example": 120
+          },
+          "numberOfActiveRepresentatives": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Number of active representatives in the network",
+            "example": 25
+          },
+          "totalNumberOfNegotiations": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Total number of negotiations in the network",
+            "example": 150
+          },
+          "numberOfIgnoredNegotiations": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Number of negotiations ignored in the network",
+            "example": 10
+          },
+          "numberOfNewRequesters": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Number of new requesters in the network",
+            "example": 30
+          },
           "networkId": {
             "type": "integer",
             "format": "int64",
@@ -23746,36 +23781,6 @@
                 "type": "string"
               }
             }
-          },
-          "numberOfActiveRepresentatives": {
-            "type": "integer",
-            "format": "int32",
-            "description": "Number of active representatives in the network",
-            "example": 25
-          },
-          "numberOfSuccessfulNegotiations": {
-            "type": "integer",
-            "format": "int32",
-            "description": "Number of successful negotiations in the network",
-            "example": 120
-          },
-          "numberOfNewRequesters": {
-            "type": "integer",
-            "format": "int32",
-            "description": "Number of new requesters in the network",
-            "example": 30
-          },
-          "totalNumberOfNegotiations": {
-            "type": "integer",
-            "format": "int32",
-            "description": "Total number of negotiations in the network",
-            "example": 150
-          },
-          "numberOfIgnoredNegotiations": {
-            "type": "integer",
-            "format": "int32",
-            "description": "Number of negotiations ignored in the network",
-            "example": 10
           },
           "_links": {
             "$ref": "#/components/schemas/Links"

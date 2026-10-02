@@ -2,6 +2,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.handler;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.doThrow;
@@ -23,9 +24,12 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationStateUpdatedHandler;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreatedTicket;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService.ResolvedAttachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFormatter;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
@@ -52,11 +56,15 @@ class NegotiationStateUpdatedHandlerTest {
   private static final Long ORG_INTERNAL_ID = 10L;
   private static final String TICKET_ID = "ticket-42";
   private static final String RESOURCE_STATE = "SUBMITTED";
+  private static final String PAUSED_SYSTEM_COMMENT = "Negotiation status changed to 'Paused'";
+  private static final String CONCLUDED_SYSTEM_COMMENT =
+      "Negotiation status changed to 'Concluded'";
 
   @Mock private NegotiatorClient negotiatorClient;
   @Mock private OrganizationConfigRegistry registry;
   @Mock private HelpdeskClient helpdeskClient;
   @Mock private TicketMappingRepository ticketMappingRepository;
+  @Mock private AttachmentForwardingService attachmentForwardingService;
 
   private final ObjectMapper objectMapper = new ObjectMapper();
   private NegotiationStateUpdatedHandler handler;
@@ -69,6 +77,7 @@ class NegotiationStateUpdatedHandlerTest {
             registry,
             Map.of(HelpdeskType.ZAMMAD, helpdeskClient),
             ticketMappingRepository,
+            attachmentForwardingService,
             objectMapper);
   }
 
@@ -185,6 +194,33 @@ class NegotiationStateUpdatedHandlerTest {
     when(helpdeskClient.createTicket(any(), any())).thenThrow(new RuntimeException("adapter down"));
 
     assertDoesNotThrow(() -> handler.handle(approveEventData()));
+  }
+
+  @Test
+  void handleApprove_withPublicAttachments_addFilesOnCreate() {
+    var config = createConfig(TicketStrategy.PER_RESOURCE);
+    var resource = createResource("r-1", 1L);
+    var negotiation = createNegotiation();
+    var ticket = new CreatedTicket(TICKET_ID, "42");
+    var resolved =
+        new ResolvedAttachment(
+            "a-1", new Attachment("public.txt", "text/plain", "bytes".getBytes()));
+
+    stubHappyPath(negotiation, config, List.of(resource));
+    when(helpdeskClient.createTicket(any(CreateTicketRequest.class), eq(config)))
+        .thenReturn(ticket);
+    when(attachmentForwardingService.resolveForwardablePayloadAttachments(
+            eq(NEGOTIATION_ID), eq(config)))
+        .thenReturn(List.of(resolved));
+
+    handler.handle(approveEventData());
+
+    // Ticket carries the forwardable payload attachment.
+    verify(helpdeskClient)
+        .createTicket(argThat(request -> request.attachments().size() == 1), eq(config));
+    verify(attachmentForwardingService)
+        .recordForwardedAttachments(NEGOTIATION_ID, ORG_EXT_ID, TICKET_ID, List.of("a-1"));
+    verify(attachmentForwardingService, never()).notYetForwardedToTicket(any(), any(), any());
   }
 
   @Test
@@ -315,30 +351,6 @@ class NegotiationStateUpdatedHandlerTest {
   }
 
   @Test
-  void postNegotiationCommentsToTicket_addCommentThrows_remainingPostsStillPosted() {
-    var negotiation = createNegotiation();
-    var resource = createResource("r-1", 1L);
-    var config = createConfig(TicketStrategy.PER_NEGOTIATION);
-    var ticket = new CreatedTicket(TICKET_ID, "42");
-
-    var post1 = TestUtil.post("p-1", "first", EntityModelPostDTO.TypeEnum.PUBLIC, null);
-    post1.setCreationDate(LocalDateTime.of(2024, 1, 1, 10, 0));
-    var post2 = TestUtil.post("p-2", "second", EntityModelPostDTO.TypeEnum.PUBLIC, null);
-    post2.setCreationDate(LocalDateTime.of(2024, 1, 2, 10, 0));
-
-    stubHappyPath(negotiation, config, List.of(resource));
-    when(helpdeskClient.createTicket(any(), eq(config))).thenReturn(ticket);
-    stubPosts(config, List.of(post1, post2));
-    doThrow(new RuntimeException("adapter down"))
-        .when(helpdeskClient)
-        .addComment(eq(TICKET_ID), startsWith("first"), eq(CommentType.PLAIN_TEXT), eq(config));
-
-    assertDoesNotThrow(() -> handler.handle(approveEventData()));
-    verify(helpdeskClient)
-        .addComment(eq(TICKET_ID), startsWith("second"), eq(CommentType.PLAIN_TEXT), eq(config));
-  }
-
-  @Test
   void postNegotiationCommentsToTicket_addCommentThrows_ticketMappingAlreadySaved() {
     var negotiation = createNegotiation();
     var resource = createResource("r-1", 1L);
@@ -358,113 +370,6 @@ class NegotiationStateUpdatedHandlerTest {
     verify(ticketMappingRepository).save(eq(mappingFor(ticket, "1", resource)));
   }
 
-  /** Stubs the full happy path: negotiation, resources, and matching org config. */
-  private void stubHappyPath(
-      EntityModelNegotiationDTO negotiation,
-      OrganizationConfig config,
-      List<EntityModelResourceWithStatusDTO> resources) {
-    stubResources(negotiation, config, resources);
-    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
-  }
-
-  private void stubResources(
-      EntityModelNegotiationDTO negotiation,
-      OrganizationConfig config,
-      List<EntityModelResourceWithStatusDTO> resources) {
-    when(registry.findAll()).thenReturn(List.of(config));
-    when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config)).thenReturn(negotiation);
-    when(negotiatorClient.getResources(NEGOTIATION_ID, config)).thenReturn(resources);
-  }
-
-  private CreateTicketRequest perResourceRequest(
-      EntityModelNegotiationDTO negotiation, EntityModelResourceWithStatusDTO resource) {
-    return new CreateTicketRequest(
-        NegotiationTicketBodyFormatter.buildTitle(negotiation, resource.getName()),
-        NEGOTIATION_STATE,
-        RESOURCE_STATE,
-        NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(negotiation, resource));
-  }
-
-  private CreateTicketRequest perNegotiationRequest(
-      EntityModelNegotiationDTO negotiation, List<EntityModelResourceWithStatusDTO> resources) {
-    return new CreateTicketRequest(
-        NegotiationTicketBodyFormatter.buildTitle(negotiation, null),
-        NEGOTIATION_STATE,
-        RESOURCE_STATE,
-        NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(negotiation, resources));
-  }
-
-  private TicketMapping mappingFor(
-      CreatedTicket ticket, String resourceKey, EntityModelResourceWithStatusDTO resource) {
-    return new TicketMapping(
-        new TicketMappingId(NEGOTIATION_ID, ticket.ticketId(), resourceKey),
-        resource.getSourceId(),
-        String.valueOf(ORG_INTERNAL_ID),
-        ORG_EXT_ID);
-  }
-
-  private JsonNode approveEventData() {
-    return eventData(NegotiatorNegotiationEvent.APPROVE);
-  }
-
-  private JsonNode eventData(NegotiatorNegotiationEvent event) {
-    return objectMapper.valueToTree(
-        Map.of(
-            "negotiationId",
-            NEGOTIATION_ID,
-            "event",
-            event.name(),
-            "fromState",
-            "SUBMITTED",
-            "toState",
-            event.toState()));
-  }
-
-  private EntityModelNegotiationDTO createNegotiation() {
-    return TestUtil.negotiation(NEGOTIATION_ID, DISPLAY_ID, NEGOTIATION_STATE);
-  }
-
-  private EntityModelResourceWithStatusDTO createResource(String sourceId, Long id) {
-    return TestUtil.resource(id, sourceId, "Resource " + sourceId, ORG_EXT_ID, ORG_INTERNAL_ID);
-  }
-
-  private void stubPosts(OrganizationConfig config, List<EntityModelPostDTO> posts) {
-    when(negotiatorClient.getPosts(eq(NEGOTIATION_ID), eq(config))).thenReturn(posts);
-  }
-
-  private OrganizationConfig createConfig(TicketStrategy strategy) {
-    return TestUtil.organizationConfig(ORG_EXT_ID, strategy);
-  }
-
-  private OrganizationConfig createConfig(
-      TicketStrategy strategy, Map<String, String> negotiationStateToTicketState) {
-    return TestUtil.organizationConfig(ORG_EXT_ID, strategy, negotiationStateToTicketState);
-  }
-
-  private TicketMapping mapping() {
-    return new TicketMapping(
-        new TicketMappingId(NEGOTIATION_ID, TICKET_ID, "r-1"),
-        "src-1",
-        String.valueOf(ORG_INTERNAL_ID),
-        ORG_EXT_ID);
-  }
-
-  private List<TicketMapping> twoMappings() {
-    return List.of(
-        new TicketMapping(
-            new TicketMappingId(NEGOTIATION_ID, "ticket-1", "r-1"),
-            "src-1",
-            String.valueOf(ORG_INTERNAL_ID),
-            ORG_EXT_ID),
-        new TicketMapping(
-            new TicketMappingId(NEGOTIATION_ID, "ticket-2", "r-2"),
-            "src-2",
-            String.valueOf(ORG_INTERNAL_ID),
-            ORG_EXT_ID));
-  }
-
-  // --- handleStateChange tests ---
-
   @Test
   void handleStateChange_callsUpdateNegotiationStateOnAllMappedTickets() {
     var config = createConfig(TicketStrategy.PER_RESOURCE);
@@ -480,6 +385,10 @@ class NegotiationStateUpdatedHandlerTest {
     verify(helpdeskClient)
         .updateNegotiationState(
             eq("ticket-2"), eq(NegotiatorNegotiationEvent.PAUSE.toState()), eq(config));
+    verify(helpdeskClient).addSystemComment(eq("ticket-1"), eq(PAUSED_SYSTEM_COMMENT), eq(config));
+    verify(helpdeskClient).addSystemComment(eq("ticket-2"), eq(PAUSED_SYSTEM_COMMENT), eq(config));
+    verify(negotiatorClient, never()).getPost(any(), any(), any());
+    verify(helpdeskClient, never()).addComment(any(), any(), any(), any());
   }
 
   @Test
@@ -507,6 +416,8 @@ class NegotiationStateUpdatedHandlerTest {
     verify(helpdeskClient, times(1))
         .updateNegotiationState(
             eq(TICKET_ID), eq(NegotiatorNegotiationEvent.PAUSE.toState()), eq(config));
+    verify(helpdeskClient, times(1))
+        .addSystemComment(eq(TICKET_ID), eq(PAUSED_SYSTEM_COMMENT), eq(config));
   }
 
   @Test
@@ -580,6 +491,8 @@ class NegotiationStateUpdatedHandlerTest {
     verify(helpdeskClient)
         .updateNegotiationState(
             eq("ticket-2"), eq(NegotiatorNegotiationEvent.PAUSE.toState()), eq(config));
+    verify(helpdeskClient).addSystemComment(eq("ticket-2"), eq(PAUSED_SYSTEM_COMMENT), eq(config));
+    verify(helpdeskClient, never()).addSystemComment(eq("ticket-1"), any(), any());
   }
 
   @Test
@@ -595,6 +508,9 @@ class NegotiationStateUpdatedHandlerTest {
 
     var order = inOrder(helpdeskClient);
     order.verify(helpdeskClient).updateNegotiationState(eq(TICKET_ID), eq(toState), eq(config));
+    order
+        .verify(helpdeskClient)
+        .addSystemComment(eq(TICKET_ID), eq(CONCLUDED_SYSTEM_COMMENT), eq(config));
     order.verify(helpdeskClient).updateTicketState(eq(TICKET_ID), eq("closed"), eq(config));
   }
 
@@ -611,6 +527,7 @@ class NegotiationStateUpdatedHandlerTest {
     verify(helpdeskClient)
         .updateNegotiationState(
             eq(TICKET_ID), eq(NegotiatorNegotiationEvent.PAUSE.toState()), eq(config));
+    verify(helpdeskClient).addSystemComment(eq(TICKET_ID), eq(PAUSED_SYSTEM_COMMENT), eq(config));
     verify(helpdeskClient, never()).updateTicketState(any(), any(), any());
   }
 
@@ -628,5 +545,170 @@ class NegotiationStateUpdatedHandlerTest {
     assertDoesNotThrow(() -> handler.handle(eventData(NegotiatorNegotiationEvent.CONCLUDE)));
 
     verify(helpdeskClient).updateTicketState(eq("ticket-2"), eq("closed"), eq(config));
+  }
+
+  @Test
+  void handleStateChange_withPostId_fetchesPostOnceAndAddsSignedCommentToEachTicket() {
+    var config = createConfig(TicketStrategy.PER_RESOURCE);
+
+    var post =
+        TestUtil.post(
+            "p-1",
+            "Hello world",
+            EntityModelPostDTO.TypeEnum.PUBLIC,
+            null,
+            "Alice",
+            "alice@example.com");
+
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(twoMappings());
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+    when(negotiatorClient.getPost(NEGOTIATION_ID, "p-1", config)).thenReturn(post);
+
+    handler.handle(eventDataWithPost(NegotiatorNegotiationEvent.PAUSE, "p-1"));
+
+    verify(negotiatorClient, times(1)).getPost(NEGOTIATION_ID, "p-1", config);
+
+    var order = inOrder(helpdeskClient);
+    order
+        .verify(helpdeskClient)
+        .addSystemComment(eq("ticket-1"), eq(PAUSED_SYSTEM_COMMENT), eq(config));
+    order
+        .verify(helpdeskClient)
+        .addComment(
+            eq("ticket-1"),
+            startsWith("From: Alice <alice@example.com>"),
+            eq(CommentType.PLAIN_TEXT),
+            eq(config));
+    order
+        .verify(helpdeskClient)
+        .addSystemComment(eq("ticket-2"), eq(PAUSED_SYSTEM_COMMENT), eq(config));
+    order
+        .verify(helpdeskClient)
+        .addComment(
+            eq("ticket-2"),
+            startsWith("From: Alice <alice@example.com>"),
+            eq(CommentType.PLAIN_TEXT),
+            eq(config));
+  }
+
+  private void stubHappyPath(
+      EntityModelNegotiationDTO negotiation,
+      OrganizationConfig config,
+      List<EntityModelResourceWithStatusDTO> resources) {
+    stubResources(negotiation, config, resources);
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+  }
+
+  private void stubResources(
+      EntityModelNegotiationDTO negotiation,
+      OrganizationConfig config,
+      List<EntityModelResourceWithStatusDTO> resources) {
+    when(registry.findAll()).thenReturn(List.of(config));
+    when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config)).thenReturn(negotiation);
+    when(negotiatorClient.getResources(NEGOTIATION_ID, config)).thenReturn(resources);
+  }
+
+  private CreateTicketRequest perResourceRequest(
+      EntityModelNegotiationDTO negotiation, EntityModelResourceWithStatusDTO resource) {
+    return new CreateTicketRequest(
+        NegotiationTicketBodyFormatter.buildTitle(negotiation, resource.getName()),
+        NEGOTIATION_STATE,
+        RESOURCE_STATE,
+        NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(negotiation, resource),
+        List.of());
+  }
+
+  private CreateTicketRequest perNegotiationRequest(
+      EntityModelNegotiationDTO negotiation, List<EntityModelResourceWithStatusDTO> resources) {
+    return new CreateTicketRequest(
+        NegotiationTicketBodyFormatter.buildTitle(negotiation, null),
+        NEGOTIATION_STATE,
+        RESOURCE_STATE,
+        NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(negotiation, resources),
+        List.of());
+  }
+
+  private TicketMapping mappingFor(
+      CreatedTicket ticket, String resourceKey, EntityModelResourceWithStatusDTO resource) {
+    return new TicketMapping(
+        new TicketMappingId(NEGOTIATION_ID, ticket.ticketId(), resourceKey),
+        resource.getSourceId(),
+        String.valueOf(ORG_INTERNAL_ID),
+        ORG_EXT_ID);
+  }
+
+  private JsonNode approveEventData() {
+    return eventData(NegotiatorNegotiationEvent.APPROVE);
+  }
+
+  private JsonNode eventData(NegotiatorNegotiationEvent event) {
+    return objectMapper.valueToTree(
+        Map.of(
+            "negotiationId",
+            NEGOTIATION_ID,
+            "event",
+            event.name(),
+            "fromState",
+            "SUBMITTED",
+            "toState",
+            event.toState()));
+  }
+
+  private JsonNode eventDataWithPost(NegotiatorNegotiationEvent event, String postId) {
+    return objectMapper.valueToTree(
+        Map.of(
+            "negotiationId",
+            NEGOTIATION_ID,
+            "event",
+            event.name(),
+            "fromState",
+            "SUBMITTED",
+            "toState",
+            event.toState(),
+            "postId",
+            postId));
+  }
+
+  private EntityModelNegotiationDTO createNegotiation() {
+    return TestUtil.negotiation(NEGOTIATION_ID, DISPLAY_ID, NEGOTIATION_STATE);
+  }
+
+  private EntityModelResourceWithStatusDTO createResource(String sourceId, Long id) {
+    return TestUtil.resource(id, sourceId, "Resource " + sourceId, ORG_EXT_ID, ORG_INTERNAL_ID);
+  }
+
+  private void stubPosts(OrganizationConfig config, List<EntityModelPostDTO> posts) {
+    when(negotiatorClient.getPosts(eq(NEGOTIATION_ID), eq(config))).thenReturn(posts);
+  }
+
+  private OrganizationConfig createConfig(TicketStrategy strategy) {
+    return TestUtil.organizationConfig(ORG_EXT_ID, strategy);
+  }
+
+  private OrganizationConfig createConfig(
+      TicketStrategy strategy, Map<String, String> negotiationStateToTicketState) {
+    return TestUtil.organizationConfig(ORG_EXT_ID, strategy, negotiationStateToTicketState);
+  }
+
+  private TicketMapping mapping() {
+    return new TicketMapping(
+        new TicketMappingId(NEGOTIATION_ID, TICKET_ID, "r-1"),
+        "src-1",
+        String.valueOf(ORG_INTERNAL_ID),
+        ORG_EXT_ID);
+  }
+
+  private List<TicketMapping> twoMappings() {
+    return List.of(
+        new TicketMapping(
+            new TicketMappingId(NEGOTIATION_ID, "ticket-1", "r-1"),
+            "src-1",
+            String.valueOf(ORG_INTERNAL_ID),
+            ORG_EXT_ID),
+        new TicketMapping(
+            new TicketMappingId(NEGOTIATION_ID, "ticket-2", "r-2"),
+            "src-2",
+            String.valueOf(ORG_INTERNAL_ID),
+            ORG_EXT_ID));
   }
 }
