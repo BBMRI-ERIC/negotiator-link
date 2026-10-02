@@ -21,7 +21,7 @@
         <lombok.version>1.18.46</lombok.version>
         <openapi-generator.version>7.25.0</openapi-generator.version>
         <wiremock.version>3.13.2</wiremock.version>
-        <okhttp.version>5.1.0</okhttp.version>
+        <okhttp.version>5.5.0</okhttp.version>
         <jsoup.version>1.18.1</jsoup.version>
         <jackson-databind-nullable.version>0.2.11</jackson-databind-nullable.version>
         <standardwebhooks.version>1.2.0</standardwebhooks.version>
