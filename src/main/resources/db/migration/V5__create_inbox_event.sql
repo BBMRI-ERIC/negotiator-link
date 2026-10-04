@@ -6,6 +6,9 @@ CREATE TABLE inbox_event (
     payload      JSONB        NOT NULL,
     status       VARCHAR(255) NOT NULL,
     skip_reason  VARCHAR(255),
+    last_error   VARCHAR(255),
+    attempt_count   INTEGER   NOT NULL DEFAULT 0,
+    next_attempt_at TIMESTAMP WITH TIME ZONE,
     received_at  TIMESTAMP WITH TIME ZONE NOT NULL,
     processed_at TIMESTAMP WITH TIME ZONE,
     CONSTRAINT uq_inbox_delivery UNIQUE (source, delivery_id)

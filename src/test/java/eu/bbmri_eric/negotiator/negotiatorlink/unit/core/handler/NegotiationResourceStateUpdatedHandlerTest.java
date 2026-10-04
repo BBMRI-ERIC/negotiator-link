@@ -1,18 +1,13 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.handler;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
@@ -20,9 +15,14 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedTransition;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationResourceStateUpdatedHandler;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SetStatePayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,7 +45,6 @@ class NegotiationResourceStateUpdatedHandlerTest {
   @Mock private TicketMappingRepository ticketMappingRepository;
   @Mock private OriginatedTransitionRepository originatedTransitionRepository;
   @Mock private OrganizationConfigRegistry registry;
-  @Mock private HelpdeskClient helpdeskClient;
 
   private final ObjectMapper objectMapper = new ObjectMapper();
   private NegotiationResourceStateUpdatedHandler handler;
@@ -54,78 +53,77 @@ class NegotiationResourceStateUpdatedHandlerTest {
   void setUp() {
     handler =
         new NegotiationResourceStateUpdatedHandler(
-            ticketMappingRepository,
-            originatedTransitionRepository,
-            registry,
-            Map.of(HelpdeskType.ZAMMAD, helpdeskClient),
-            objectMapper);
+            ticketMappingRepository, originatedTransitionRepository, registry, objectMapper);
   }
 
   @Test
-  void handle_noMappingForResource_doesNothing() {
+  void handle_noMappingForResource_returnsNoIntents() {
     when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
             NEGOTIATION_ID, RESOURCE_ID))
         .thenReturn(Optional.empty());
 
-    handler.handle(eventData(NEW_STATE));
-
-    verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
+    assertThat(handler.handle(eventData(NEW_STATE))).isEmpty();
   }
 
   @Test
-  void handle_noOriginatedTransition_updatesDirectly() {
+  void handle_noOriginatedTransition_emitsResourceStateAndSystemComment() {
     var config = createConfig(TicketStrategy.PER_NEGOTIATION);
-    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
-            NEGOTIATION_ID, RESOURCE_ID))
-        .thenReturn(Optional.of(mapping()));
-    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+    stubMapping(config);
     when(originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
             NEGOTIATION_ID, TICKET_ID, NEW_STATE))
         .thenReturn(Optional.empty());
 
-    handler.handle(eventData(NEW_STATE));
+    List<PendingIntent> intents = handler.handle(eventData(NEW_STATE));
 
-    verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
-    verify(helpdeskClient).addSystemComment(eq(TICKET_ID), eq(SYSTEM_COMMENT), eq(config));
+    assertThat(intents).hasSize(2);
+    assertThat(intents)
+        .extracting(PendingIntent::intentType)
+        .containsExactly(IntentType.SET_RESOURCE_STATE, IntentType.ADD_SYSTEM_COMMENT);
+    assertThat(readState(intents.getFirst()).value()).isEqualTo(NEW_STATE);
+    assertThat(readSystemComment(intents.getLast()).message()).isEqualTo(SYSTEM_COMMENT);
+    assertThat(intents).allSatisfy(i -> assertThat(i.targetId()).isEqualTo(TICKET_ID));
   }
 
   @Test
-  void handle_perResource_updatesDirectly() {
+  void handle_perResource_emitsResourceStateAndSystemComment() {
     var config = createConfig(TicketStrategy.PER_RESOURCE);
-    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
-            NEGOTIATION_ID, RESOURCE_ID))
-        .thenReturn(Optional.of(mapping()));
-    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+    stubMapping(config);
     when(originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
             NEGOTIATION_ID, TICKET_ID, NEW_STATE))
         .thenReturn(Optional.empty());
 
-    handler.handle(eventData(NEW_STATE));
+    List<PendingIntent> intents = handler.handle(eventData(NEW_STATE));
 
-    verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
-    verify(helpdeskClient).addSystemComment(eq(TICKET_ID), eq(SYSTEM_COMMENT), eq(config));
+    assertThat(intents).hasSize(2);
+    assertThat(intents)
+        .extracting(PendingIntent::intentType)
+        .containsExactly(IntentType.SET_RESOURCE_STATE, IntentType.ADD_SYSTEM_COMMENT);
+    assertThat(readSystemComment(intents.getLast()).message()).contains("changed the status to");
+    assertThat(readState(intents.getFirst()).value()).isEqualTo(NEW_STATE);
+    assertThat(intents).allSatisfy(i -> assertThat(i.targetId()).isEqualTo(TICKET_ID));
   }
 
   @Test
-  void handle_originatedTransition_firstWebhook_updatesStateAndKeepsRow() {
+  void handle_originatedTransition_firstWebhook_emitsStateAndKeepsRow() {
     var config = createConfig(TicketStrategy.PER_NEGOTIATION);
     var transition = transition(2, 0);
-
-    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
-            NEGOTIATION_ID, RESOURCE_ID))
-        .thenReturn(Optional.of(mapping()));
-    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+    stubMapping(config);
     when(originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
             NEGOTIATION_ID, TICKET_ID, NEW_STATE))
         .thenReturn(Optional.of(transition));
     when(originatedTransitionRepository.findByIdForUpdate(transition.getRowId()))
         .thenReturn(Optional.of(transition));
 
-    handler.handle(eventData(NEW_STATE));
+    List<PendingIntent> intents = handler.handle(eventData(NEW_STATE));
 
     verify(originatedTransitionRepository).save(transition);
-    verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
-    verify(helpdeskClient).addSystemComment(eq(TICKET_ID), eq(SYSTEM_COMMENT), eq(config));
+    assertThat(intents).hasSize(2);
+    assertThat(intents)
+        .extracting(PendingIntent::intentType)
+        .containsExactly(IntentType.SET_RESOURCE_STATE, IntentType.ADD_SYSTEM_COMMENT);
+    assertThat(intents).allSatisfy(i -> assertThat(i.targetId()).isEqualTo(TICKET_ID));
+    assertThat(readSystemComment(intents.getLast()).message()).contains("changed the status to");
+    assertThat(readState(intents.getFirst()).value()).isEqualTo(NEW_STATE);
     verify(originatedTransitionRepository, never()).deleteById(any());
   }
 
@@ -133,119 +131,97 @@ class NegotiationResourceStateUpdatedHandlerTest {
   void handle_originatedTransition_secondWebhook_discardedAndRowDeleted() {
     var config = createConfig(TicketStrategy.PER_NEGOTIATION);
     var transition = transition(2, 1);
-
-    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
-            NEGOTIATION_ID, RESOURCE_ID))
-        .thenReturn(Optional.of(mapping()));
-    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+    stubMapping(config);
     when(originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
             NEGOTIATION_ID, TICKET_ID, NEW_STATE))
         .thenReturn(Optional.of(transition));
     when(originatedTransitionRepository.findByIdForUpdate(transition.getRowId()))
         .thenReturn(Optional.of(transition));
 
-    handler.handle(eventData(NEW_STATE));
+    List<PendingIntent> intents = handler.handle(eventData(NEW_STATE));
 
     verify(originatedTransitionRepository).save(transition);
-    verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
-    verify(helpdeskClient, never()).addSystemComment(any(), any(), any());
-    verify(originatedTransitionRepository).deleteById(eq(transition.getRowId()));
+    assertThat(intents).hasSize(1);
+    var intent = intents.getFirst();
+    assertThat(intent.intentType()).isEqualTo(IntentType.ADD_SYSTEM_COMMENT);
+    assertThat(readSystemComment(intents.getFirst()).message()).contains("changed the status to");
+    verify(originatedTransitionRepository).deleteById(transition.getRowId());
   }
 
   @Test
-  void handle_orgNotInConfig_doesNothing() {
+  void handle_orgNotInConfig_returnsNoIntents() {
     when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
             NEGOTIATION_ID, RESOURCE_ID))
         .thenReturn(Optional.of(mapping()));
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.empty());
 
-    handler.handle(eventData(NEW_STATE));
-
-    verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
+    assertThat(handler.handle(eventData(NEW_STATE))).isEmpty();
   }
 
   @Test
-  void handle_adapterThrows_doesNotPropagateException() {
-    var config = createConfig(TicketStrategy.PER_RESOURCE);
-    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
-            NEGOTIATION_ID, RESOURCE_ID))
-        .thenReturn(Optional.of(mapping()));
-    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
-    when(originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
-            NEGOTIATION_ID, TICKET_ID, NEW_STATE))
-        .thenReturn(Optional.empty());
-    doThrow(new RuntimeException("adapter down"))
-        .when(helpdeskClient)
-        .updateResourceState(any(), any(), any());
-
-    assertDoesNotThrow(() -> handler.handle(eventData(NEW_STATE)));
-    verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
-  }
-
-  @Test
-  void handle_incompleteEvent_doesNothing() {
+  void handle_incompleteEvent_returnsNoIntents() {
     JsonNode data =
         objectMapper.valueToTree(Map.of("negotiationId", NEGOTIATION_ID, "toState", NEW_STATE));
 
-    handler.handle(data);
-
+    assertThat(handler.handle(data)).isEmpty();
     verify(ticketMappingRepository, never()).findByIdNegotiationIdAndResourceSourceId(any(), any());
-    verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
   }
 
   @Test
-  void handle_resourceStateHasTicketMapping_updatesResourceStateThenTicketState() {
+  void handle_resourceStateHasTicketMapping_emitsResourceStateSystemCommentThenTicketState() {
     var config = createConfig(TicketStrategy.PER_RESOURCE, Map.of(NEW_STATE, "closed"));
-    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
-            NEGOTIATION_ID, RESOURCE_ID))
-        .thenReturn(Optional.of(mapping()));
-    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+    stubMapping(config);
     when(originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
             NEGOTIATION_ID, TICKET_ID, NEW_STATE))
         .thenReturn(Optional.empty());
 
-    handler.handle(eventData(NEW_STATE));
+    List<PendingIntent> intents = handler.handle(eventData(NEW_STATE));
 
-    var order = inOrder(helpdeskClient);
-    order.verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
-    order.verify(helpdeskClient).addSystemComment(eq(TICKET_ID), eq(SYSTEM_COMMENT), eq(config));
-    order.verify(helpdeskClient).updateTicketState(eq(TICKET_ID), eq("closed"), eq(config));
+    assertThat(intents)
+        .extracting(PendingIntent::intentType)
+        .containsExactly(
+            IntentType.SET_RESOURCE_STATE,
+            IntentType.ADD_SYSTEM_COMMENT,
+            IntentType.SET_TICKET_STATE);
+    assertThat(readState(intents.get(2)).value()).isEqualTo("closed");
   }
 
   @Test
-  void handle_resourceStateHasNoTicketMapping_doesNotUpdateTicketState() {
+  void handle_resourceStateHasNoTicketMapping_doesNotEmitTicketState() {
     var config = createConfig(TicketStrategy.PER_RESOURCE, Map.of("OTHER_STATE", "closed"));
-    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
-            NEGOTIATION_ID, RESOURCE_ID))
-        .thenReturn(Optional.of(mapping()));
-    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+    stubMapping(config);
     when(originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
             NEGOTIATION_ID, TICKET_ID, NEW_STATE))
         .thenReturn(Optional.empty());
 
-    handler.handle(eventData(NEW_STATE));
+    List<PendingIntent> intents = handler.handle(eventData(NEW_STATE));
 
-    verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(NEW_STATE), eq(config));
-    verify(helpdeskClient).addSystemComment(eq(TICKET_ID), eq(SYSTEM_COMMENT), eq(config));
-    verify(helpdeskClient, never()).updateTicketState(any(), any(), any());
+    assertThat(intents)
+        .extracting(PendingIntent::intentType)
+        .doesNotContain(IntentType.SET_TICKET_STATE);
   }
 
-  @Test
-  void handle_updateTicketStateThrows_doesNotPropagateException() {
-    var config = createConfig(TicketStrategy.PER_RESOURCE, Map.of(NEW_STATE, "closed"));
+  private void stubMapping(OrganizationConfig config) {
     when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
             NEGOTIATION_ID, RESOURCE_ID))
         .thenReturn(Optional.of(mapping()));
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
-    when(originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
-            NEGOTIATION_ID, TICKET_ID, NEW_STATE))
-        .thenReturn(Optional.empty());
-    doThrow(new RuntimeException("adapter down"))
-        .when(helpdeskClient)
-        .updateTicketState(any(), any(), any());
+  }
 
-    assertDoesNotThrow(() -> handler.handle(eventData(NEW_STATE)));
-    verify(helpdeskClient).updateTicketState(eq(TICKET_ID), eq("closed"), eq(config));
+  private SetStatePayload readState(PendingIntent intent) {
+    try {
+      return objectMapper.readValue(intent.payloadJson(), SetStatePayload.class);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private AddSystemCommentPayload readSystemComment(PendingIntent intent) {
+    try {
+      return objectMapper.readValue(intent.payloadJson(), AddSystemCommentPayload.class);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   private JsonNode eventData(String toState) {

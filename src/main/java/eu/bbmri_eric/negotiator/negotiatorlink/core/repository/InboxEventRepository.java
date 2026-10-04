@@ -15,10 +15,11 @@ public interface InboxEventRepository extends JpaRepository<InboxEvent, Long> {
 
   @Query(
       value =
-          "SELECT * FROM inbox_event WHERE status = 'RECEIVED' ORDER BY received_at "
-              + "LIMIT :limit FOR UPDATE SKIP LOCKED",
+          "SELECT * FROM inbox_event WHERE status = 'RECEIVED' "
+              + "AND (next_attempt_at IS NULL OR next_attempt_at <= :now) ORDER BY received_at "
+              + "LIMIT :limit",
       nativeQuery = true)
-  List<InboxEvent> claimReceivedBatch(@Param("limit") int limit);
+  List<InboxEvent> claimReceivedBatch(@Param("now") Instant now, @Param("limit") int limit);
 
   long deleteByStatusInAndReceivedAtBefore(List<InboxStatus> statuses, Instant cutoff);
 }

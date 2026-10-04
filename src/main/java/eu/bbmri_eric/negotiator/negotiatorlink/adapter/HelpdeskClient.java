@@ -3,7 +3,6 @@ package eu.bbmri_eric.negotiator.negotiatorlink.adapter;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreatedTicket;
 import java.util.List;
 
 /** Outbound side of a help desk integration. */
@@ -12,10 +11,9 @@ public interface HelpdeskClient extends HelpdeskTyped {
   /**
    * Create a new ticket for a resource or organization in a negotiation. Called once per resource
    * (PER_RESOURCE) or once per org (PER_NEGOTIATION) when the negotiation reaches IN_PROGRESS.
-   * Returns a CreatedTicket carrying the platform ticket ID (required) and ticket number (if
-   * available).
+   * Returns a ticket ID
    */
-  CreatedTicket createTicket(CreateTicketRequest request, OrganizationConfig config);
+  String createTicket(CreateTicketRequest request, OrganizationConfig config);
 
   /** Update the negotiation_state display field on an existing ticket. */
   void updateNegotiationState(String ticketId, String negotiationState, OrganizationConfig config);
@@ -61,5 +59,5 @@ public interface HelpdeskClient extends HelpdeskTyped {
    * PER_RESOURCE tickets for a negotiation+org are created, with the full list of CreatedTicket
    * objects.
    */
-  void linkRelatedTickets(List<CreatedTicket> tickets, OrganizationConfig config);
+  void linkRelatedTickets(List<String> ticketIds, OrganizationConfig config);
 }

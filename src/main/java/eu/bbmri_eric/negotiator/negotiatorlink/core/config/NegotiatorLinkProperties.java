@@ -1,5 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.config;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -14,6 +15,26 @@ public class NegotiatorLinkProperties {
   private List<OrgEntry> organizations = new ArrayList<>();
   private Map<String, String> resourceEvents = new HashMap<>();
   private Map<HelpdeskType, HelpdeskDefaults> defaults = new HashMap<>();
+  private InboxProperties inbox = new InboxProperties();
+  private OutboxProperties outbox = new OutboxProperties();
+
+  @Data
+  public static class InboxProperties {
+    private int batchSize;
+    private long pollDelayMs;
+    private int maxAttempts;
+    private Duration baseBackoff;
+    private Duration maxBackoff;
+  }
+
+  @Data
+  public static class OutboxProperties {
+    private int batchSize;
+    private long pollDelayMs;
+    private int maxAttempts;
+    private Duration baseBackoff;
+    private Duration maxBackoff;
+  }
 
   @Data
   public static class OrgEntry {

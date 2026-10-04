@@ -61,6 +61,15 @@ public class InboxEvent {
   @Column(name = "skip_reason")
   private String skipReason;
 
+  @Column(name = "last_error")
+  private String lastError;
+
+  @Column(name = "attempt_count", nullable = false)
+  private int attemptCount;
+
+  @Column(name = "next_attempt_at")
+  private Instant nextAttemptAt;
+
   @CreatedDate
   @Column(name = "received_at", nullable = false, updatable = false)
   private Instant receivedAt;

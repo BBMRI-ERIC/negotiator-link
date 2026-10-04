@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskCallbackAdapter;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorLinkProperties;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.InboxEvent;
@@ -17,23 +18,14 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * The decide-and-record step: processes one claimed inbox row in a single transaction and marks it
- * terminal ({@code PROCESSED}/{@code SKIPPED}/{@code FAILED}). Dispatch is by source — Negotiator
- * events go through {@link NegotiatorEventRouter}; help desk callbacks are re-resolved to their
- * {@link OrganizationConfig} + adapter, parsed, and routed through {@link HelpdeskEventRouter}.
- *
- * <p>In this phase (P1) handlers still perform outbound I/O inside this transaction, but on the
- * poller thread rather than the request thread, so the 8 s B1 budget is already protected. P2 moves
- * that I/O out into the outbox so this transaction becomes I/O-free.
- */
 @Slf4j
 @Service
+@AllArgsConstructor
 public class InboxEventProcessor {
 
   private final InboxEventRepository inboxEventRepository;
@@ -42,32 +34,10 @@ public class InboxEventProcessor {
   private final OrganizationConfigRegistry registry;
   private final Map<HelpdeskType, HelpdeskCallbackAdapter> callbackAdapters;
   private final NegotiationIdResolver negotiationIdResolver;
+  private final OutboxService outboxService;
+  private final FailureClassifier failureClassifier;
   private final ObjectMapper objectMapper;
-
-  public InboxEventProcessor(
-      InboxEventRepository inboxEventRepository,
-      NegotiatorEventRouter negotiatorEventRouter,
-      HelpdeskEventRouter helpdeskEventRouter,
-      OrganizationConfigRegistry registry,
-      Map<HelpdeskType, HelpdeskCallbackAdapter> callbackAdapters,
-      NegotiationIdResolver negotiationIdResolver,
-      ObjectMapper objectMapper) {
-    this.inboxEventRepository = inboxEventRepository;
-    this.negotiatorEventRouter = negotiatorEventRouter;
-    this.helpdeskEventRouter = helpdeskEventRouter;
-    this.registry = registry;
-    this.callbackAdapters = callbackAdapters;
-    this.negotiationIdResolver = negotiationIdResolver;
-    this.objectMapper = objectMapper;
-  }
-
-  /** Claims a batch of unprocessed inbox rows in its own transaction and returns their ids. */
-  @Transactional
-  public List<Long> claimBatch(int limit) {
-    return inboxEventRepository.claimReceivedBatch(limit).stream()
-        .map(InboxEvent::getRowId)
-        .toList();
-  }
+  private final NegotiatorLinkProperties properties;
 
   /**
    * Processes a single claimed inbox row and marks it terminal. On a processing exception the
@@ -85,17 +55,49 @@ public class InboxEventProcessor {
             : dispatchHelpdesk(event);
     outcome.resolvedEventType().ifPresent(event::setEventType);
     if (outcome.processed()) {
-      markTerminal(event, InboxStatus.PROCESSED, null);
+      outboxService.enqueue(outcome.intents(), event);
+      markTerminal(event, InboxStatus.PROCESSED, null, null);
     } else {
-      markTerminal(event, InboxStatus.SKIPPED, outcome.skipReason());
+      markTerminal(event, InboxStatus.SKIPPED, outcome.skipReason(), null);
     }
   }
 
-  @Transactional(propagation = Propagation.REQUIRES_NEW)
-  public void markFailed(Long rowId, String error) {
-    inboxEventRepository
-        .findById(rowId)
-        .ifPresent(event -> markTerminal(event, InboxStatus.FAILED, truncate(error)));
+  /**
+   * Records a processing failure in its own transaction. A transient failure (e.g. Negotiator
+   * unreachable during a read) leaves the row {@code RECEIVED} with a backoff so the poller
+   * re-picks it, until the attempt cap is reached.
+   */
+  @Transactional
+  public void recordFailure(Long rowId, Throwable error) {
+    InboxEvent event = inboxEventRepository.findById(rowId).orElse(null);
+    if (event == null) {
+      return;
+    }
+    FailureClass failureClass = failureClassifier.classify(error);
+    event.setAttemptCount(event.getAttemptCount() + 1);
+    NegotiatorLinkProperties.InboxProperties inbox = properties.getInbox();
+    if (failureClass == FailureClass.TRANSIENT
+        && event.getAttemptCount() < inbox.getMaxAttempts()) {
+      event.setNextAttemptAt(
+          Instant.now()
+              .plus(
+                  BackoffPolicy.nextDelay(
+                      event.getAttemptCount(), inbox.getBaseBackoff(), inbox.getMaxBackoff())));
+      inboxEventRepository.save(event);
+      log.warn(
+          "Inbox row {} transient failure (attempt {}) — will retry",
+          rowId,
+          event.getAttemptCount(),
+          error);
+    } else {
+      markTerminal(event, InboxStatus.FAILED, null, truncate(error.getMessage()));
+      log.error(
+          "Inbox row {} failed ({}, attempt {}) — marked FAILED",
+          rowId,
+          failureClass,
+          event.getAttemptCount(),
+          error);
+    }
   }
 
   private RouteOutcome dispatchNegotiator(InboxEvent event) {
@@ -126,7 +128,7 @@ public class InboxEventProcessor {
       return RouteOutcome.skipped("no-mapping", eventType);
     }
     helpdeskEventRouter.route(callbackEvent, config);
-    return RouteOutcome.asProcessed(eventType);
+    return RouteOutcome.asProcessed(eventType, List.of());
   }
 
   private Map<String, Object> parsePayload(InboxEvent event) {
@@ -138,9 +140,11 @@ public class InboxEventProcessor {
     }
   }
 
-  private void markTerminal(InboxEvent event, InboxStatus status, String skipReason) {
+  private void markTerminal(
+      InboxEvent event, InboxStatus status, String skipReason, String lastError) {
     event.setStatus(status);
     event.setSkipReason(skipReason);
+    event.setLastError(lastError);
     event.setProcessedAt(Instant.now());
     inboxEventRepository.save(event);
   }

@@ -3,8 +3,10 @@ package eu.bbmri_eric.negotiator.negotiatorlink.integration.core.config;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorLinkProperties;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
+import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -13,6 +15,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 class NegotiatorLinkPropertiesTest {
 
   @Autowired private OrganizationConfigRegistry registry;
+  @Autowired private NegotiatorLinkProperties properties;
 
   @Test
   void allFieldsBind_whenTestYamlLoaded_returnsFullyPopulatedConfig() {
@@ -61,5 +64,25 @@ class NegotiatorLinkPropertiesTest {
   @Test
   void findAll_whenTestYamlLoaded_returnsAllTestOrgs() {
     assertThat(registry.findAll()).hasSize(4);
+  }
+
+  @Test
+  void inboxProperties_whenConfigured_bindAllFields() {
+    NegotiatorLinkProperties.InboxProperties inbox = properties.getInbox();
+    assertThat(inbox.getBatchSize()).isEqualTo(25);
+    assertThat(inbox.getPollDelayMs()).isEqualTo(500);
+    assertThat(inbox.getMaxAttempts()).isEqualTo(3);
+    assertThat(inbox.getBaseBackoff()).isEqualTo(Duration.parse("PT2S"));
+    assertThat(inbox.getMaxBackoff()).isEqualTo(Duration.parse("PT60S"));
+  }
+
+  @Test
+  void outboxProperties_whenConfigured_bindAllFields() {
+    NegotiatorLinkProperties.OutboxProperties outbox = properties.getOutbox();
+    assertThat(outbox.getBatchSize()).isEqualTo(10);
+    assertThat(outbox.getPollDelayMs()).isEqualTo(200);
+    assertThat(outbox.getMaxAttempts()).isEqualTo(4);
+    assertThat(outbox.getBaseBackoff()).isEqualTo(Duration.parse("PT3S"));
+    assertThat(outbox.getMaxBackoff()).isEqualTo(Duration.parse("PT120S"));
   }
 }

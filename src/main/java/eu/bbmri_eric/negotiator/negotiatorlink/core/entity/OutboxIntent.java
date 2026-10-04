@@ -48,7 +48,7 @@ public class OutboxIntent {
   @Column(name = "target_kind", nullable = false)
   private String targetKind;
 
-  @Column(name = "target_id", nullable = false)
+  @Column(name = "target_id")
   private String targetId;
 
   @Column(name = "negotiation_id", nullable = false)
@@ -60,9 +60,6 @@ public class OutboxIntent {
   @JdbcTypeCode(SqlTypes.JSON)
   @Column(name = "payload", nullable = false)
   private String payload;
-
-  @Column(name = "dedup_key")
-  private String dedupKey;
 
   @Enumerated(EnumType.STRING)
   @Column(name = "status", nullable = false)
@@ -91,8 +88,7 @@ public class OutboxIntent {
       String targetId,
       String negotiationId,
       String organizationExtId,
-      String payload,
-      String dedupKey) {
+      String payload) {
     this.inboxRowId = inboxRowId;
     this.intentType = intentType;
     this.targetKind = targetKind;
@@ -100,7 +96,6 @@ public class OutboxIntent {
     this.negotiationId = negotiationId;
     this.organizationExtId = organizationExtId;
     this.payload = payload;
-    this.dedupKey = dedupKey;
     this.status = OutboxStatus.PENDING;
     this.attemptCount = 0;
     this.nextAttemptAt = Instant.now();

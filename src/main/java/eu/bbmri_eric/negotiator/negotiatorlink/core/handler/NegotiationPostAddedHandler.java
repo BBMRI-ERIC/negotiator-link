@@ -3,24 +3,27 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.HashUtil.sha256Hex;
 import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil.signPost;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.NegotiationPostAddedWebhookEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.UserResponseModel;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -34,7 +37,6 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
 
   private final NegotiatorClient negotiatorClient;
   private final OrganizationConfigRegistry registry;
-  private final Map<HelpdeskType, HelpdeskClient> clients;
   private final TicketMappingRepository ticketMappingRepository;
   private final OriginatedPostRepository originatedPostRepository;
   private final ObjectMapper objectMapper;
@@ -47,29 +49,31 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
   }
 
   @Override
-  public void handle(JsonNode data) {
+  public List<PendingIntent> handle(JsonNode data) {
     NegotiationPostAddedWebhookEvent event =
         objectMapper.convertValue(data, NegotiationPostAddedWebhookEvent.class);
 
     PostContent content = fetchPostContent(event);
     if (content == null) {
-      return;
+      return List.of();
     }
 
-    Map<String, String> ticketToOrgExtId = resolveTargetTickets(event, content.isPublic());
+    LinkedHashMap<String, String> ticketToOrgExtId =
+        resolveTargetTickets(event, content.isPublic());
     if (ticketToOrgExtId.isEmpty()) {
       log.debug(
           "No target tickets for post '{}' in negotiation '{}'",
           event.getPostId(),
           event.getNegotiationId());
-      return;
+      return List.of();
     }
 
     String excludedTicketId =
         resolveDeduplicatedTicketId(
             content.textHash(), event.getOrganizationId(), event.getPostId(), content.isPublic());
+    ticketToOrgExtId.remove(excludedTicketId);
 
-    fanOut(ticketToOrgExtId, content.text(), excludedTicketId, event.getPostId());
+    return fanOut(ticketToOrgExtId, content.text(), event);
   }
 
   /** Loads the post and returns its content, or {@code null} if it cannot be forwarded. */
@@ -120,14 +124,14 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
   }
 
   /** Resolves the distinct target tickets for the post based on its visibility. */
-  private Map<String, String> resolveTargetTickets(
+  private LinkedHashMap<String, String> resolveTargetTickets(
       NegotiationPostAddedWebhookEvent event, boolean isPublic) {
     List<TicketMapping> allMappings =
         ticketMappingRepository.findByIdNegotiationId(event.getNegotiationId());
     if (allMappings.isEmpty()) {
       log.debug(
           "No ticket mappings for negotiation '{}' — nothing to fan out", event.getNegotiationId());
-      return Map.of();
+      return new LinkedHashMap<>();
     }
     return resolveTargets(allMappings, isPublic, event.getOrganizationId());
   }
@@ -157,36 +161,42 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
         .orElse(null);
   }
 
-  /** Forwards the post text to every target ticket, skipping the deduplicated one. */
-  private void fanOut(
-      Map<String, String> ticketToOrgExtId,
+  /** Produces one ADD_COMMENT intent per target ticket. */
+  private List<PendingIntent> fanOut(
+      LinkedHashMap<String, String> ticketToOrgExtId,
       String postText,
-      String excludedTicketId,
-      String postId) {
+      NegotiationPostAddedWebhookEvent event) {
+    List<PendingIntent> intents = new ArrayList<>();
     ticketToOrgExtId.forEach(
         (ticketId, orgExtId) -> {
-          if (ticketId.equals(excludedTicketId)) {
-            return;
-          }
-          forwardToTicket(ticketId, orgExtId, postText, postId);
+          intents.add(addCommentIntent(ticketId, orgExtId, postText, event));
         });
+    return intents;
   }
 
-  private void forwardToTicket(String ticketId, String orgExtId, String postText, String postId) {
-    OrganizationConfig config = registry.findByExternalId(orgExtId).orElseThrow();
-    HelpdeskClient client = clients.get(config.type());
+  private PendingIntent addCommentIntent(
+      String ticketId, String orgExtId, String postText, NegotiationPostAddedWebhookEvent event) {
+    String payload = serialize(new AddCommentPayload(postText, CommentType.PLAIN_TEXT));
+    return new PendingIntent(
+        IntentType.ADD_COMMENT,
+        TargetKind.TICKET,
+        ticketId,
+        event.getNegotiationId(),
+        orgExtId,
+        payload);
+  }
 
+  private String serialize(Object payload) {
     try {
-      client.addComment(ticketId, postText, CommentType.PLAIN_TEXT, config);
-      log.info("Forwarded post '{}' to ticket '{}'", postId, ticketId);
-    } catch (Exception e) {
-      log.error("Failed to add comment to ticket '{}' for post '{}'", ticketId, postId, e);
+      return objectMapper.writeValueAsString(payload);
+    } catch (JsonProcessingException e) {
+      throw new IllegalStateException("Failed to serialize intent payload", e);
     }
   }
 
-  private Map<String, String> resolveTargets(
+  private LinkedHashMap<String, String> resolveTargets(
       List<TicketMapping> allMappings, boolean isPublic, Long organizationId) {
-    Map<String, String> ticketToOrgExtId = new LinkedHashMap<>();
+    LinkedHashMap<String, String> ticketToOrgExtId = new LinkedHashMap<>();
 
     for (TicketMapping mapping : allMappings) {
       String ticketId = mapping.getId().getHelpdeskTicketId();

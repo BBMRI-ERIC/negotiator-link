@@ -6,9 +6,11 @@ import static org.mockito.Mockito.verify;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.job.StaleRecordsCleanupJob;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.InboxStatus;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxStatus;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.InboxEventRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepository;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -23,6 +25,7 @@ class StaleRecordsCleanupJobTest {
   @Mock private OriginatedPostRepository originatedPostRepository;
   @Mock private OriginatedTransitionRepository originatedTransitionRepository;
   @Mock private InboxEventRepository inboxEventRepository;
+  @Mock private OutboxIntentRepository outboxIntentRepository;
 
   @Test
   void deleteStaleRows_whenCalled_deletesBothRepositoriesWithCutoff() {
@@ -31,6 +34,7 @@ class StaleRecordsCleanupJobTest {
             originatedPostRepository,
             originatedTransitionRepository,
             inboxEventRepository,
+            outboxIntentRepository,
             Duration.ofHours(24));
     job.deleteStaleRows();
     verify(originatedPostRepository).deleteByCreatedAtBefore(any(Instant.class));
@@ -38,5 +42,8 @@ class StaleRecordsCleanupJobTest {
     verify(inboxEventRepository)
         .deleteByStatusInAndReceivedAtBefore(
             eq(List.of(InboxStatus.PROCESSED, InboxStatus.SKIPPED)), any(Instant.class));
+    verify(outboxIntentRepository)
+        .deleteByStatusInAndCreatedAtBefore(
+            eq(List.of(OutboxStatus.DELIVERED, OutboxStatus.FAILED_PERMANENT)), any(Instant.class));
   }
 }

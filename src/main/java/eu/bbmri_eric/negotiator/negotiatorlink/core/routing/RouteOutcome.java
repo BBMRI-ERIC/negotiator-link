@@ -1,5 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.routing;
 
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -9,18 +11,19 @@ import java.util.Optional;
  * the inbox row for the audit trail. It is {@code null} when the type could not be resolved
  * (unparseable body, missing type field).
  */
-public record RouteOutcome(boolean processed, String skipReason, String eventType) {
+public record RouteOutcome(
+    boolean processed, String skipReason, String eventType, List<PendingIntent> intents) {
 
-  public static RouteOutcome asProcessed(String eventType) {
-    return new RouteOutcome(true, null, eventType);
+  public static RouteOutcome asProcessed(String eventType, List<PendingIntent> intents) {
+    return new RouteOutcome(true, null, eventType, intents);
   }
 
   public static RouteOutcome skipped(String reason) {
-    return new RouteOutcome(false, reason, null);
+    return new RouteOutcome(false, reason, null, List.of());
   }
 
   public static RouteOutcome skipped(String reason, String eventType) {
-    return new RouteOutcome(false, reason, eventType);
+    return new RouteOutcome(false, reason, eventType, List.of());
   }
 
   public Optional<String> resolvedEventType() {

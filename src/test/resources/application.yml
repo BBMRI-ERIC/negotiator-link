@@ -97,3 +97,15 @@ negotiator-link:
     MARK_AS_AVAILABLE: RESOURCE_AVAILABLE
     INDICATE_ACCESS_CONDITIONS: ACCESS_CONDITIONS_INDICATED
     GRANT_ACCESS_TO_RESOURCE: RESOURCE_MADE_AVAILABLE
+  inbox:
+    batch-size: 25
+    poll-delay-ms: 500
+    max-attempts: 3
+    base-backoff: PT2S
+    max-backoff: PT60S
+  outbox:
+    batch-size: 10
+    poll-delay-ms: 200
+    max-attempts: 4
+    base-backoff: PT3S
+    max-backoff: PT120S

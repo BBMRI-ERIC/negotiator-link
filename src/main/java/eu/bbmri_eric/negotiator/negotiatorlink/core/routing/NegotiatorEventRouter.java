@@ -56,7 +56,6 @@ public class NegotiatorEventRouter {
     }
 
     log.debug("Routing event type '{}' to {}", type, handler.getClass().getSimpleName());
-    handler.handle(data);
-    return RouteOutcome.asProcessed(type);
+    return RouteOutcome.asProcessed(type, handler.handle(data));
   }
 }

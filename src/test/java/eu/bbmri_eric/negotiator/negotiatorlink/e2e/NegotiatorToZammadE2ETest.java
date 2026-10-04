@@ -26,7 +26,9 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.EventSource;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.InboxStatus;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxStatus;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.InboxEventRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.AttachmentMetadataDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
@@ -67,6 +69,7 @@ class NegotiatorToZammadE2ETest {
   @Autowired private MockMvc mockMvc;
   @Autowired private TicketMappingRepository ticketMappingRepository;
   @Autowired private InboxEventRepository inboxEventRepository;
+  @Autowired private OutboxIntentRepository outboxIntentRepository;
   @Autowired private RestClient.Builder restClientBuilder;
 
   @Value("${negotiator-link.webhook.secret}")
@@ -364,5 +367,8 @@ class NegotiatorToZammadE2ETest {
                     .findBySourceAndDeliveryId(EventSource.NEGOTIATOR.name(), webhookId)
                     .map(e -> e.getStatus() != InboxStatus.RECEIVED)
                     .orElse(false));
+    await()
+        .atMost(Duration.ofSeconds(10))
+        .until(() -> outboxIntentRepository.countByStatus(OutboxStatus.PENDING) == 0);
   }
 }

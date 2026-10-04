@@ -8,6 +8,6 @@ public enum InboxStatus {
   PROCESSED,
   /** Authenticated but non-actionable (no handler, no mapping, unparseable, ...). */
   SKIPPED,
-  /** Processing failed after exhausting attempts. */
+  /** Processing failed after exhausting attempts or permanent failure. */
   FAILED
 }
