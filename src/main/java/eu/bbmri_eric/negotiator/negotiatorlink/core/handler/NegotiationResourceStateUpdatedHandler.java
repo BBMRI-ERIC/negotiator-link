@@ -177,7 +177,6 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
   /** Builds the SET_RESOURCE_STATE (+ system comment, + optional SET_TICKET_STATE) intents. */
   private List<PendingIntent> stateUpdateIntents(
       String resourceSourceId, String toState, DispatchContext context) {
-    // TODO(P2): per-delivery dedup key
     List<PendingIntent> intents = new ArrayList<>();
     intents.add(
         intent(
