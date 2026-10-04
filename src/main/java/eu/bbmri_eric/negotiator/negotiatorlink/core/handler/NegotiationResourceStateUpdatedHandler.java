@@ -77,30 +77,6 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
     return event;
   }
 
-  /**
-   * Decides the state-update effects, deduplicating if the transition originated from the help
-   * desk.
-   */
-  private List<PendingIntent> dispatchStateUpdate(
-      NegotiationResourceStateUpdatedWebhookEvent event, DispatchContext context) {
-    String negotiationId = event.getNegotiationId();
-    String resourceSourceId = event.getResourceId();
-    String toState = Objects.requireNonNull(event.getToState()).getValue();
-    OriginatedTransition originated =
-        originatedTransitionRepository
-            .findByNegotiationIdAndTicketIdAndNewState(negotiationId, context.ticketId(), toState)
-            .orElse(null);
-
-    if (context.config().ticketStrategy() == TicketStrategy.PER_NEGOTIATION && originated != null) {
-      return handleOriginatedTransition(originated, resourceSourceId, toState, context);
-    }
-    log.info(
-        "Updating resource state to '{}' on ticket '{}' (Negotiator-triggered or from helpdesk with PER_RESOURCE strategy)",
-        toState,
-        context.ticketId());
-    return stateUpdateIntents(resourceSourceId, toState, context);
-  }
-
   private DispatchContext resolveDispatchContext(
       NegotiationResourceStateUpdatedWebhookEvent event) {
     Optional<TicketMapping> mappingOpt =
@@ -125,6 +101,30 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
     }
 
     return new DispatchContext(event.getNegotiationId(), ticketId, orgExtId, config);
+  }
+
+  /**
+   * Decides the state-update effects, deduplicating if the transition originated from the help
+   * desk.
+   */
+  private List<PendingIntent> dispatchStateUpdate(
+      NegotiationResourceStateUpdatedWebhookEvent event, DispatchContext context) {
+    String negotiationId = event.getNegotiationId();
+    String resourceSourceId = event.getResourceId();
+    String toState = Objects.requireNonNull(event.getToState()).getValue();
+    OriginatedTransition originated =
+        originatedTransitionRepository
+            .findByNegotiationIdAndTicketIdAndNewState(negotiationId, context.ticketId(), toState)
+            .orElse(null);
+
+    if (context.config().ticketStrategy() == TicketStrategy.PER_NEGOTIATION && originated != null) {
+      return handleOriginatedTransition(originated, resourceSourceId, toState, context);
+    }
+    log.info(
+        "Updating resource state to '{}' on ticket '{}' (Negotiator-triggered or from helpdesk with PER_RESOURCE strategy)",
+        toState,
+        context.ticketId());
+    return stateUpdateIntents(resourceSourceId, toState, context);
   }
 
   private List<PendingIntent> handleOriginatedTransition(
