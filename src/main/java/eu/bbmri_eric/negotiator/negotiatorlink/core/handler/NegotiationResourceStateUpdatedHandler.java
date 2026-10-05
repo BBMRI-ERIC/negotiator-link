@@ -7,15 +7,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedTransition;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SetStatePayload;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.NegotiationResourceStateUpdatedWebhookEvent;
 import java.util.ArrayList;
@@ -34,7 +31,6 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
   private static final String EVENT_TYPE = "negotiation.resource.state.updated";
 
   private final TicketMappingRepository ticketMappingRepository;
-  private final OriginatedTransitionRepository originatedTransitionRepository;
   private final OrganizationConfigRegistry registry;
   private final ObjectMapper objectMapper;
 
@@ -103,75 +99,12 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
     return new DispatchContext(event.getNegotiationId(), ticketId, orgExtId, config);
   }
 
-  /**
-   * Decides the state-update effects, deduplicating if the transition originated from the help
-   * desk.
-   */
   private List<PendingIntent> dispatchStateUpdate(
       NegotiationResourceStateUpdatedWebhookEvent event, DispatchContext context) {
-    String negotiationId = event.getNegotiationId();
     String resourceSourceId = event.getResourceId();
     String toState = Objects.requireNonNull(event.getToState()).getValue();
-    OriginatedTransition originated =
-        originatedTransitionRepository
-            .findByNegotiationIdAndTicketIdAndNewState(negotiationId, context.ticketId(), toState)
-            .orElse(null);
-
-    if (context.config().ticketStrategy() == TicketStrategy.PER_NEGOTIATION && originated != null) {
-      return handleOriginatedTransition(originated, resourceSourceId, toState, context);
-    }
-    log.info(
-        "Updating resource state to '{}' on ticket '{}' (Negotiator-triggered or from helpdesk with PER_RESOURCE strategy)",
-        toState,
-        context.ticketId());
+    log.info("Updating resource state to '{}' on ticket '{}'", toState, context.ticketId());
     return stateUpdateIntents(resourceSourceId, toState, context);
-  }
-
-  private List<PendingIntent> handleOriginatedTransition(
-      OriginatedTransition originated,
-      String resourceSourceId,
-      String toState,
-      DispatchContext context) {
-    String ticketId = context.ticketId();
-
-    // Lock the row for the duration of this transaction so concurrent webhooks for the same
-    // originated transition serialise here; exactly one thread observes the 0 -> 1 transition.
-    OriginatedTransition locked =
-        originatedTransitionRepository.findByIdForUpdate(originated.getRowId()).orElse(null);
-    if (locked == null) {
-      return List.of();
-    }
-
-    locked.setReceivedCount(locked.getReceivedCount() + 1);
-    originatedTransitionRepository.save(locked);
-
-    int received = locked.getReceivedCount();
-    int expected = locked.getExpectedCount();
-
-    List<PendingIntent> intents = new ArrayList<>();
-    if (received == 1) {
-      log.info(
-          "First webhook for originated transition on ticket '{}' — updating state to '{}'",
-          ticketId,
-          toState);
-      intents.addAll(stateUpdateIntents(resourceSourceId, toState, context));
-    } else {
-      log.debug(
-          "Discarding redundant resource state transition {}/{} for ticket '{}'",
-          received,
-          expected,
-          ticketId);
-      intents.add(resourceChangedCommentIntent(resourceSourceId, toState, context));
-    }
-
-    if (received >= expected) {
-      originatedTransitionRepository.deleteById(locked.getRowId());
-      log.debug(
-          "Consumed all {} webhooks for ticket '{}' — removed originated_transition row",
-          expected,
-          ticketId);
-    }
-    return intents;
   }
 
   /** Builds the SET_RESOURCE_STATE (+ system comment, + optional SET_TICKET_STATE) intents. */

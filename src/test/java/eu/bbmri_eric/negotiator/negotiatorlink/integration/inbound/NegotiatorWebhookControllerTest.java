@@ -7,7 +7,6 @@ import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.postAddedPay
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.resourceStateUpdatedPayload;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.signedWebhookPayload;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.utf8;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -25,7 +24,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedPost;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedTransition;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.EventSource;
@@ -33,7 +31,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.InboxStatus;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxStatus;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.InboxEventRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
@@ -82,7 +79,6 @@ class NegotiatorWebhookControllerTest {
 
   @Autowired private MockMvc mockMvc;
   @Autowired private TicketMappingRepository ticketMappingRepository;
-  @Autowired private OriginatedTransitionRepository originatedTransitionRepository;
   @Autowired private OriginatedPostRepository originatedPostRepository;
   @Autowired private InboxEventRepository inboxEventRepository;
   @Autowired private OutboxIntentRepository outboxIntentRepository;
@@ -172,49 +168,6 @@ class NegotiatorWebhookControllerTest {
 
     // second delivery with same id — acknowledged silently
     performWebhook(webhookId, timestamp, BODY).andExpect(status().isOk());
-  }
-
-  @Test
-  void
-      receiveWebhook_resourceStateUpdated_deduplication_firstCallsAdapter_secondDiscarded_thirdDeletesRow()
-          throws Exception {
-    String toState = NegotiatorResourceEvent.MARK_AS_CHECKING_AVAILABILITY.targetState();
-
-    originatedTransitionRepository.save(
-        new OriginatedTransition(NEGOTIATION_ID, TICKET_RESOURCE, 3, toState));
-
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .updateResourceState(eq(TICKET_RESOURCE), eq(toState), any());
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .addSystemComment(eq(TICKET_RESOURCE), eq(CHECKING_AVAILABILITY_SYSTEM_COMMENT), any());
-
-    // First webhook: adapter must be called once to update the state
-    sendResourceStateWebhook("dedup-w1", NEGOTIATION_ID, RESOURCE_SOURCE_ID, toState);
-    verify(helpdeskClient, times(1)).updateResourceState(eq(TICKET_RESOURCE), eq(toState), any());
-    assertThat(
-            originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
-                NEGOTIATION_ID, TICKET_RESOURCE, toState))
-        .isPresent()
-        .hasValueSatisfying(t -> assertThat(t.getReceivedCount()).isEqualTo(1));
-
-    // Second webhook: adapter must NOT be called again, row still exists
-    sendResourceStateWebhook("dedup-w2", NEGOTIATION_ID, RESOURCE_SOURCE_ID, toState);
-    verify(helpdeskClient, times(1)).updateResourceState(any(), any(), any());
-    assertThat(
-            originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
-                NEGOTIATION_ID, TICKET_RESOURCE, toState))
-        .isPresent()
-        .hasValueSatisfying(t -> assertThat(t.getReceivedCount()).isEqualTo(2));
-
-    // Third webhook: adapter must NOT be called again, row is deleted
-    sendResourceStateWebhook("dedup-w3", NEGOTIATION_ID, RESOURCE_SOURCE_ID, toState);
-    verify(helpdeskClient, times(1)).updateResourceState(any(), any(), any());
-    assertThat(
-            originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
-                NEGOTIATION_ID, TICKET_RESOURCE, toState))
-        .isEmpty();
   }
 
   @Test
@@ -474,19 +427,6 @@ class NegotiatorWebhookControllerTest {
 
     verify(helpdeskClient, times(1))
         .addComment(eq(ticketB), contains("updated"), eq(CommentType.HTML), any());
-  }
-
-  private void sendResourceStateWebhook(
-      String webhookId, String negotiationId, String resourceId, String toState) throws Exception {
-    var timestamp = Instant.now();
-    String body =
-        resourceStateUpdatedPayload(
-            negotiationId,
-            resourceId,
-            "SUBMITTED",
-            toState,
-            NegotiatorResourceEvent.MARK_AS_CHECKING_AVAILABILITY.toString());
-    performWebhook(webhookId, timestamp, body).andExpect(status().isOk());
   }
 
   private ResultActions performWebhook(String webhookId, Instant timestamp, String body)

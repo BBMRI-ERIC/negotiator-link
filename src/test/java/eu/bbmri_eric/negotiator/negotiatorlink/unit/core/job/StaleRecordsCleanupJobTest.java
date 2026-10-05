@@ -9,7 +9,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.InboxStatus;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxStatus;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.InboxEventRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepository;
 import java.time.Duration;
 import java.time.Instant;
@@ -23,22 +22,19 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class StaleRecordsCleanupJobTest {
 
   @Mock private OriginatedPostRepository originatedPostRepository;
-  @Mock private OriginatedTransitionRepository originatedTransitionRepository;
   @Mock private InboxEventRepository inboxEventRepository;
   @Mock private OutboxIntentRepository outboxIntentRepository;
 
   @Test
-  void deleteStaleRows_whenCalled_deletesBothRepositoriesWithCutoff() {
+  void deleteStaleRows_whenCalled_deletesAllRepositoriesWithCutoff() {
     var job =
         new StaleRecordsCleanupJob(
             originatedPostRepository,
-            originatedTransitionRepository,
             inboxEventRepository,
             outboxIntentRepository,
             Duration.ofHours(24));
     job.deleteStaleRows();
     verify(originatedPostRepository).deleteByCreatedAtBefore(any(Instant.class));
-    verify(originatedTransitionRepository).deleteByCreatedAtBefore(any(Instant.class));
     verify(inboxEventRepository)
         .deleteByStatusInAndReceivedAtBefore(
             eq(List.of(InboxStatus.PROCESSED, InboxStatus.SKIPPED)), any(Instant.class));

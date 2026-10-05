@@ -12,7 +12,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorLinkProperties;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedTransition;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentType;
@@ -20,7 +19,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SendBulkResourceEventPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SendResourceEventPayload;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.ResourceTransitionService;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.ResourceTransitionService.InvalidResource;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.ResourceTransitionService.TransitionResult;
@@ -30,7 +28,6 @@ import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -45,7 +42,6 @@ class ResourceTransitionServiceTest {
   private static final String REQUESTED_EVENT = "MARK_AS_CHECKING_AVAILABILITY";
 
   @Mock private NegotiatorClient negotiatorClient;
-  @Mock private OriginatedTransitionRepository originatedTransitionRepository;
 
   private final ObjectMapper objectMapper = new ObjectMapper();
   private OrganizationConfig config;
@@ -54,9 +50,7 @@ class ResourceTransitionServiceTest {
   @BeforeEach
   void setUp() {
     config = organizationConfig(ORG_EXT_ID, TicketStrategy.PER_RESOURCE);
-    service =
-        new ResourceTransitionService(
-            negotiatorClient, originatedTransitionRepository, resourceEventsConfig());
+    service = new ResourceTransitionService(negotiatorClient, resourceEventsConfig());
   }
 
   @Test
@@ -98,11 +92,10 @@ class ResourceTransitionServiceTest {
                   .containsExactly(new InvalidResource(RESOURCE_SOURCE_ID, Set.of("STEP_AWAY")));
             });
     verify(negotiatorClient, never()).sendResourceEvent(any(), any(), any(), any());
-    verify(originatedTransitionRepository, never()).save(any());
   }
 
   @Test
-  void apply_perNegotiationAllValid_savesOriginatedTransitionAndEmitsBulkIntent() {
+  void apply_perNegotiationAllValid_emitsBulkIntent() {
     config = organizationConfig(ORG_EXT_ID, TicketStrategy.PER_NEGOTIATION);
     when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID, config))
         .thenReturn(Set.of(REQUESTED_EVENT));
@@ -116,16 +109,6 @@ class ResourceTransitionServiceTest {
             config);
 
     assertThat(result.rejection()).isEmpty();
-
-    var captor = ArgumentCaptor.forClass(OriginatedTransition.class);
-    verify(originatedTransitionRepository).save(captor.capture());
-    var saved = captor.getValue();
-    assertThat(saved.getNegotiationId()).isEqualTo(NEGOTIATION_ID);
-    assertThat(saved.getTicketId()).isEqualTo(TICKET_ID);
-    assertThat(saved.getExpectedCount()).isEqualTo(2);
-    assertThat(saved.getNewState())
-        .isEqualTo(NegotiatorResourceEvent.MARK_AS_CHECKING_AVAILABILITY.targetState());
-
     assertThat(result.intents()).hasSize(1);
     PendingIntent intent = result.intents().getFirst();
     assertThat(intent.intentType()).isEqualTo(IntentType.SEND_BULK_RESOURCE_EVENT);
@@ -140,7 +123,7 @@ class ResourceTransitionServiceTest {
   }
 
   @Test
-  void apply_perNegotiationPartialInvalid_returnsRejectionWithoutSaveOrIntent() {
+  void apply_perNegotiationPartialInvalid_returnsRejectionWithoutIntent() {
     config = organizationConfig(ORG_EXT_ID, TicketStrategy.PER_NEGOTIATION);
     when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID, config))
         .thenReturn(Set.of(REQUESTED_EVENT));
@@ -161,7 +144,6 @@ class ResourceTransitionServiceTest {
               assertThat(r.invalidResources())
                   .containsExactly(new InvalidResource(RESOURCE_SOURCE_ID_2, Set.of("STEP_AWAY")));
             });
-    verify(originatedTransitionRepository, never()).save(any());
     verify(negotiatorClient, never()).sendBulkResourceEvent(any(), any(), any(), any());
   }
 

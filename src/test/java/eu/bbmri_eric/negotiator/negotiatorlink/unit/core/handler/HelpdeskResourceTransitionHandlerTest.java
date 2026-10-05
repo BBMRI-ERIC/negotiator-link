@@ -13,7 +13,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorLinkProperties;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedTransition;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HelpdeskResourceTransitionHandler;
@@ -25,7 +24,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSyste
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SendBulkResourceEventPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SendResourceEventPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SetStatePayload;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.ResourceTransitionService;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorResourceEvent;
@@ -38,7 +36,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -55,7 +52,6 @@ class HelpdeskResourceTransitionHandlerTest {
   private static final String RESOURCE_STATE = "IN_PROGRESS";
 
   @Mock private TicketMappingRepository ticketMappingRepository;
-  @Mock private OriginatedTransitionRepository originatedTransitionRepository;
   @Mock private NegotiatorClient negotiatorClient;
 
   private final ObjectMapper objectMapper = new ObjectMapper();
@@ -66,8 +62,7 @@ class HelpdeskResourceTransitionHandlerTest {
   void setUp() {
     config = organizationConfig(ORG_EXT_ID, TicketStrategy.PER_RESOURCE);
     ResourceTransitionService resourceTransitionService =
-        new ResourceTransitionService(
-            negotiatorClient, originatedTransitionRepository, resourceEventsConfig());
+        new ResourceTransitionService(negotiatorClient, resourceEventsConfig());
     handler =
         new HelpdeskResourceTransitionHandler(ticketMappingRepository, resourceTransitionService);
   }
@@ -115,7 +110,7 @@ class HelpdeskResourceTransitionHandlerTest {
   }
 
   @Test
-  void handle_perNegotiation_allValid_savesOriginatedTransitionAndEmitsBulkIntent() {
+  void handle_perNegotiation_allValid_emitsBulkIntent() {
     config = organizationConfig(ORG_EXT_ID, TicketStrategy.PER_NEGOTIATION);
 
     var mapping1 = mapping("101", RESOURCE_SOURCE_ID);
@@ -130,15 +125,6 @@ class HelpdeskResourceTransitionHandlerTest {
         .thenReturn(Set.of(REQUESTED_EVENT));
 
     List<PendingIntent> intents = handler.handle(callbackEvent(), config);
-
-    var captor = ArgumentCaptor.forClass(OriginatedTransition.class);
-    verify(originatedTransitionRepository).save(captor.capture());
-    var saved = captor.getValue();
-    assertThat(saved.getNegotiationId()).isEqualTo(NEGOTIATION_ID);
-    assertThat(saved.getTicketId()).isEqualTo(TICKET_ID);
-    assertThat(saved.getExpectedCount()).isEqualTo(2);
-    assertThat(saved.getNewState())
-        .isEqualTo(NegotiatorResourceEvent.MARK_AS_CHECKING_AVAILABILITY.targetState());
 
     assertThat(intents).hasSize(1);
     PendingIntent intent = intents.getFirst();
@@ -182,7 +168,6 @@ class HelpdeskResourceTransitionHandlerTest {
     assertThat(comment.message().contains(RESOURCE_SOURCE_ID_2))
         .isEqualTo(commentShouldMentionResource2);
     verify(negotiatorClient, never()).sendBulkResourceEvent(any(), any(), any(), any());
-    verify(originatedTransitionRepository, never()).save(any());
   }
 
   private static Stream<Arguments> perNegotiationRejectionCases() {

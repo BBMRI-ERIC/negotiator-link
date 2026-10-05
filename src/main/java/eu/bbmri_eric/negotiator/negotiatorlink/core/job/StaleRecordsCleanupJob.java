@@ -4,7 +4,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.InboxStatus;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxStatus;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.InboxEventRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepository;
 import java.time.Duration;
 import java.time.Instant;
@@ -20,19 +19,16 @@ import org.springframework.transaction.annotation.Transactional;
 public class StaleRecordsCleanupJob {
 
   private final OriginatedPostRepository originatedPostRepository;
-  private final OriginatedTransitionRepository originatedTransitionRepository;
   private final InboxEventRepository inboxEventRepository;
   private final OutboxIntentRepository outboxIntentRepository;
   private final Duration cutoffAge;
 
   public StaleRecordsCleanupJob(
       OriginatedPostRepository originatedPostRepository,
-      OriginatedTransitionRepository originatedTransitionRepository,
       InboxEventRepository inboxEventRepository,
       OutboxIntentRepository outboxIntentRepository,
       @Value("${negotiator-link.cleanup.cutoff-age:PT24H}") Duration cutoffAge) {
     this.originatedPostRepository = originatedPostRepository;
-    this.originatedTransitionRepository = originatedTransitionRepository;
     this.inboxEventRepository = inboxEventRepository;
     this.outboxIntentRepository = outboxIntentRepository;
     this.cutoffAge = cutoffAge;
@@ -43,7 +39,6 @@ public class StaleRecordsCleanupJob {
   public void deleteStaleRows() {
     Instant cutoff = Instant.now().minus(cutoffAge);
     long deletedPosts = originatedPostRepository.deleteByCreatedAtBefore(cutoff);
-    long deletedTransitions = originatedTransitionRepository.deleteByCreatedAtBefore(cutoff);
     long deletedInbox =
         inboxEventRepository.deleteByStatusInAndReceivedAtBefore(
             List.of(InboxStatus.PROCESSED, InboxStatus.SKIPPED), cutoff);
@@ -51,10 +46,9 @@ public class StaleRecordsCleanupJob {
         outboxIntentRepository.deleteByStatusInAndCreatedAtBefore(
             List.of(OutboxStatus.DELIVERED, OutboxStatus.FAILED_PERMANENT), cutoff);
     log.info(
-        "Cleaned up stale records older than {}: {} posts, {} transitions, {} inbox events, {} outbox intents",
+        "Cleaned up stale records older than {}: {} posts, {} inbox events, {} outbox intents",
         cutoffAge,
         deletedPosts,
-        deletedTransitions,
         deletedInbox,
         deletedOutbox);
   }

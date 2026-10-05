@@ -6,14 +6,12 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorLinkProperties;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedTransition;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SendBulkResourceEventPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SendResourceEventPayload;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -24,19 +22,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Validates a requested Negotiator resource lifecycle event against the resources covered by a
- * ticket and, if permitted, decides the outbound effect. The service performs no external write
- * I/O: a permitted transition becomes a {@code SEND_RESOURCE_EVENT} / {@code
- * SEND_BULK_RESOURCE_EVENT} intent, and a refused one yields an {@link Optional} {@link Rejection}
- * describing why (empty when applied) so each caller can decide how to react (post a rejection
- * comment, or silently drop). Idempotent reads ({@code getPossibleResourceEvents}) and the {@code
- * originated_transition} pre-registration run in the decide transaction.
+ * ticket and, if permitted, decides the outbound effect.
  */
 @Slf4j
 @Service
 public class ResourceTransitionService {
 
   private final NegotiatorClient negotiatorClient;
-  private final OriginatedTransitionRepository originatedTransitionRepository;
   private final Map<String, String> eventToTargetState;
 
   /** A resource that cannot accept the requested event, with the events it currently permits. */
@@ -60,11 +52,8 @@ public class ResourceTransitionService {
   }
 
   public ResourceTransitionService(
-      NegotiatorClient negotiatorClient,
-      OriginatedTransitionRepository originatedTransitionRepository,
-      NegotiatorLinkProperties negotiatorLinkProperties) {
+      NegotiatorClient negotiatorClient, NegotiatorLinkProperties negotiatorLinkProperties) {
     this.negotiatorClient = negotiatorClient;
-    this.originatedTransitionRepository = originatedTransitionRepository;
     this.eventToTargetState = negotiatorLinkProperties.getResourceEvents();
   }
 
@@ -124,7 +113,6 @@ public class ResourceTransitionService {
   private TransitionResult applyPerNegotiation(
       List<TicketMapping> mappings, String requestedEvent, OrganizationConfig config) {
     String negotiationId = mappings.getFirst().getId().getNegotiationId();
-    String ticketId = mappings.getFirst().getId().getHelpdeskTicketId();
 
     List<InvalidResource> invalidResources = getInvalidResources(mappings, requestedEvent, config);
     if (!invalidResources.isEmpty()) {
@@ -144,9 +132,6 @@ public class ResourceTransitionService {
       throw new IllegalStateException(
           "No target state configured for event '%s'".formatted(requestedEvent));
     }
-
-    originatedTransitionRepository.save(
-        new OriginatedTransition(negotiationId, ticketId, mappings.size(), targetState));
 
     log.info(
         "Deciding bulk transition '{}' for {} resource(s) in negotiation '{}'",
