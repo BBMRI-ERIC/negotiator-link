@@ -1,8 +1,8 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
+import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PayloadUtil.serialize;
 import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil.enumToText;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
@@ -77,11 +77,8 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
 
   @Override
   public List<PendingIntent> handle(JsonNode data) {
-    NegotiationStateUpdatedWebhookEvent event =
-        objectMapper.convertValue(data, NegotiationStateUpdatedWebhookEvent.class);
-
-    if (event.getEvent() == null) {
-      log.warn("negotiation.state.updated has no 'event' field — discarding");
+    NegotiationStateUpdatedWebhookEvent event = parseEvent(data);
+    if (event == null) {
       return List.of();
     }
 
@@ -298,15 +295,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
 
   private List<PendingIntent> handleStateChange(NegotiationStateUpdatedWebhookEvent event) {
     String negotiationId = event.getNegotiationId();
-    String toState = event.getToState() != null ? event.getToState().getValue() : null;
-
-    if (negotiationId == null || toState == null) {
-      log.warn(
-          "negotiation.state.updated missing negotiationId ({}) or toState ({}) — discarding",
-          negotiationId,
-          toState);
-      return List.of();
-    }
+    String toState = event.getToState().getValue();
 
     Map<String, String> ticketToOrgExtId = getDistinctTicketIdToOrgExtId(negotiationId);
     if (ticketToOrgExtId.isEmpty()) {
@@ -405,11 +394,20 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     return signPostText(post);
   }
 
-  private String serialize(Object payload) {
-    try {
-      return objectMapper.writeValueAsString(payload);
-    } catch (JsonProcessingException e) {
-      throw new IllegalStateException("Failed to serialize intent payload", e);
+  /** Parses and validates the webhook event, or returns {@code null} if it is incomplete. */
+  private NegotiationStateUpdatedWebhookEvent parseEvent(JsonNode data) {
+    NegotiationStateUpdatedWebhookEvent event =
+        objectMapper.convertValue(data, NegotiationStateUpdatedWebhookEvent.class);
+
+    String negotiationId = event.getNegotiationId();
+    String fromState = event.getFromState() != null ? event.getFromState().getValue() : null;
+    String toState = event.getToState() != null ? event.getToState().getValue() : null;
+    String transitionEvent = event.getEvent() != null ? event.getEvent().getValue() : null;
+
+    if (negotiationId == null || fromState == null || toState == null || transitionEvent == null) {
+      log.warn("Incomplete state updated event — skipping");
+      return null;
     }
+    return event;
   }
 }

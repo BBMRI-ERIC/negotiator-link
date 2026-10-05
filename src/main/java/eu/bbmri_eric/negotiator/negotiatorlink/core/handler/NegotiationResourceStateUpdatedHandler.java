@@ -1,8 +1,8 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
+import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PayloadUtil.serialize;
 import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil.enumToText;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
@@ -214,13 +214,5 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
         context.negotiationId(),
         context.orgExtId(),
         payload);
-  }
-
-  private String serialize(Object payload) {
-    try {
-      return objectMapper.writeValueAsString(payload);
-    } catch (JsonProcessingException e) {
-      throw new IllegalStateException("Failed to serialize intent payload", e);
-    }
   }
 }

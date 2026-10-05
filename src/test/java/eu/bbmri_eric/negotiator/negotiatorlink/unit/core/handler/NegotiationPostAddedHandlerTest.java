@@ -30,6 +30,9 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -163,6 +166,22 @@ class NegotiationPostAddedHandlerTest {
     verify(negotiatorClient, never()).getPost(any(), any(), any());
   }
 
+  static java.util.stream.Stream<Arguments> incompleteEventData() {
+    return java.util.stream.Stream.of(
+        Arguments.of("missing postId", null, NEGOTIATION_ID),
+        Arguments.of("missing negotiationId", POST_ID, null),
+        Arguments.of("missing both", null, null));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("incompleteEventData")
+  void handle_incompleteEvent_returnsNoIntents(String label, String postId, String negotiationId) {
+    var incompleteData = buildEventData(postId, negotiationId, null);
+
+    assertThat(handler.handle(incompleteData)).isEmpty();
+    verify(negotiatorClient, never()).getPost(any(), any(), any());
+  }
+
   @Test
   void handle_postNotFound_returnsNoIntents() {
     var config = createConfig(ORG_EXT_ID);
@@ -229,9 +248,13 @@ class NegotiationPostAddedHandlerTest {
   }
 
   private JsonNode postEventData(Long orgId) {
+    return buildEventData(POST_ID, NEGOTIATION_ID, orgId);
+  }
+
+  private JsonNode buildEventData(String postId, String negotiationId, Long orgId) {
     Map<String, Object> map = new java.util.HashMap<>();
-    map.put("postId", POST_ID);
-    map.put("negotiationId", NEGOTIATION_ID);
+    if (postId != null) map.put("postId", postId);
+    if (negotiationId != null) map.put("negotiationId", negotiationId);
     map.put("userId", 1L);
     if (orgId != null) map.put("organizationId", orgId);
     return objectMapper.valueToTree(map);

@@ -1,9 +1,9 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
 import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.HashUtil.sha256Hex;
+import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PayloadUtil.serialize;
 import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil.signPost;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
@@ -50,8 +50,10 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
 
   @Override
   public List<PendingIntent> handle(JsonNode data) {
-    NegotiationPostAddedWebhookEvent event =
-        objectMapper.convertValue(data, NegotiationPostAddedWebhookEvent.class);
+    NegotiationPostAddedWebhookEvent event = parseEvent(data);
+    if (event == null) {
+      return List.of();
+    }
 
     PostContent content = fetchPostContent(event);
     if (content == null) {
@@ -74,6 +76,21 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
     ticketToOrgExtId.remove(excludedTicketId);
 
     return fanOut(ticketToOrgExtId, content.text(), event);
+  }
+
+  /** Parses and validates the webhook event, or returns {@code null} if it is incomplete. */
+  private NegotiationPostAddedWebhookEvent parseEvent(JsonNode data) {
+    NegotiationPostAddedWebhookEvent event =
+        objectMapper.convertValue(data, NegotiationPostAddedWebhookEvent.class);
+
+    String negotiationId = event.getNegotiationId();
+    String postId = event.getPostId();
+
+    if (negotiationId == null || postId == null) {
+      log.warn("Incomplete post added event — skipping");
+      return null;
+    }
+    return event;
   }
 
   /** Loads the post and returns its content, or {@code null} if it cannot be forwarded. */
@@ -184,14 +201,6 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
         event.getNegotiationId(),
         orgExtId,
         payload);
-  }
-
-  private String serialize(Object payload) {
-    try {
-      return objectMapper.writeValueAsString(payload);
-    } catch (JsonProcessingException e) {
-      throw new IllegalStateException("Failed to serialize intent payload", e);
-    }
   }
 
   private LinkedHashMap<String, String> resolveTargets(

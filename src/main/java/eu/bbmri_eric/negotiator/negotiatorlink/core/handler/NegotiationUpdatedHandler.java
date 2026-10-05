@@ -1,6 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
+import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PayloadUtil.serialize;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
@@ -63,15 +64,12 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
 
   @Override
   public List<PendingIntent> handle(JsonNode data) {
-    NegotiationUpdatedWebhookEvent event =
-        objectMapper.convertValue(data, NegotiationUpdatedWebhookEvent.class);
-
-    String negotiationId = event.getNegotiationId();
-    if (negotiationId == null) {
-      log.warn("negotiation.updated has no 'negotiationId' field — discarding");
+    NegotiationUpdatedWebhookEvent event = parseEvent(data);
+    if (event == null) {
       return List.of();
     }
 
+    String negotiationId = event.getNegotiationId();
     List<TicketMapping> mappings = ticketMappingRepository.findByIdNegotiationId(negotiationId);
     if (mappings.isEmpty()) {
       log.debug("No mapped tickets for negotiation '{}' — skipping update comment", negotiationId);
@@ -88,6 +86,20 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
         .forEach(
             (ticketId, orgExtId) -> intents.addAll(processTicket(ticketId, orgExtId, context)));
     return intents;
+  }
+
+  /** Parses and validates the webhook event, or returns {@code null} if it is incomplete. */
+  private NegotiationUpdatedWebhookEvent parseEvent(JsonNode data) {
+    NegotiationUpdatedWebhookEvent event =
+        objectMapper.convertValue(data, NegotiationUpdatedWebhookEvent.class);
+
+    String negotiationId = event.getNegotiationId();
+
+    if (negotiationId == null) {
+      log.warn("Incomplete negotiation updated event — skipping");
+      return null;
+    }
+    return event;
   }
 
   private NegotiationContext buildContext(
@@ -177,14 +189,6 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
             .orElseThrow();
     return NegotiationTicketBodyFormatter.getUpdatedTicketBodyWithSingleResource(
         context.negotiation(), resource);
-  }
-
-  private String serialize(Object payload) {
-    try {
-      return objectMapper.writeValueAsString(payload);
-    } catch (JsonProcessingException e) {
-      throw new IllegalStateException("Failed to serialize intent payload", e);
-    }
   }
 
   private static Map<String, String> getDistinctTicketIdToOrgExtId(List<TicketMapping> mappings) {
