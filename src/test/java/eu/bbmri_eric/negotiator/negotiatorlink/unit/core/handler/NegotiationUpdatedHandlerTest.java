@@ -16,7 +16,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationUpdatedHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddNegotiationAttachmentPayload;
@@ -93,7 +93,7 @@ class NegotiationUpdatedHandlerTest {
 
     assertThat(intents).hasSize(1);
     PendingIntent intent = intents.getFirst();
-    assertThat(intent.intentType()).isEqualTo(IntentType.ADD_COMMENT);
+    assertThat(intent.outboxIntentType()).isEqualTo(OutboxIntentType.ADD_COMMENT);
     assertThat(intent.targetId()).isEqualTo(TICKET_ID);
     assertThat(intent.organizationExtId()).isEqualTo(ORG_EXT_ID);
     AddCommentPayload payload = readComment(intent);
@@ -126,7 +126,7 @@ class NegotiationUpdatedHandlerTest {
 
     assertThat(intents).hasSize(2);
     assertThat(intents)
-        .allSatisfy(i -> assertThat(i.intentType()).isEqualTo(IntentType.ADD_COMMENT));
+        .allSatisfy(i -> assertThat(i.outboxIntentType()).isEqualTo(OutboxIntentType.ADD_COMMENT));
     assertThat(intents)
         .extracting(PendingIntent::targetId)
         .containsExactlyInAnyOrder(TICKET_ID, ticketId2);
@@ -161,7 +161,7 @@ class NegotiationUpdatedHandlerTest {
 
     assertThat(intents).hasSize(2);
     assertThat(intents)
-        .allSatisfy(i -> assertThat(i.intentType()).isEqualTo(IntentType.ADD_COMMENT));
+        .allSatisfy(i -> assertThat(i.outboxIntentType()).isEqualTo(OutboxIntentType.ADD_COMMENT));
     AddNegotiationAttachmentPayload attachmentPayload =
         objectMapper.readValue(intents.get(1).payloadJson(), AddNegotiationAttachmentPayload.class);
     assertThat(attachmentPayload.negotiationAttachmentIds()).containsExactly("a-1");

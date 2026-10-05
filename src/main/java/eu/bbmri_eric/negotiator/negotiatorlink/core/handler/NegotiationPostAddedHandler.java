@@ -12,7 +12,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
@@ -195,7 +195,7 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
       String ticketId, String orgExtId, String postText, NegotiationPostAddedWebhookEvent event) {
     String payload = serialize(new AddCommentPayload(postText, CommentType.PLAIN_TEXT));
     return new PendingIntent(
-        IntentType.ADD_COMMENT,
+        OutboxIntentType.ADD_COMMENT,
         TargetKind.TICKET,
         ticketId,
         event.getNegotiationId(),

@@ -17,7 +17,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedPost;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationPostAddedHandler;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
@@ -83,7 +83,7 @@ class NegotiationPostAddedHandlerTest {
 
     assertThat(intents).hasSize(2);
     assertThat(intents)
-        .allSatisfy(i -> assertThat(i.intentType()).isEqualTo(IntentType.ADD_COMMENT));
+        .allSatisfy(i -> assertThat(i.outboxIntentType()).isEqualTo(OutboxIntentType.ADD_COMMENT));
     assertThat(intents).extracting(PendingIntent::targetId).containsExactly(TICKET_A, TICKET_B);
     assertThat(intents)
         .extracting(PendingIntent::organizationExtId)
@@ -111,7 +111,7 @@ class NegotiationPostAddedHandlerTest {
 
     assertThat(intents).hasSize(1);
     assertThat(intents.getFirst().targetId()).isEqualTo(TICKET_A);
-    assertThat(intents.getFirst().intentType()).isEqualTo(IntentType.ADD_COMMENT);
+    assertThat(intents.getFirst().outboxIntentType()).isEqualTo(OutboxIntentType.ADD_COMMENT);
   }
 
   @Test

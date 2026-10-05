@@ -111,8 +111,8 @@ public class OutboxDeliverer {
 
   /**
    * A {@code SET_*} state intent is skipped if a newer pending state intent exists for the same
-   * {@code (targetId, intentType)}. Safe because field-set is idempotent, and it prevents a retry
-   * backlog from replaying obsolete state.
+   * {@code (targetId, outboxIntentType)}. Safe because field-set is idempotent, and it prevents a
+   * retry backlog from replaying obsolete state.
    */
   private boolean supersededByNewer(OutboxIntent intent) {
     if (!isStateIntent(intent.getIntentType())) {
@@ -125,10 +125,10 @@ public class OutboxDeliverer {
         .orElse(false);
   }
 
-  private boolean isStateIntent(IntentType type) {
-    return type == IntentType.SET_NEGOTIATION_STATE
-        || type == IntentType.SET_RESOURCE_STATE
-        || type == IntentType.SET_TICKET_STATE;
+  private boolean isStateIntent(OutboxIntentType type) {
+    return type == OutboxIntentType.SET_NEGOTIATION_STATE
+        || type == OutboxIntentType.SET_RESOURCE_STATE
+        || type == OutboxIntentType.SET_TICKET_STATE;
   }
 
   private void markDelivered(OutboxIntent intent) {

@@ -33,7 +33,7 @@ import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-/** The single place that maps an {@link IntentType} to a concrete client write call. */
+/** The single place that maps an {@link OutboxIntentType} to a concrete client write call. */
 @Slf4j
 @Component
 public class IntentDispatcher {

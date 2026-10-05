@@ -10,7 +10,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedPost;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.PostMessageEvent;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
@@ -65,7 +65,7 @@ public class HelpdeskPostHandler implements HelpdeskCallbackHandler<PostMessageE
         negotiationId);
     PendingIntent intent =
         new PendingIntent(
-            IntentType.CREATE_POST,
+            OutboxIntentType.CREATE_POST,
             TargetKind.NEGOTIATION,
             negotiationId,
             negotiationId,
@@ -95,7 +95,7 @@ public class HelpdeskPostHandler implements HelpdeskCallbackHandler<PostMessageE
         negotiationId,
         ticketId);
     return new PendingIntent(
-        IntentType.ADD_SYSTEM_COMMENT,
+        OutboxIntentType.ADD_SYSTEM_COMMENT,
         TargetKind.TICKET,
         ticketId,
         negotiationId,

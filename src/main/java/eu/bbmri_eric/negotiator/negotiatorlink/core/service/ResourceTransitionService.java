@@ -7,7 +7,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorLinkPropert
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SendBulkResourceEventPayload;
@@ -100,7 +100,7 @@ public class ResourceTransitionService {
         negotiationId);
     PendingIntent intent =
         new PendingIntent(
-            IntentType.SEND_RESOURCE_EVENT,
+            OutboxIntentType.SEND_RESOURCE_EVENT,
             TargetKind.NEGOTIATION,
             negotiationId,
             negotiationId,
@@ -140,7 +140,7 @@ public class ResourceTransitionService {
         negotiationId);
     PendingIntent intent =
         new PendingIntent(
-            IntentType.SEND_BULK_RESOURCE_EVENT,
+            OutboxIntentType.SEND_BULK_RESOURCE_EVENT,
             TargetKind.NEGOTIATION,
             negotiationId,
             negotiationId,

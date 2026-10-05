@@ -26,7 +26,7 @@ public class OutboxService {
       outboxIntents.add(
           new OutboxIntent(
               sourceEvent != null ? sourceEvent.getRowId() : null,
-              intent.intentType(),
+              intent.outboxIntentType(),
               intent.targetKind().name(),
               intent.targetId(),
               intent.negotiationId(),

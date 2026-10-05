@@ -1,6 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.entity;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -43,7 +43,7 @@ public class OutboxIntent {
 
   @Enumerated(EnumType.STRING)
   @Column(name = "intent_type", nullable = false)
-  private IntentType intentType;
+  private OutboxIntentType intentType;
 
   @Column(name = "target_kind", nullable = false)
   private String targetKind;
@@ -83,14 +83,14 @@ public class OutboxIntent {
 
   public OutboxIntent(
       Long inboxRowId,
-      IntentType intentType,
+      OutboxIntentType outboxIntentType,
       String targetKind,
       String targetId,
       String negotiationId,
       String organizationExtId,
       String payload) {
     this.inboxRowId = inboxRowId;
-    this.intentType = intentType;
+    this.intentType = outboxIntentType;
     this.targetKind = targetKind;
     this.targetId = targetId;
     this.negotiationId = negotiationId;

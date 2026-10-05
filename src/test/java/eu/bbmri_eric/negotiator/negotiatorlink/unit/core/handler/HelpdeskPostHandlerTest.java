@@ -17,7 +17,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HelpdeskPostHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.PostMessageEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
@@ -79,7 +79,7 @@ class HelpdeskPostHandlerTest {
 
     assertThat(intents).hasSize(1);
     PendingIntent intent = intents.getFirst();
-    assertThat(intent.intentType()).isEqualTo(IntentType.CREATE_POST);
+    assertThat(intent.outboxIntentType()).isEqualTo(OutboxIntentType.CREATE_POST);
     assertThat(intent.targetKind()).isEqualTo(TargetKind.NEGOTIATION);
     assertThat(intent.targetId()).isEqualTo(NEGOTIATION_ID);
     assertThat(intent.organizationExtId()).isEqualTo(ORG_EXT_ID);
@@ -135,7 +135,7 @@ class HelpdeskPostHandlerTest {
   private void assertSystemCommentRejection(List<PendingIntent> intents) {
     assertThat(intents).hasSize(1);
     PendingIntent intent = intents.getFirst();
-    assertThat(intent.intentType()).isEqualTo(IntentType.ADD_SYSTEM_COMMENT);
+    assertThat(intent.outboxIntentType()).isEqualTo(OutboxIntentType.ADD_SYSTEM_COMMENT);
     assertThat(intent.targetKind()).isEqualTo(TargetKind.TICKET);
     assertThat(intent.targetId()).isEqualTo(TICKET_ID);
     AddSystemCommentPayload payload = read(intent, AddSystemCommentPayload.class);

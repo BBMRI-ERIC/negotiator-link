@@ -14,7 +14,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SendBulkResourceEventPayload;
@@ -64,7 +64,7 @@ class ResourceTransitionServiceTest {
     assertThat(result.rejection()).isEmpty();
     assertThat(result.intents()).hasSize(1);
     PendingIntent intent = result.intents().getFirst();
-    assertThat(intent.intentType()).isEqualTo(IntentType.SEND_RESOURCE_EVENT);
+    assertThat(intent.outboxIntentType()).isEqualTo(OutboxIntentType.SEND_RESOURCE_EVENT);
     assertThat(intent.targetKind()).isEqualTo(TargetKind.NEGOTIATION);
     assertThat(intent.targetId()).isEqualTo(NEGOTIATION_ID);
     assertThat(intent.organizationExtId()).isEqualTo(ORG_EXT_ID);
@@ -111,7 +111,7 @@ class ResourceTransitionServiceTest {
     assertThat(result.rejection()).isEmpty();
     assertThat(result.intents()).hasSize(1);
     PendingIntent intent = result.intents().getFirst();
-    assertThat(intent.intentType()).isEqualTo(IntentType.SEND_BULK_RESOURCE_EVENT);
+    assertThat(intent.outboxIntentType()).isEqualTo(OutboxIntentType.SEND_BULK_RESOURCE_EVENT);
     assertThat(intent.targetKind()).isEqualTo(TargetKind.NEGOTIATION);
     assertThat(intent.targetId()).isEqualTo(NEGOTIATION_ID);
     SendBulkResourceEventPayload payload = read(intent, SendBulkResourceEventPayload.class);

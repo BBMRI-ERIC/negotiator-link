@@ -8,7 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
@@ -113,7 +113,7 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
     List<PendingIntent> intents = new ArrayList<>();
     intents.add(
         intent(
-            IntentType.SET_RESOURCE_STATE,
+            OutboxIntentType.SET_RESOURCE_STATE,
             context,
             serialize(new SetStatePayload(SetStatePayload.FIELD_RESOURCE_STATE, toState))));
 
@@ -123,7 +123,7 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
     if (ticketState != null) {
       intents.add(
           intent(
-              IntentType.SET_TICKET_STATE,
+              OutboxIntentType.SET_TICKET_STATE,
               context,
               serialize(new SetStatePayload(SetStatePayload.FIELD_TICKET_STATE, ticketState))));
     }
@@ -136,10 +136,12 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
         String.format(
             "Resource '%s' changed the status to '%s'", resourceSourceId, enumToText(toState));
     return intent(
-        IntentType.ADD_SYSTEM_COMMENT, context, serialize(new AddSystemCommentPayload(message)));
+        OutboxIntentType.ADD_SYSTEM_COMMENT,
+        context,
+        serialize(new AddSystemCommentPayload(message)));
   }
 
-  private PendingIntent intent(IntentType type, DispatchContext context, String payload) {
+  private PendingIntent intent(OutboxIntentType type, DispatchContext context, String payload) {
     return new PendingIntent(
         type,
         TargetKind.TICKET,

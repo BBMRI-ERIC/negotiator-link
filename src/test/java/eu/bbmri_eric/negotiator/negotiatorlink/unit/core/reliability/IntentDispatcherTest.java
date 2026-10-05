@@ -24,7 +24,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OutboxIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentDispatcher;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
@@ -92,7 +92,7 @@ class IntentDispatcherTest {
   void dispatch_sendResourceEvent_callsNegotiator() {
     dispatcher.dispatch(
         intent(
-            IntentType.SEND_RESOURCE_EVENT,
+            OutboxIntentType.SEND_RESOURCE_EVENT,
             new SendResourceEventPayload(NEGOTIATION_ID, RESOURCE_SOURCE_ID, EVENT)));
 
     verify(negotiatorClient)
@@ -109,7 +109,7 @@ class IntentDispatcherTest {
         () ->
             dispatcher.dispatch(
                 intent(
-                    IntentType.SEND_RESOURCE_EVENT,
+                    OutboxIntentType.SEND_RESOURCE_EVENT,
                     new SendResourceEventPayload(NEGOTIATION_ID, RESOURCE_SOURCE_ID, EVENT))));
   }
 
@@ -117,7 +117,7 @@ class IntentDispatcherTest {
   void dispatch_sendBulkResourceEvent_callsNegotiator() {
     dispatcher.dispatch(
         intent(
-            IntentType.SEND_BULK_RESOURCE_EVENT,
+            OutboxIntentType.SEND_BULK_RESOURCE_EVENT,
             new SendBulkResourceEventPayload(NEGOTIATION_ID, List.of(101L, 102L), "CHECKING")));
 
     verify(negotiatorClient)
@@ -136,7 +136,8 @@ class IntentDispatcherTest {
 
     dispatcher.dispatch(
         intent(
-            IntentType.CREATE_POST, new CreatePostPayload(NEGOTIATION_ID, TICKET_ID, SIGNED_TEXT)));
+            OutboxIntentType.CREATE_POST,
+            new CreatePostPayload(NEGOTIATION_ID, TICKET_ID, SIGNED_TEXT)));
 
     verify(negotiatorClient)
         .createPost(
@@ -159,7 +160,8 @@ class IntentDispatcherTest {
 
     dispatcher.dispatch(
         intent(
-            IntentType.CREATE_POST, new CreatePostPayload(NEGOTIATION_ID, TICKET_ID, SIGNED_TEXT)));
+            OutboxIntentType.CREATE_POST,
+            new CreatePostPayload(NEGOTIATION_ID, TICKET_ID, SIGNED_TEXT)));
 
     verify(negotiatorClient, never()).createPost(any(), any(), any());
   }
@@ -182,7 +184,7 @@ class IntentDispatcherTest {
             eq(NEGOTIATION_ID), eq(config)))
         .thenReturn(List.of());
 
-    dispatcher.dispatch(intent(IntentType.CREATE_TICKET, payload));
+    dispatcher.dispatch(intent(OutboxIntentType.CREATE_TICKET, payload));
 
     verify(helpdeskClient).createTicket(any(), eq(config));
     verify(ticketMappingRepository).save(any());
@@ -202,7 +204,7 @@ class IntentDispatcherTest {
     when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(NEGOTIATION_ID, "r-2"))
         .thenReturn(Optional.of(mapping2));
 
-    dispatcher.dispatch(intent(IntentType.LINK_TICKETS, payload));
+    dispatcher.dispatch(intent(OutboxIntentType.LINK_TICKETS, payload));
 
     verify(helpdeskClient).linkRelatedTickets(List.of("ticket-1", "ticket-2"), config);
   }
@@ -218,7 +220,7 @@ class IntentDispatcherTest {
     when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(NEGOTIATION_ID, "r-2"))
         .thenReturn(Optional.empty());
 
-    dispatcher.dispatch(intent(IntentType.LINK_TICKETS, payload));
+    dispatcher.dispatch(intent(OutboxIntentType.LINK_TICKETS, payload));
 
     verify(helpdeskClient, never()).linkRelatedTickets(any(), any());
   }
@@ -227,7 +229,7 @@ class IntentDispatcherTest {
   void dispatch_addComment_callsHelpdeskWithTextAndType() {
     var payload = new AddCommentPayload("Hello ticket", CommentType.PLAIN_TEXT);
 
-    dispatcher.dispatch(ticketIntent(IntentType.ADD_COMMENT, payload));
+    dispatcher.dispatch(ticketIntent(OutboxIntentType.ADD_COMMENT, payload));
 
     verify(helpdeskClient)
         .addComment(eq(TICKET_ID), eq("Hello ticket"), eq(CommentType.PLAIN_TEXT), eq(config));
@@ -237,7 +239,7 @@ class IntentDispatcherTest {
   void dispatch_addSystemComment_callsHelpdeskWithMessage() {
     var payload = new AddSystemCommentPayload("Status changed to Paused");
 
-    dispatcher.dispatch(ticketIntent(IntentType.ADD_SYSTEM_COMMENT, payload));
+    dispatcher.dispatch(ticketIntent(OutboxIntentType.ADD_SYSTEM_COMMENT, payload));
 
     verify(helpdeskClient)
         .addSystemComment(eq(TICKET_ID), eq("Status changed to Paused"), eq(config));
@@ -247,7 +249,7 @@ class IntentDispatcherTest {
   void dispatch_setNegotiationState_callsHelpdeskUpdateNegotiationState() {
     var payload = new SetStatePayload("negotiationState", "PAUSED");
 
-    dispatcher.dispatch(ticketIntent(IntentType.SET_NEGOTIATION_STATE, payload));
+    dispatcher.dispatch(ticketIntent(OutboxIntentType.SET_NEGOTIATION_STATE, payload));
 
     verify(helpdeskClient).updateNegotiationState(eq(TICKET_ID), eq("PAUSED"), eq(config));
   }
@@ -256,7 +258,7 @@ class IntentDispatcherTest {
   void dispatch_setResourceState_callsHelpdeskUpdateResourceState() {
     var payload = new SetStatePayload("resourceState", "CHECKING_AVAILABILITY");
 
-    dispatcher.dispatch(ticketIntent(IntentType.SET_RESOURCE_STATE, payload));
+    dispatcher.dispatch(ticketIntent(OutboxIntentType.SET_RESOURCE_STATE, payload));
 
     verify(helpdeskClient)
         .updateResourceState(eq(TICKET_ID), eq("CHECKING_AVAILABILITY"), eq(config));
@@ -266,12 +268,12 @@ class IntentDispatcherTest {
   void dispatch_setTicketState_callsHelpdeskUpdateTicketState() {
     var payload = new SetStatePayload("ticketState", "closed");
 
-    dispatcher.dispatch(ticketIntent(IntentType.SET_TICKET_STATE, payload));
+    dispatcher.dispatch(ticketIntent(OutboxIntentType.SET_TICKET_STATE, payload));
 
     verify(helpdeskClient).updateTicketState(eq(TICKET_ID), eq("closed"), eq(config));
   }
 
-  private OutboxIntent ticketIntent(IntentType type, Object payload) {
+  private OutboxIntent ticketIntent(OutboxIntentType type, Object payload) {
     return new OutboxIntent(
         1L,
         type,
@@ -290,7 +292,7 @@ class IntentDispatcherTest {
         ORG_EXT_ID);
   }
 
-  private OutboxIntent intent(IntentType type, Object payload) {
+  private OutboxIntent intent(OutboxIntentType type, Object payload) {
     return new OutboxIntent(
         1L,
         type,

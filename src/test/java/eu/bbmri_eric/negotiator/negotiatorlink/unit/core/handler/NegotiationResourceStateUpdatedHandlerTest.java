@@ -14,7 +14,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationResourceStateUpdatedHandler;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SetStatePayload;
@@ -74,8 +74,8 @@ class NegotiationResourceStateUpdatedHandlerTest {
 
     assertThat(intents).hasSize(2);
     assertThat(intents)
-        .extracting(PendingIntent::intentType)
-        .containsExactly(IntentType.SET_RESOURCE_STATE, IntentType.ADD_SYSTEM_COMMENT);
+        .extracting(PendingIntent::outboxIntentType)
+        .containsExactly(OutboxIntentType.SET_RESOURCE_STATE, OutboxIntentType.ADD_SYSTEM_COMMENT);
     assertThat(readState(intents.getFirst()).value()).isEqualTo(NEW_STATE);
     assertThat(readSystemComment(intents.getLast()).message()).isEqualTo(SYSTEM_COMMENT);
     assertThat(intents).allSatisfy(i -> assertThat(i.targetId()).isEqualTo(TICKET_ID));
@@ -90,8 +90,8 @@ class NegotiationResourceStateUpdatedHandlerTest {
 
     assertThat(intents).hasSize(2);
     assertThat(intents)
-        .extracting(PendingIntent::intentType)
-        .containsExactly(IntentType.SET_RESOURCE_STATE, IntentType.ADD_SYSTEM_COMMENT);
+        .extracting(PendingIntent::outboxIntentType)
+        .containsExactly(OutboxIntentType.SET_RESOURCE_STATE, OutboxIntentType.ADD_SYSTEM_COMMENT);
     assertThat(readSystemComment(intents.getLast()).message()).contains("changed the status to");
     assertThat(readState(intents.getFirst()).value()).isEqualTo(NEW_STATE);
     assertThat(intents).allSatisfy(i -> assertThat(i.targetId()).isEqualTo(TICKET_ID));
@@ -136,11 +136,11 @@ class NegotiationResourceStateUpdatedHandlerTest {
     List<PendingIntent> intents = handler.handle(eventData(NEW_STATE));
 
     assertThat(intents)
-        .extracting(PendingIntent::intentType)
+        .extracting(PendingIntent::outboxIntentType)
         .containsExactly(
-            IntentType.SET_RESOURCE_STATE,
-            IntentType.ADD_SYSTEM_COMMENT,
-            IntentType.SET_TICKET_STATE);
+            OutboxIntentType.SET_RESOURCE_STATE,
+            OutboxIntentType.ADD_SYSTEM_COMMENT,
+            OutboxIntentType.SET_TICKET_STATE);
     assertThat(readState(intents.get(2)).value()).isEqualTo("closed");
   }
 
@@ -152,8 +152,8 @@ class NegotiationResourceStateUpdatedHandlerTest {
     List<PendingIntent> intents = handler.handle(eventData(NEW_STATE));
 
     assertThat(intents)
-        .extracting(PendingIntent::intentType)
-        .doesNotContain(IntentType.SET_TICKET_STATE);
+        .extracting(PendingIntent::outboxIntentType)
+        .doesNotContain(OutboxIntentType.SET_TICKET_STATE);
   }
 
   private void stubMapping(OrganizationConfig config) {

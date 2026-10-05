@@ -17,7 +17,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HelpdeskResourceTransitionHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionEvent;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
@@ -79,7 +79,7 @@ class HelpdeskResourceTransitionHandlerTest {
 
     assertThat(intents).hasSize(1);
     PendingIntent intent = intents.getFirst();
-    assertThat(intent.intentType()).isEqualTo(IntentType.SEND_RESOURCE_EVENT);
+    assertThat(intent.outboxIntentType()).isEqualTo(OutboxIntentType.SEND_RESOURCE_EVENT);
     assertThat(intent.targetKind()).isEqualTo(TargetKind.NEGOTIATION);
     SendResourceEventPayload payload = read(intent, SendResourceEventPayload.class);
     assertThat(payload.resourceSourceId()).isEqualTo(RESOURCE_SOURCE_ID);
@@ -98,8 +98,8 @@ class HelpdeskResourceTransitionHandlerTest {
     List<PendingIntent> intents = handler.handle(callbackEvent(), config);
 
     assertThat(intents)
-        .extracting(PendingIntent::intentType)
-        .containsExactly(IntentType.SET_RESOURCE_STATE, IntentType.ADD_SYSTEM_COMMENT);
+        .extracting(PendingIntent::outboxIntentType)
+        .containsExactly(OutboxIntentType.SET_RESOURCE_STATE, OutboxIntentType.ADD_SYSTEM_COMMENT);
     assertThat(intents).allSatisfy(i -> assertThat(i.targetId()).isEqualTo(TICKET_ID));
     SetStatePayload resetState = read(intents.getFirst(), SetStatePayload.class);
     assertThat(resetState.field()).isEqualTo(SetStatePayload.FIELD_RESOURCE_STATE);
@@ -128,7 +128,7 @@ class HelpdeskResourceTransitionHandlerTest {
 
     assertThat(intents).hasSize(1);
     PendingIntent intent = intents.getFirst();
-    assertThat(intent.intentType()).isEqualTo(IntentType.SEND_BULK_RESOURCE_EVENT);
+    assertThat(intent.outboxIntentType()).isEqualTo(OutboxIntentType.SEND_BULK_RESOURCE_EVENT);
     SendBulkResourceEventPayload payload = read(intent, SendBulkResourceEventPayload.class);
     assertThat(payload.resourceIds()).containsExactly(101L, 102L);
     assertThat(payload.targetState())
@@ -159,8 +159,8 @@ class HelpdeskResourceTransitionHandlerTest {
     List<PendingIntent> intents = handler.handle(callbackEvent(), config);
 
     assertThat(intents)
-        .extracting(PendingIntent::intentType)
-        .containsExactly(IntentType.SET_RESOURCE_STATE, IntentType.ADD_SYSTEM_COMMENT);
+        .extracting(PendingIntent::outboxIntentType)
+        .containsExactly(OutboxIntentType.SET_RESOURCE_STATE, OutboxIntentType.ADD_SYSTEM_COMMENT);
     SetStatePayload resetState = read(intents.getFirst(), SetStatePayload.class);
     assertThat(resetState.field()).isEqualTo(SetStatePayload.FIELD_RESOURCE_STATE);
     assertThat(resetState.value()).isEqualTo(RESOURCE_STATE);

@@ -6,7 +6,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionEvent;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
@@ -59,7 +59,7 @@ public class HelpdeskResourceTransitionHandler
     List<PendingIntent> intents = new ArrayList<>();
     intents.add(
         ticketIntent(
-            IntentType.SET_RESOURCE_STATE,
+            OutboxIntentType.SET_RESOURCE_STATE,
             ticketId,
             negotiationId,
             config,
@@ -68,7 +68,7 @@ public class HelpdeskResourceTransitionHandler
                     SetStatePayload.FIELD_RESOURCE_STATE, transitionEvent.resourceState()))));
     intents.add(
         ticketIntent(
-            IntentType.ADD_SYSTEM_COMMENT,
+            OutboxIntentType.ADD_SYSTEM_COMMENT,
             ticketId,
             negotiationId,
             config,
@@ -77,7 +77,7 @@ public class HelpdeskResourceTransitionHandler
   }
 
   private PendingIntent ticketIntent(
-      IntentType type,
+      OutboxIntentType type,
       String ticketId,
       String negotiationId,
       OrganizationConfig config,

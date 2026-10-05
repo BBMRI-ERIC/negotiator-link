@@ -10,7 +10,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
@@ -136,7 +136,7 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
     String body = buildBody(ticketId, config.ticketStrategy(), context);
     String payload = serialize(new AddCommentPayload(body, CommentType.HTML));
     return new PendingIntent(
-        IntentType.ADD_COMMENT,
+        OutboxIntentType.ADD_COMMENT,
         TargetKind.TICKET,
         ticketId,
         context.negotiationId(),
@@ -159,7 +159,7 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
                 ATTACHMENT_COMMENT_TEXT, context.negotiationId(), attachmentIds));
     return Optional.of(
         new PendingIntent(
-            IntentType.ADD_COMMENT,
+            OutboxIntentType.ADD_COMMENT,
             TargetKind.TICKET,
             ticketId,
             context.negotiationId(),

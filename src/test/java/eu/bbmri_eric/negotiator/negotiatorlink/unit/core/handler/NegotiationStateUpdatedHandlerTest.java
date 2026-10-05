@@ -17,7 +17,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationStateUpdatedHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
@@ -92,9 +92,11 @@ class NegotiationStateUpdatedHandlerTest {
     List<PendingIntent> intents = handler.handle(approveEventData());
 
     assertThat(intents)
-        .extracting(PendingIntent::intentType)
+        .extracting(PendingIntent::outboxIntentType)
         .containsExactly(
-            IntentType.CREATE_TICKET, IntentType.CREATE_TICKET, IntentType.LINK_TICKETS);
+            OutboxIntentType.CREATE_TICKET,
+            OutboxIntentType.CREATE_TICKET,
+            OutboxIntentType.LINK_TICKETS);
     assertThat(readCreate(intents.getFirst()))
         .isEqualTo(
             createTicketPayload(
@@ -160,7 +162,7 @@ class NegotiationStateUpdatedHandlerTest {
     List<PendingIntent> intents = handler.handle(approveEventData());
 
     assertThat(intents).hasSize(1);
-    assertThat(intents.getFirst().intentType()).isEqualTo(IntentType.CREATE_TICKET);
+    assertThat(intents.getFirst().outboxIntentType()).isEqualTo(OutboxIntentType.CREATE_TICKET);
   }
 
   @Test
@@ -179,8 +181,8 @@ class NegotiationStateUpdatedHandlerTest {
     List<PendingIntent> intents = handler.handle(eventData(NegotiatorNegotiationEvent.PAUSE));
 
     assertThat(intents)
-        .extracting(PendingIntent::intentType)
-        .doesNotContain(IntentType.CREATE_TICKET);
+        .extracting(PendingIntent::outboxIntentType)
+        .doesNotContain(OutboxIntentType.CREATE_TICKET);
     verify(negotiatorClient, never()).getResources(any(), any());
   }
 
@@ -271,16 +273,16 @@ class NegotiationStateUpdatedHandlerTest {
 
     List<PendingIntent> intents = handler.handle(eventData(NegotiatorNegotiationEvent.PAUSE));
 
-    assertThat(ticketTargets(intents, IntentType.SET_NEGOTIATION_STATE))
+    assertThat(ticketTargets(intents, OutboxIntentType.SET_NEGOTIATION_STATE))
         .containsExactlyInAnyOrder("ticket-1", "ticket-2");
-    assertThat(ticketTargets(intents, IntentType.ADD_SYSTEM_COMMENT))
+    assertThat(ticketTargets(intents, OutboxIntentType.ADD_SYSTEM_COMMENT))
         .containsExactlyInAnyOrder("ticket-1", "ticket-2");
     assertThat(intents)
-        .extracting(PendingIntent::intentType)
-        .doesNotContain(IntentType.ADD_COMMENT);
-    assertThat(readState(firstOf(intents, IntentType.SET_NEGOTIATION_STATE)).value())
+        .extracting(PendingIntent::outboxIntentType)
+        .doesNotContain(OutboxIntentType.ADD_COMMENT);
+    assertThat(readState(firstOf(intents, OutboxIntentType.SET_NEGOTIATION_STATE)).value())
         .isEqualTo(NegotiatorNegotiationEvent.PAUSE.toState());
-    assertThat(readSystemComment(firstOf(intents, IntentType.ADD_SYSTEM_COMMENT)).message())
+    assertThat(readSystemComment(firstOf(intents, OutboxIntentType.ADD_SYSTEM_COMMENT)).message())
         .isEqualTo(PAUSED_SYSTEM_COMMENT);
     verify(negotiatorClient, never()).getPost(any(), any(), any());
   }
@@ -296,8 +298,10 @@ class NegotiationStateUpdatedHandlerTest {
 
     List<PendingIntent> intents = handler.handle(eventData(NegotiatorNegotiationEvent.PAUSE));
 
-    assertThat(ticketTargets(intents, IntentType.SET_NEGOTIATION_STATE)).containsExactly(TICKET_ID);
-    assertThat(ticketTargets(intents, IntentType.ADD_SYSTEM_COMMENT)).containsExactly(TICKET_ID);
+    assertThat(ticketTargets(intents, OutboxIntentType.SET_NEGOTIATION_STATE))
+        .containsExactly(TICKET_ID);
+    assertThat(ticketTargets(intents, OutboxIntentType.ADD_SYSTEM_COMMENT))
+        .containsExactly(TICKET_ID);
   }
 
   @Test
@@ -346,14 +350,14 @@ class NegotiationStateUpdatedHandlerTest {
     List<PendingIntent> intents = handler.handle(eventData(NegotiatorNegotiationEvent.CONCLUDE));
 
     assertThat(intents)
-        .extracting(PendingIntent::intentType)
+        .extracting(PendingIntent::outboxIntentType)
         .containsExactly(
-            IntentType.SET_NEGOTIATION_STATE,
-            IntentType.ADD_SYSTEM_COMMENT,
-            IntentType.SET_TICKET_STATE);
-    assertThat(readSystemComment(firstOf(intents, IntentType.ADD_SYSTEM_COMMENT)).message())
+            OutboxIntentType.SET_NEGOTIATION_STATE,
+            OutboxIntentType.ADD_SYSTEM_COMMENT,
+            OutboxIntentType.SET_TICKET_STATE);
+    assertThat(readSystemComment(firstOf(intents, OutboxIntentType.ADD_SYSTEM_COMMENT)).message())
         .isEqualTo(CONCLUDED_SYSTEM_COMMENT);
-    assertThat(readState(firstOf(intents, IntentType.SET_TICKET_STATE)).value())
+    assertThat(readState(firstOf(intents, OutboxIntentType.SET_TICKET_STATE)).value())
         .isEqualTo("closed");
   }
 
@@ -367,8 +371,8 @@ class NegotiationStateUpdatedHandlerTest {
     List<PendingIntent> intents = handler.handle(eventData(NegotiatorNegotiationEvent.PAUSE));
 
     assertThat(intents)
-        .extracting(PendingIntent::intentType)
-        .doesNotContain(IntentType.SET_TICKET_STATE);
+        .extracting(PendingIntent::outboxIntentType)
+        .doesNotContain(OutboxIntentType.SET_TICKET_STATE);
   }
 
   @Test
@@ -390,9 +394,9 @@ class NegotiationStateUpdatedHandlerTest {
         handler.handle(eventDataWithPost(NegotiatorNegotiationEvent.PAUSE, "p-1"));
 
     verify(negotiatorClient, times(1)).getPost(NEGOTIATION_ID, "p-1", config);
-    assertThat(ticketTargets(intents, IntentType.ADD_COMMENT))
+    assertThat(ticketTargets(intents, OutboxIntentType.ADD_COMMENT))
         .containsExactlyInAnyOrder("ticket-1", "ticket-2");
-    assertThat(readComment(firstOf(intents, IntentType.ADD_COMMENT)).text())
+    assertThat(readComment(firstOf(intents, OutboxIntentType.ADD_COMMENT)).text())
         .startsWith("From: Alice <alice@example.com>");
   }
 
@@ -416,15 +420,15 @@ class NegotiationStateUpdatedHandlerTest {
         postTexts);
   }
 
-  private List<String> ticketTargets(List<PendingIntent> intents, IntentType type) {
+  private List<String> ticketTargets(List<PendingIntent> intents, OutboxIntentType type) {
     return intents.stream()
-        .filter(i -> i.intentType() == type)
+        .filter(i -> i.outboxIntentType() == type)
         .map(PendingIntent::targetId)
         .toList();
   }
 
-  private PendingIntent firstOf(List<PendingIntent> intents, IntentType type) {
-    return intents.stream().filter(i -> i.intentType() == type).findFirst().orElseThrow();
+  private PendingIntent firstOf(List<PendingIntent> intents, OutboxIntentType type) {
+    return intents.stream().filter(i -> i.outboxIntentType() == type).findFirst().orElseThrow();
   }
 
   private CreateTicketPayload readCreate(PendingIntent intent) {

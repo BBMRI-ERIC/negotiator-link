@@ -12,7 +12,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigReg
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
@@ -190,7 +190,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
           resources.stream().map(EntityModelResourceWithStatusDTO::getSourceId).toList();
       intents.add(
           new PendingIntent(
-              IntentType.LINK_TICKETS,
+              OutboxIntentType.LINK_TICKETS,
               TargetKind.TICKET,
               null,
               negotiation.getId(),
@@ -203,7 +203,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
   private PendingIntent createTicketIntent(
       String negotiationId, String orgExtId, CreateTicketPayload payload) {
     return new PendingIntent(
-        IntentType.CREATE_TICKET,
+        OutboxIntentType.CREATE_TICKET,
         TargetKind.TICKET,
         null,
         negotiationId,
@@ -323,14 +323,14 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     List<PendingIntent> intents = new ArrayList<>();
     intents.add(
         ticketIntent(
-            IntentType.SET_NEGOTIATION_STATE,
+            OutboxIntentType.SET_NEGOTIATION_STATE,
             negotiationId,
             ticketId,
             orgExtId,
             serialize(new SetStatePayload(SetStatePayload.FIELD_NEGOTIATION_STATE, toState))));
     intents.add(
         ticketIntent(
-            IntentType.ADD_SYSTEM_COMMENT,
+            OutboxIntentType.ADD_SYSTEM_COMMENT,
             negotiationId,
             ticketId,
             orgExtId,
@@ -340,7 +340,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     if (signedPost != null) {
       intents.add(
           ticketIntent(
-              IntentType.ADD_COMMENT,
+              OutboxIntentType.ADD_COMMENT,
               negotiationId,
               ticketId,
               orgExtId,
@@ -350,7 +350,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     if (ticketState != null) {
       intents.add(
           ticketIntent(
-              IntentType.SET_TICKET_STATE,
+              OutboxIntentType.SET_TICKET_STATE,
               negotiationId,
               ticketId,
               orgExtId,
@@ -360,7 +360,11 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
   }
 
   private PendingIntent ticketIntent(
-      IntentType type, String negotiationId, String ticketId, String orgExtId, String payload) {
+      OutboxIntentType type,
+      String negotiationId,
+      String ticketId,
+      String orgExtId,
+      String payload) {
     return new PendingIntent(type, TargetKind.TICKET, ticketId, negotiationId, orgExtId, payload);
   }
 

@@ -1,7 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.repository;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OutboxIntent;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxStatus;
 import java.time.Instant;
 import java.util.List;
@@ -24,7 +24,7 @@ public interface OutboxIntentRepository extends JpaRepository<OutboxIntent, Long
   List<OutboxIntent> claimDispatchable(@Param("now") Instant now, @Param("limit") int limit);
 
   Optional<OutboxIntent> findFirstByIntentTypeAndTargetIdAndStatusOrderByRowIdDesc(
-      IntentType intentType, String targetId, OutboxStatus status);
+      OutboxIntentType outboxIntentType, String targetId, OutboxStatus status);
 
   long countByStatus(OutboxStatus status);
 

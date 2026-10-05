@@ -14,7 +14,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HelpdeskTicketStateChangedHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketStateChangedEvent;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
@@ -71,7 +71,7 @@ class HelpdeskTicketStateChangedHandlerTest {
     List<TicketMapping> mappings = List.of(mapping(RESOURCE_SOURCE_ID));
     PendingIntent transitionIntent =
         new PendingIntent(
-            IntentType.SEND_RESOURCE_EVENT,
+            OutboxIntentType.SEND_RESOURCE_EVENT,
             TargetKind.NEGOTIATION,
             NEGOTIATION_ID,
             NEGOTIATION_ID,
