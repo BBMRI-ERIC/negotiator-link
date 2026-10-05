@@ -3,6 +3,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.reliability;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorLinkProperties;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.InboxEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.InboxEventRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.RouteOutcome;
 import java.time.Instant;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
@@ -36,17 +37,16 @@ public class InboxPoller {
 
   /** Processes one batch. Returns {@code true} when the batch was empty (nothing left to drain). */
   private boolean processBatch() {
-    List<Long> rowIds =
-        inboxEventRepository.claimReceivedBatch(Instant.now(), batchSize).stream()
-            .map(InboxEvent::getRowId)
-            .toList();
-    rowIds.forEach(this::processOne);
-    return rowIds.isEmpty();
+    List<InboxEvent> events = inboxEventRepository.claimReceivedBatch(Instant.now(), batchSize);
+    events.forEach(this::processOne);
+    return events.isEmpty();
   }
 
-  private void processOne(Long rowId) {
+  private void processOne(InboxEvent event) {
+    Long rowId = event.getRowId();
     try {
-      processor.process(rowId);
+      RouteOutcome outcome = processor.buildOutcome(event);
+      processor.commit(rowId, outcome);
     } catch (Exception e) {
       log.error("Inbox processing failed for row {} — recording failure", rowId, e);
       processor.recordFailure(rowId, e);

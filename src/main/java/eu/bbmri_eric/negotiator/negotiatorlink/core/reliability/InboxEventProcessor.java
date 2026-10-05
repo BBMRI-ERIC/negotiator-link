@@ -38,20 +38,20 @@ public class InboxEventProcessor {
   private final ObjectMapper objectMapper;
   private final NegotiatorLinkProperties properties;
 
-  /**
-   * Processes a single claimed inbox row and marks it terminal. On a processing exception the
-   * transaction rolls back and the exception propagates to the caller.
-   */
+  /** Routes a claimed inbox event. */
+  public RouteOutcome buildOutcome(InboxEvent event) {
+    return EventSource.NEGOTIATOR.name().equals(event.getSource())
+        ? dispatchNegotiator(event)
+        : dispatchHelpdesk(event);
+  }
+
+  /** Persists the resulted RouteOutcome from handler. */
   @Transactional
-  public void process(Long rowId) {
+  public void commit(Long rowId, RouteOutcome outcome) {
     InboxEvent event = inboxEventRepository.findById(rowId).orElse(null);
     if (event == null || event.getStatus() != InboxStatus.RECEIVED) {
       return;
     }
-    RouteOutcome outcome =
-        EventSource.NEGOTIATOR.name().equals(event.getSource())
-            ? dispatchNegotiator(event)
-            : dispatchHelpdesk(event);
     outcome.resolvedEventType().ifPresent(event::setEventType);
     if (outcome.processed()) {
       outboxService.enqueue(outcome.intents(), event);
