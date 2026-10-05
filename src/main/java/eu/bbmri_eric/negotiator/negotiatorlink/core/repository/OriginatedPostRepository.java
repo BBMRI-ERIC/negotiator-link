@@ -10,5 +10,8 @@ public interface OriginatedPostRepository extends JpaRepository<OriginatedPost, 
   Optional<OriginatedPost> findFirstByTextHashAndOrganizationIdOrderByCreatedAtAsc(
       String textHash, String organizationId);
 
+  Optional<OriginatedPost> findFirstByTicketIdAndOrganizationId(
+      String ticketId, String organizationId);
+
   long deleteByCreatedAtBefore(Instant cutoff);
 }

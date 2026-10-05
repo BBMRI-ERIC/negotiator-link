@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
@@ -15,12 +16,17 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddNegotiationAttachmentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.CreatePostPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.CreateTicketPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.LinkTicketsPayload;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SendBulkResourceEventPayload;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SendResourceEventPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SetStatePayload;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService.ResolvedAttachment;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostCreateDTO;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,19 +40,25 @@ public class IntentDispatcher {
 
   private final OrganizationConfigRegistry registry;
   private final java.util.Map<HelpdeskType, HelpdeskClient> clients;
+  private final NegotiatorClient negotiatorClient;
   private final TicketMappingRepository ticketMappingRepository;
+  private final OriginatedPostRepository originatedPostRepository;
   private final AttachmentForwardingService attachmentForwardingService;
   private final ObjectMapper objectMapper;
 
   public IntentDispatcher(
       OrganizationConfigRegistry registry,
       java.util.Map<HelpdeskType, HelpdeskClient> clients,
+      NegotiatorClient negotiatorClient,
       TicketMappingRepository ticketMappingRepository,
+      OriginatedPostRepository originatedPostRepository,
       AttachmentForwardingService attachmentForwardingService,
       ObjectMapper objectMapper) {
     this.registry = registry;
     this.clients = clients;
+    this.negotiatorClient = negotiatorClient;
     this.ticketMappingRepository = ticketMappingRepository;
+    this.originatedPostRepository = originatedPostRepository;
     this.attachmentForwardingService = attachmentForwardingService;
     this.objectMapper = objectMapper;
   }
@@ -75,9 +87,9 @@ public class IntentDispatcher {
           client.updateResourceState(intent.getTargetId(), readState(intent).value(), config);
       case SET_TICKET_STATE ->
           client.updateTicketState(intent.getTargetId(), readState(intent).value(), config);
-      case CREATE_POST, SEND_RESOURCE_EVENT, SEND_BULK_RESOURCE_EVENT ->
-          throw new UnsupportedOperationException(
-              "Intent type " + intent.getIntentType() + " is wired in the helpdesk-side phase");
+      case CREATE_POST -> createPost(intent, config);
+      case SEND_RESOURCE_EVENT -> sendResourceEvent(intent, config);
+      case SEND_BULK_RESOURCE_EVENT -> sendBulkResourceEvent(intent, config);
     }
   }
 
@@ -153,6 +165,45 @@ public class IntentDispatcher {
     client.addSystemComment(intent.getTargetId(), payload.message(), config);
   }
 
+  private void createPost(OutboxIntent intent, OrganizationConfig config) {
+    CreatePostPayload payload = read(intent, CreatePostPayload.class);
+    String organizationExtId = config.organizationExternalId();
+    String organizationId =
+        getOrganizationIdFromTicketMapping(
+            payload.ticketId(), organizationExtId, intent.getRowId());
+
+    boolean alreadyConsumed =
+        originatedPostRepository
+            .findFirstByTicketIdAndOrganizationId(payload.ticketId(), organizationId)
+            .isEmpty();
+    if (alreadyConsumed) {
+      log.info(
+          "originated_post for negotiation '{}' already consumed by echo — post already created, skipping",
+          payload.negotiationId());
+      return;
+    }
+    PostCreateDTO post =
+        new PostCreateDTO()
+            .text(payload.signedText())
+            .organizationId(organizationExtId)
+            .type(PostCreateDTO.TypeEnum.PRIVATE);
+    negotiatorClient.createPost(payload.negotiationId(), post, config);
+    log.info(
+        "Forwarded help desk post to negotiation '{}' as PRIVATE post", payload.negotiationId());
+  }
+
+  private void sendResourceEvent(OutboxIntent intent, OrganizationConfig config) {
+    SendResourceEventPayload payload = read(intent, SendResourceEventPayload.class);
+    negotiatorClient.sendResourceEvent(
+        payload.negotiationId(), payload.resourceSourceId(), payload.event(), config);
+  }
+
+  private void sendBulkResourceEvent(OutboxIntent intent, OrganizationConfig config) {
+    SendBulkResourceEventPayload payload = read(intent, SendBulkResourceEventPayload.class);
+    negotiatorClient.sendBulkResourceEvent(
+        payload.negotiationId(), payload.resourceIds(), payload.targetState(), config);
+  }
+
   private void addCommentWithNewAttachments(
       JsonNode node, OutboxIntent intent, OrganizationConfig config, HelpdeskClient client) {
     AddNegotiationAttachmentPayload payload = convert(node, AddNegotiationAttachmentPayload.class);
@@ -173,6 +224,20 @@ public class IntentDispatcher {
         intent.getOrganizationExtId(),
         intent.getTargetId(),
         resolved.stream().map(ResolvedAttachment::attachmentId).toList());
+  }
+
+  private String getOrganizationIdFromTicketMapping(
+      String ticketId, String organizationExtId, Long rowId) {
+    return ticketMappingRepository
+        .findByIdHelpdeskTicketIdAndOrganizationExtId(ticketId, organizationExtId)
+        .stream()
+        .findFirst()
+        .map(TicketMapping::getOrganizationId)
+        .orElseThrow(
+            () ->
+                new IllegalStateException(
+                    "No ticket mapping for ticket '%s' org '%s' — cannot deliver intent %s"
+                        .formatted(ticketId, organizationExtId, rowId)));
   }
 
   private SetStatePayload readState(OutboxIntent intent) {

@@ -1,16 +1,22 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
+import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PayloadUtil.serialize;
+
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SetStatePayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.ResourceTransitionService;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.ResourceTransitionService.InvalidResource;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.service.ResourceTransitionService.TransitionResult;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +31,6 @@ public class HelpdeskResourceTransitionHandler
 
   private final TicketMappingRepository ticketMappingRepository;
   private final ResourceTransitionService resourceTransitionService;
-  private final Map<HelpdeskType, HelpdeskClient> clients;
 
   @Override
   public HelpdeskCallbackType getSupportedType() {
@@ -33,7 +38,8 @@ public class HelpdeskResourceTransitionHandler
   }
 
   @Override
-  public void handle(ResourceTransitionEvent transitionEvent, OrganizationConfig config) {
+  public List<PendingIntent> handle(
+      ResourceTransitionEvent transitionEvent, OrganizationConfig config) {
     String ticketId = transitionEvent.ticketId();
     String requestedEvent = transitionEvent.resourceTransitionEvent();
 
@@ -41,25 +47,43 @@ public class HelpdeskResourceTransitionHandler
         ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
             ticketId, config.organizationExternalId());
 
-    if (mappings.isEmpty()) {
-      log.warn(
-          "No ticket mappings found for ticket '{}' org '{}' — skipping",
-          ticketId,
-          config.organizationExternalId());
-      return;
+    TransitionResult result = resourceTransitionService.apply(mappings, requestedEvent, config);
+    if (result.rejection().isEmpty()) {
+      return result.intents();
     }
 
-    resourceTransitionService
-        .apply(mappings, requestedEvent, config)
-        .ifPresent(
-            rejection -> {
-              HelpdeskClient client = clients.get(config.type());
-              String systemComment =
-                  buildRejectionMessage(
-                      requestedEvent, rejection.invalidResources(), rejection.allInvalid());
-              client.updateResourceState(ticketId, transitionEvent.resourceState(), config);
-              client.addSystemComment(ticketId, systemComment, config);
-            });
+    String negotiationId = mappings.getFirst().getId().getNegotiationId();
+    var rejection = result.rejection().get();
+    String systemComment =
+        buildRejectionMessage(requestedEvent, rejection.invalidResources(), rejection.allInvalid());
+    List<PendingIntent> intents = new ArrayList<>();
+    intents.add(
+        ticketIntent(
+            IntentType.SET_RESOURCE_STATE,
+            ticketId,
+            negotiationId,
+            config,
+            serialize(
+                new SetStatePayload(
+                    SetStatePayload.FIELD_RESOURCE_STATE, transitionEvent.resourceState()))));
+    intents.add(
+        ticketIntent(
+            IntentType.ADD_SYSTEM_COMMENT,
+            ticketId,
+            negotiationId,
+            config,
+            serialize(new AddSystemCommentPayload(systemComment))));
+    return intents;
+  }
+
+  private PendingIntent ticketIntent(
+      IntentType type,
+      String ticketId,
+      String negotiationId,
+      OrganizationConfig config,
+      String payload) {
+    return new PendingIntent(
+        type, TargetKind.TICKET, ticketId, negotiationId, config.organizationExternalId(), payload);
   }
 
   private static String buildRejectionMessage(

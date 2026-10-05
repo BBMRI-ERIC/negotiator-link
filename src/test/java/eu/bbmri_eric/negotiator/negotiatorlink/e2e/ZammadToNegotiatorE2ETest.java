@@ -16,7 +16,9 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.InboxStatus;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxStatus;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.InboxEventRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostCreateDTO;
@@ -94,6 +96,7 @@ class ZammadToNegotiatorE2ETest {
   @Autowired private MockMvc mockMvc;
   @Autowired private TicketMappingRepository ticketMappingRepository;
   @Autowired private InboxEventRepository inboxEventRepository;
+  @Autowired private OutboxIntentRepository outboxIntentRepository;
   @Autowired private RestClient.Builder restClientBuilder;
 
   @MockitoBean private NegotiatorClient negotiatorClient;
@@ -313,6 +316,9 @@ class ZammadToNegotiatorE2ETest {
                     .findBySourceAndDeliveryId(orgExternalId, deliveryId)
                     .map(e -> e.getStatus() != InboxStatus.RECEIVED)
                     .orElse(false));
+    await()
+        .atMost(Duration.ofSeconds(10))
+        .until(() -> outboxIntentRepository.countByStatus(OutboxStatus.PENDING) == 0);
   }
 
   private static String loadFile(String filename) {

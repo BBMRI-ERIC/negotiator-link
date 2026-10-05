@@ -4,15 +4,12 @@ import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.organization
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorLinkProperties;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
@@ -21,12 +18,18 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HelpdeskResourceTransitionHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SendBulkResourceEventPayload;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SendResourceEventPayload;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SetStatePayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.ResourceTransitionService;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorResourceEvent;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,8 +57,8 @@ class HelpdeskResourceTransitionHandlerTest {
   @Mock private TicketMappingRepository ticketMappingRepository;
   @Mock private OriginatedTransitionRepository originatedTransitionRepository;
   @Mock private NegotiatorClient negotiatorClient;
-  @Mock private HelpdeskClient helpdeskClient;
 
+  private final ObjectMapper objectMapper = new ObjectMapper();
   private OrganizationConfig config;
   private HelpdeskResourceTransitionHandler handler;
 
@@ -66,59 +69,53 @@ class HelpdeskResourceTransitionHandlerTest {
         new ResourceTransitionService(
             negotiatorClient, originatedTransitionRepository, resourceEventsConfig());
     handler =
-        new HelpdeskResourceTransitionHandler(
-            ticketMappingRepository,
-            resourceTransitionService,
-            Map.of(HelpdeskType.ZAMMAD, helpdeskClient));
+        new HelpdeskResourceTransitionHandler(ticketMappingRepository, resourceTransitionService);
   }
 
   @Test
-  void handle_perResource_validTransition_sendsResourceEvent() {
+  void handle_perResource_validTransition_emitsSendResourceEventIntent() {
     when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
             TICKET_ID, ORG_EXT_ID))
         .thenReturn(List.of(mapping(RESOURCE_ID, RESOURCE_SOURCE_ID)));
     when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID, config))
         .thenReturn(Set.of(REQUESTED_EVENT, "STEP_AWAY"));
 
-    handler.handle(callbackEvent(), config);
+    List<PendingIntent> intents = handler.handle(callbackEvent(), config);
 
-    verify(negotiatorClient)
-        .sendResourceEvent(
-            eq(NEGOTIATION_ID), eq(RESOURCE_SOURCE_ID), eq(REQUESTED_EVENT), eq(config));
-    verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
-    verify(helpdeskClient, never()).addSystemComment(any(), any(), any());
+    assertThat(intents).hasSize(1);
+    PendingIntent intent = intents.getFirst();
+    assertThat(intent.intentType()).isEqualTo(IntentType.SEND_RESOURCE_EVENT);
+    assertThat(intent.targetKind()).isEqualTo(TargetKind.NEGOTIATION);
+    SendResourceEventPayload payload = read(intent, SendResourceEventPayload.class);
+    assertThat(payload.resourceSourceId()).isEqualTo(RESOURCE_SOURCE_ID);
+    assertThat(payload.event()).isEqualTo(REQUESTED_EVENT);
+    verify(negotiatorClient, never()).sendResourceEvent(any(), any(), any(), any());
   }
 
   @Test
-  void handle_perResource_invalidTransition_clearsFieldAndPostsSystemComment() {
+  void handle_perResource_invalidTransition_emitsSetResourceStateAndSystemCommentIntents() {
     when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
             TICKET_ID, ORG_EXT_ID))
         .thenReturn(List.of(mapping(RESOURCE_ID, RESOURCE_SOURCE_ID)));
     when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID, config))
         .thenReturn(Set.of("STEP_AWAY"));
 
-    handler.handle(callbackEvent(), config);
+    List<PendingIntent> intents = handler.handle(callbackEvent(), config);
 
-    verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(RESOURCE_STATE), eq(config));
-    verify(helpdeskClient).addSystemComment(eq(TICKET_ID), any(String.class), eq(config));
+    assertThat(intents)
+        .extracting(PendingIntent::intentType)
+        .containsExactly(IntentType.SET_RESOURCE_STATE, IntentType.ADD_SYSTEM_COMMENT);
+    assertThat(intents).allSatisfy(i -> assertThat(i.targetId()).isEqualTo(TICKET_ID));
+    SetStatePayload resetState = read(intents.getFirst(), SetStatePayload.class);
+    assertThat(resetState.field()).isEqualTo(SetStatePayload.FIELD_RESOURCE_STATE);
+    assertThat(resetState.value()).isEqualTo(RESOURCE_STATE);
+    AddSystemCommentPayload comment = read(intents.getLast(), AddSystemCommentPayload.class);
+    assertThat(comment.message()).isNotBlank();
     verify(negotiatorClient, never()).sendResourceEvent(any(), any(), any(), any());
   }
 
   @Test
-  void handle_perResource_ticketNotFound_makesNoAdapterCalls() {
-    when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
-            TICKET_ID, ORG_EXT_ID))
-        .thenReturn(List.of());
-
-    handler.handle(callbackEvent(), config);
-
-    verify(negotiatorClient, never()).sendResourceEvent(any(), any(), any(), any());
-    verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
-    verify(helpdeskClient, never()).addSystemComment(any(), any(), any());
-  }
-
-  @Test
-  void handle_perNegotiation_allValid_savesOriginatedTransitionAndSendsBulk() {
+  void handle_perNegotiation_allValid_savesOriginatedTransitionAndEmitsBulkIntent() {
     config = organizationConfig(ORG_EXT_ID, TicketStrategy.PER_NEGOTIATION);
 
     var mapping1 = mapping("101", RESOURCE_SOURCE_ID);
@@ -132,7 +129,7 @@ class HelpdeskResourceTransitionHandlerTest {
     when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID_2, config))
         .thenReturn(Set.of(REQUESTED_EVENT));
 
-    handler.handle(callbackEvent(), config);
+    List<PendingIntent> intents = handler.handle(callbackEvent(), config);
 
     var captor = ArgumentCaptor.forClass(OriginatedTransition.class);
     verify(originatedTransitionRepository).save(captor.capture());
@@ -140,21 +137,22 @@ class HelpdeskResourceTransitionHandlerTest {
     assertThat(saved.getNegotiationId()).isEqualTo(NEGOTIATION_ID);
     assertThat(saved.getTicketId()).isEqualTo(TICKET_ID);
     assertThat(saved.getExpectedCount()).isEqualTo(2);
-    assertThat(saved.getNewState()).isEqualTo("CHECKING_AVAILABILITY");
+    assertThat(saved.getNewState())
+        .isEqualTo(NegotiatorResourceEvent.MARK_AS_CHECKING_AVAILABILITY.targetState());
 
-    verify(negotiatorClient)
-        .sendBulkResourceEvent(
-            eq(NEGOTIATION_ID),
-            eq(List.of(101L, 102L)),
-            eq(NegotiatorResourceEvent.MARK_AS_CHECKING_AVAILABILITY.targetState()),
-            eq(config));
-    verify(helpdeskClient, never()).updateResourceState(any(), any(), any());
-    verify(helpdeskClient, never()).addSystemComment(any(), any(), any());
+    assertThat(intents).hasSize(1);
+    PendingIntent intent = intents.getFirst();
+    assertThat(intent.intentType()).isEqualTo(IntentType.SEND_BULK_RESOURCE_EVENT);
+    SendBulkResourceEventPayload payload = read(intent, SendBulkResourceEventPayload.class);
+    assertThat(payload.resourceIds()).containsExactly(101L, 102L);
+    assertThat(payload.targetState())
+        .isEqualTo(NegotiatorResourceEvent.MARK_AS_CHECKING_AVAILABILITY.targetState());
+    verify(negotiatorClient, never()).sendBulkResourceEvent(any(), any(), any(), any());
   }
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("perNegotiationRejectionCases")
-  void handle_perNegotiation_invalidTransition_clearsFieldAndPostsSystemComment(
+  void handle_perNegotiation_invalidTransition_emitsSetResourceStateAndSystemCommentIntents(
       String caseName,
       Set<String> resource1Events,
       Set<String> resource2Events,
@@ -172,14 +170,17 @@ class HelpdeskResourceTransitionHandlerTest {
     when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID_2, config))
         .thenReturn(resource2Events);
 
-    handler.handle(callbackEvent(), config);
+    List<PendingIntent> intents = handler.handle(callbackEvent(), config);
 
-    verify(helpdeskClient).updateResourceState(eq(TICKET_ID), eq(RESOURCE_STATE), eq(config));
-    verify(helpdeskClient)
-        .addSystemComment(
-            eq(TICKET_ID),
-            argThat(s -> s.contains(RESOURCE_SOURCE_ID_2) == commentShouldMentionResource2),
-            eq(config));
+    assertThat(intents)
+        .extracting(PendingIntent::intentType)
+        .containsExactly(IntentType.SET_RESOURCE_STATE, IntentType.ADD_SYSTEM_COMMENT);
+    SetStatePayload resetState = read(intents.getFirst(), SetStatePayload.class);
+    assertThat(resetState.field()).isEqualTo(SetStatePayload.FIELD_RESOURCE_STATE);
+    assertThat(resetState.value()).isEqualTo(RESOURCE_STATE);
+    AddSystemCommentPayload comment = read(intents.getLast(), AddSystemCommentPayload.class);
+    assertThat(comment.message().contains(RESOURCE_SOURCE_ID_2))
+        .isEqualTo(commentShouldMentionResource2);
     verify(negotiatorClient, never()).sendBulkResourceEvent(any(), any(), any(), any());
     verify(originatedTransitionRepository, never()).save(any());
   }
@@ -197,6 +198,14 @@ class HelpdeskResourceTransitionHandlerTest {
             Set.of("STEP_AWAY"),
             Set.of("STEP_AWAY"),
             false));
+  }
+
+  private <T> T read(PendingIntent intent, Class<T> type) {
+    try {
+      return objectMapper.readValue(intent.payloadJson(), type);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   private TicketMapping mapping(String resourceId, String resourceSourceId) {

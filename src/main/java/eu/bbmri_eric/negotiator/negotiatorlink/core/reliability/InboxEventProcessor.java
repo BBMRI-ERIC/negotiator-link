@@ -15,7 +15,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.NegotiatorEventRoute
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.RouteOutcome;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import lombok.AllArgsConstructor;
@@ -127,8 +126,7 @@ public class InboxEventProcessor {
         .isEmpty()) {
       return RouteOutcome.skipped("no-mapping", eventType);
     }
-    helpdeskEventRouter.route(callbackEvent, config);
-    return RouteOutcome.asProcessed(eventType, List.of());
+    return RouteOutcome.asProcessed(eventType, helpdeskEventRouter.route(callbackEvent, config));
   }
 
   private Map<String, Object> parsePayload(InboxEvent event) {
