@@ -46,6 +46,8 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpClientErrorException;
 
 @ExtendWith(MockitoExtension.class)
 class NegotiationStateUpdatedHandlerTest {
@@ -201,6 +203,19 @@ class NegotiationStateUpdatedHandlerTest {
   }
 
   @Test
+  void handle_allOrgsReturnForbidden_emitsNoIntents() {
+    var config1 = createConfig(TicketStrategy.PER_RESOURCE);
+    var config2 = createConfig(TicketStrategy.PER_NEGOTIATION);
+    when(registry.findAll()).thenReturn(List.of(config1, config2));
+    when(negotiatorClient.getNegotiation(any(), any()))
+        .thenThrow(
+            HttpClientErrorException.create(HttpStatus.FORBIDDEN, "Forbidden", null, null, null));
+
+    assertThat(handler.handle(approveEventData())).isEmpty();
+    verify(negotiatorClient, never()).getResources(any(), any());
+  }
+
+  @Test
   void handle_withPublicAttachments_createTicketPayloadCarriesAttachmentIds() {
     var config = createConfig(TicketStrategy.PER_RESOURCE);
     var resource = createResource("r-1", 1L);
@@ -295,18 +310,17 @@ class NegotiationStateUpdatedHandlerTest {
   static java.util.stream.Stream<Arguments> incompleteStateEventData() {
     var event = NegotiatorNegotiationEvent.PAUSE;
     return java.util.stream.Stream.of(
-        Arguments.of("missing negotiationId", null, "SUBMITTED", event.toState(), event.name()),
-        Arguments.of("missing fromState", NEGOTIATION_ID, null, event.toState(), event.name()),
-        Arguments.of("missing toState", NEGOTIATION_ID, "SUBMITTED", null, event.name()),
-        Arguments.of("missing event", NEGOTIATION_ID, "SUBMITTED", event.toState(), null),
-        Arguments.of("missing all", null, null, null, null));
+        Arguments.of("missing negotiationId", null, event.toState(), event.name()),
+        Arguments.of("missing toState", NEGOTIATION_ID, null, event.name()),
+        Arguments.of("missing event", NEGOTIATION_ID, event.toState(), null),
+        Arguments.of("missing all", null, null, null));
   }
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("incompleteStateEventData")
   void handle_incompleteStateEvent_returnsNoIntents(
-      String label, String negotiationId, String fromState, String toState, String eventName) {
-    var data = buildStateEventData(negotiationId, fromState, toState, eventName);
+      String label, String negotiationId, String toState, String eventName) {
+    var data = buildStateEventData(negotiationId, toState, eventName);
 
     assertThat(handler.handle(data)).isEmpty();
     verify(ticketMappingRepository, never()).findByIdNegotiationId(any());
@@ -463,14 +477,12 @@ class NegotiationStateUpdatedHandlerTest {
   }
 
   private JsonNode eventData(NegotiatorNegotiationEvent event) {
-    return buildStateEventData(NEGOTIATION_ID, "SUBMITTED", event.toState(), event.name());
+    return buildStateEventData(NEGOTIATION_ID, event.toState(), event.name());
   }
 
-  private JsonNode buildStateEventData(
-      String negotiationId, String fromState, String toState, String eventName) {
+  private JsonNode buildStateEventData(String negotiationId, String toState, String eventName) {
     Map<String, Object> map = new java.util.HashMap<>();
     if (negotiationId != null) map.put("negotiationId", negotiationId);
-    if (fromState != null) map.put("fromState", fromState);
     if (toState != null) map.put("toState", toState);
     if (eventName != null) map.put("event", eventName);
     return objectMapper.valueToTree(map);

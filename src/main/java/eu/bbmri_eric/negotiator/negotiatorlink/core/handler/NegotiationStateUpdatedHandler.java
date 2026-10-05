@@ -400,11 +400,10 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
         objectMapper.convertValue(data, NegotiationStateUpdatedWebhookEvent.class);
 
     String negotiationId = event.getNegotiationId();
-    String fromState = event.getFromState() != null ? event.getFromState().getValue() : null;
     String toState = event.getToState() != null ? event.getToState().getValue() : null;
     String transitionEvent = event.getEvent() != null ? event.getEvent().getValue() : null;
 
-    if (negotiationId == null || fromState == null || toState == null || transitionEvent == null) {
+    if (negotiationId == null || toState == null || transitionEvent == null) {
       log.warn("Incomplete state updated event — skipping");
       return null;
     }
