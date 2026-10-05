@@ -30,6 +30,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostCreateDTO;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -97,8 +98,8 @@ public class OutboxIntentDispatcher {
     CreateTicketPayload payload = read(intent, CreateTicketPayload.class);
 
     List<ResolvedAttachment> resolved =
-        attachmentForwardingService.resolveForwardablePayloadAttachments(
-            payload.negotiationId(), config);
+        attachmentForwardingService.getNegotiationPayloadAttachmentsToForward(
+            payload.negotiationId(), config, Set.of());
     List<Attachment> attachments = resolved.stream().map(ResolvedAttachment::attachment).toList();
 
     CreateTicketRequest request =
@@ -207,12 +208,12 @@ public class OutboxIntentDispatcher {
   private void addCommentWithNewAttachments(
       JsonNode node, OutboxIntent intent, OrganizationConfig config, HelpdeskClient client) {
     AddNegotiationAttachmentPayload payload = convert(node, AddNegotiationAttachmentPayload.class);
+    Set<String> alreadyForwarded =
+        attachmentForwardingService.alreadyForwardedIds(
+            intent.getOrganizationExtId(), intent.getTargetId());
     List<ResolvedAttachment> resolved =
-        attachmentForwardingService.notYetForwardedToTicket(
-            intent.getOrganizationExtId(),
-            intent.getTargetId(),
-            attachmentForwardingService.resolveForwardablePayloadAttachments(
-                payload.negotiationId(), config));
+        attachmentForwardingService.getNegotiationPayloadAttachmentsToForward(
+            payload.negotiationId(), config, alreadyForwarded);
     client.addComment(
         intent.getTargetId(),
         payload.text(),

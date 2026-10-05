@@ -16,7 +16,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationStateUpdatedHandler;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
@@ -27,7 +26,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.LinkTick
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SetStatePayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService.ResolvedAttachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFormatter;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
@@ -221,12 +219,9 @@ class NegotiationStateUpdatedHandlerTest {
   void handle_withPublicAttachments_createTicketPayloadCarriesAttachmentIds() {
     var config = createConfig(TicketStrategy.PER_RESOURCE);
     var resource = createResource("r-1", 1L);
-    var resolved =
-        new ResolvedAttachment(
-            "a-1", new Attachment("public.txt", "text/plain", "bytes".getBytes()));
     stubHappyPath(createNegotiation(), config, List.of(resource));
-    when(attachmentForwardingService.resolveForwardablePayloadAttachments(NEGOTIATION_ID, config))
-        .thenReturn(List.of(resolved));
+    when(attachmentForwardingService.getNegotiationPayloadAttachmentsIds(NEGOTIATION_ID, config))
+        .thenReturn(List.of("a-1"));
 
     List<PendingIntent> intents = handler.handle(approveEventData());
 

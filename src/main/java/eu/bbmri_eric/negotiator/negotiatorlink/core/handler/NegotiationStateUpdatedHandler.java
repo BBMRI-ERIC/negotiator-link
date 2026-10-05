@@ -23,7 +23,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.LinkTick
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SetStatePayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService.ResolvedAttachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFormatter;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
@@ -67,7 +66,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
   private record CreateNegotiationContext(
       EntityModelNegotiationDTO negotiation,
       List<EntityModelResourceWithStatusDTO> negotiationResources,
-      List<ResolvedAttachment> resolvedAttachments,
+      List<String> attachmentIds,
       List<EntityModelPostDTO> posts) {}
 
   @Override
@@ -115,12 +114,11 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     EntityModelNegotiationDTO negotiation = result.negotiation();
     List<EntityModelResourceWithStatusDTO> resources =
         negotiatorClient.getResources(negotiationId, result.config());
-    List<ResolvedAttachment> resolvedAttachments =
-        attachmentForwardingService.resolveForwardablePayloadAttachments(
+    List<String> attachmentIds =
+        attachmentForwardingService.getNegotiationPayloadAttachmentsIds(
             negotiationId, result.config());
     List<EntityModelPostDTO> posts = negotiatorClient.getPosts(negotiationId, result.config());
-    return Optional.of(
-        new CreateNegotiationContext(negotiation, resources, resolvedAttachments, posts));
+    return Optional.of(new CreateNegotiationContext(negotiation, resources, attachmentIds, posts));
   }
 
   /** Builds the CREATE_TICKET (+ LINK_TICKETS) intents for a single organization's resources. */
@@ -155,7 +153,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
             negotiation.getStatus(),
             resolveInitialState(resources.getFirst()),
             body,
-            attachmentIds(context),
+            context.attachmentIds(),
             resourceRefs(resources),
             orderAndSignNegotiationPosts(context.posts()));
     return List.of(createTicketIntent(negotiation.getId(), orgExtId, payload));
@@ -179,7 +177,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
               negotiation.getStatus(),
               resolveInitialState(resource),
               body,
-              attachmentIds(context),
+              context.attachmentIds(),
               resourceRefs(List.of(resource)),
               orderAndSignNegotiationPosts(context.posts()));
       intents.add(createTicketIntent(negotiation.getId(), orgExtId, payload));
@@ -209,10 +207,6 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
         negotiationId,
         orgExtId,
         serialize(payload));
-  }
-
-  private List<String> attachmentIds(CreateNegotiationContext context) {
-    return context.resolvedAttachments().stream().map(ResolvedAttachment::attachmentId).toList();
   }
 
   private List<ResourceMappingRef> resourceRefs(List<EntityModelResourceWithStatusDTO> resources) {

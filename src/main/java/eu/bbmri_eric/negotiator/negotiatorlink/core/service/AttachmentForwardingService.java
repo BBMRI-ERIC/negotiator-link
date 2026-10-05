@@ -35,15 +35,15 @@ public class AttachmentForwardingService {
   public record ResolvedAttachment(String attachmentId, Attachment attachment) {}
 
   /**
-   * All negotiation-level attachments currently forwardable for {@code negotiationId}, downloaded
-   * once. Caller subtracts the per-ticket already-forwarded set via {@link
-   * #notYetForwardedToTicket}. Returns an empty list when there is nothing to forward.
+   * Return all negotiation-level attachments for {@code negotiationId} minus those whose IDs are in
+   * {@code forwardedAttachmentIds}.
    */
-  public List<ResolvedAttachment> resolveForwardablePayloadAttachments(
-      String negotiationId, OrganizationConfig config) {
-    var metadata = negotiatorClient.getAttachments(negotiationId, config);
+  public List<ResolvedAttachment> getNegotiationPayloadAttachmentsToForward(
+      String negotiationId, OrganizationConfig config, Set<String> forwardedAttachmentIds) {
+    List<AttachmentMetadataDTO> metadata = negotiatorClient.getAttachments(negotiationId, config);
     log.debug("Retrieved {} attachments for negotiation '{}'", metadata.size(), negotiationId);
     return metadata.stream()
+        .filter(a -> !forwardedAttachmentIds.contains(a.getId()))
         // TODO: once the Negotiator post <--> attachment link ships and AttachmentMetadataDTO
         //       exposes postId, extend to: getOrganizationId() == null && getPostId() == null
         .filter(a -> a.getOrganizationId() == null)
@@ -52,19 +52,37 @@ public class AttachmentForwardingService {
   }
 
   /**
-   * Subtracts the attachments already forwarded to {@code (orgExtId, ticketId)} from {@code
-   * candidates}, returning only those still to be forwarded to that ticket. DB-only; performs no
-   * HTTP.
+   * Return all negotiation-level attachment IDs for {@code negotiationId} minus those whose IDs are
+   * in {@code forwardedAttachmentIds}.
    */
-  public List<ResolvedAttachment> notYetForwardedToTicket(
-      String orgExtId, String ticketId, List<ResolvedAttachment> candidates) {
-    Set<String> alreadyForwarded =
-        forwardedAttachmentRepository
-            .findByIdOrganizationExtIdAndIdTicketId(orgExtId, ticketId)
-            .stream()
-            .map(fa -> fa.getId().getAttachmentId())
-            .collect(Collectors.toSet());
-    return candidates.stream().filter(c -> !alreadyForwarded.contains(c.attachmentId())).toList();
+  public List<String> getNegotiationPayloadAttachmentsIds(
+      String negotiationId, OrganizationConfig config) {
+    List<AttachmentMetadataDTO> metadata = negotiatorClient.getAttachments(negotiationId, config);
+    return metadata.stream()
+        // TODO: once the Negotiator post <--> attachment link ships and AttachmentMetadataDTO
+        //       exposes postId, extend to: getOrganizationId() == null && getPostId() == null
+        .filter(a -> a.getOrganizationId() == null)
+        .map(AttachmentMetadataDTO::getId)
+        .toList();
+  }
+
+  /**
+   * Subtracts the attachments already forwarded to {@code (orgExtId, ticketId)} from {@code
+   * candidateIds}, returning only those that should be forwarded to the ticket.
+   */
+  public List<String> notYetForwardedToTicketIds(
+      String orgExtId, String ticketId, List<String> candidateIds) {
+    Set<String> alreadyForwarded = alreadyForwardedIds(orgExtId, ticketId);
+    return candidateIds.stream().filter(id -> !alreadyForwarded.contains(id)).toList();
+  }
+
+  /** The IDs of attachments already forwarded to {@code (orgExtId, ticketId)}. */
+  public Set<String> alreadyForwardedIds(String orgExtId, String ticketId) {
+    return forwardedAttachmentRepository
+        .findByIdOrganizationExtIdAndIdTicketId(orgExtId, ticketId)
+        .stream()
+        .map(fa -> fa.getId().getAttachmentId())
+        .collect(Collectors.toSet());
   }
 
   /**

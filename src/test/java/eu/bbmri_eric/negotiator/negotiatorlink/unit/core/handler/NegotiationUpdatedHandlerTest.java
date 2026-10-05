@@ -15,14 +15,12 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationUpdatedHandler;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddNegotiationAttachmentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService.ResolvedAttachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.util.List;
 import java.util.Optional;
@@ -142,20 +140,17 @@ class NegotiationUpdatedHandlerTest {
     var resource =
         TestUtil.resource(1L, RESOURCE_SOURCE_ID, "My Collection", ORG_EXT_ID, ORG_INTERNAL_ID);
     var mapping = mapping(NEGOTIATION_ID, TICKET_ID, RESOURCE_ID, RESOURCE_SOURCE_ID);
-    var attachment =
-        new ResolvedAttachment(
-            "a-1", new Attachment("public.txt", "text/plain", "bytes".getBytes()));
 
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID))
         .thenReturn(List.of(mapping));
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
     when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config)).thenReturn(negotiation);
     when(negotiatorClient.getResources(NEGOTIATION_ID, config)).thenReturn(List.of(resource));
-    when(attachmentForwardingService.resolveForwardablePayloadAttachments(NEGOTIATION_ID, config))
-        .thenReturn(List.of(attachment));
-    when(attachmentForwardingService.notYetForwardedToTicket(
-            ORG_EXT_ID, TICKET_ID, List.of(attachment)))
-        .thenReturn(List.of(attachment));
+    when(attachmentForwardingService.getNegotiationPayloadAttachmentsIds(NEGOTIATION_ID, config))
+        .thenReturn(List.of("a-1"));
+    when(attachmentForwardingService.notYetForwardedToTicketIds(
+            ORG_EXT_ID, TICKET_ID, List.of("a-1")))
+        .thenReturn(List.of("a-1"));
 
     List<PendingIntent> intents = handler.handle(updatedEventNode(NEGOTIATION_ID));
 

@@ -17,7 +17,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddComme
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddNegotiationAttachmentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService.ResolvedAttachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFormatter;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
@@ -55,7 +54,7 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
       EntityModelNegotiationDTO negotiation,
       Map<String, EntityModelResourceWithStatusDTO> resourceById,
       List<TicketMapping> allMappings,
-      List<ResolvedAttachment> candidateAttachments) {}
+      List<String> candidateAttachmentIds) {}
 
   @Override
   public String getSupportedEventType() {
@@ -112,10 +111,10 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
                     resource -> String.valueOf(resource.getId()),
                     Function.identity(),
                     (existing, duplicate) -> existing));
-    List<ResolvedAttachment> candidateAttachments =
-        attachmentForwardingService.resolveForwardablePayloadAttachments(negotiationId, config);
+    List<String> candidateAttachmentIds =
+        attachmentForwardingService.getNegotiationPayloadAttachmentsIds(negotiationId, config);
     return new NegotiationContext(
-        negotiationId, negotiation, resourceById, mappings, candidateAttachments);
+        negotiationId, negotiation, resourceById, mappings, candidateAttachmentIds);
   }
 
   private List<PendingIntent> processTicket(
@@ -146,13 +145,12 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
 
   private Optional<PendingIntent> attachmentIntent(
       String ticketId, String orgExtId, NegotiationContext context) {
-    List<ResolvedAttachment> toForward =
-        attachmentForwardingService.notYetForwardedToTicket(
-            orgExtId, ticketId, context.candidateAttachments());
-    if (toForward.isEmpty()) {
+    List<String> attachmentIds =
+        attachmentForwardingService.notYetForwardedToTicketIds(
+            orgExtId, ticketId, context.candidateAttachmentIds());
+    if (attachmentIds.isEmpty()) {
       return Optional.empty();
     }
-    List<String> attachmentIds = toForward.stream().map(ResolvedAttachment::attachmentId).toList();
     String payload =
         serialize(
             new AddNegotiationAttachmentPayload(

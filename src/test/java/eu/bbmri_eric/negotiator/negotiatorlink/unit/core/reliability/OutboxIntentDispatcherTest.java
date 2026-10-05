@@ -43,6 +43,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostCreateDTO;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -180,8 +181,8 @@ class OutboxIntentDispatcherTest {
             List.of(ref),
             List.of());
     when(helpdeskClient.createTicket(any(), eq(config))).thenReturn(TICKET_ID);
-    when(attachmentForwardingService.resolveForwardablePayloadAttachments(
-            eq(NEGOTIATION_ID), eq(config)))
+    when(attachmentForwardingService.getNegotiationPayloadAttachmentsToForward(
+            eq(NEGOTIATION_ID), eq(config), eq(Set.of())))
         .thenReturn(List.of());
 
     dispatcher.dispatch(intent(OutboxIntentType.CREATE_TICKET, payload));
