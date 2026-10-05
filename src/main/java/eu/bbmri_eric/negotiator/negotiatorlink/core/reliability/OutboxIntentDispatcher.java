@@ -36,7 +36,7 @@ import org.springframework.stereotype.Component;
 /** The single place that maps an {@link OutboxIntentType} to a concrete client write call. */
 @Slf4j
 @Component
-public class IntentDispatcher {
+public class OutboxIntentDispatcher {
 
   private final OrganizationConfigRegistry registry;
   private final java.util.Map<HelpdeskType, HelpdeskClient> clients;
@@ -46,7 +46,7 @@ public class IntentDispatcher {
   private final AttachmentForwardingService attachmentForwardingService;
   private final ObjectMapper objectMapper;
 
-  public IntentDispatcher(
+  public OutboxIntentDispatcher(
       OrganizationConfigRegistry registry,
       java.util.Map<HelpdeskType, HelpdeskClient> clients,
       NegotiatorClient negotiatorClient,

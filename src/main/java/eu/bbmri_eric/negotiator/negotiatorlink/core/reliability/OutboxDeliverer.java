@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class OutboxDeliverer {
 
   private final OutboxIntentRepository outboxIntentRepository;
-  private final IntentDispatcher dispatcher;
+  private final OutboxIntentDispatcher dispatcher;
   private final FailureClassifier failureClassifier;
   private final int maxAttempts;
   private final Duration baseBackoff;
@@ -22,7 +22,7 @@ public class OutboxDeliverer {
 
   public OutboxDeliverer(
       OutboxIntentRepository outboxIntentRepository,
-      IntentDispatcher dispatcher,
+      OutboxIntentDispatcher dispatcher,
       FailureClassifier failureClassifier,
       NegotiatorLinkProperties properties) {
     this.outboxIntentRepository = outboxIntentRepository;

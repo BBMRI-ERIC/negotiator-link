@@ -23,7 +23,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedPost;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OutboxIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.IntentDispatcher;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentDispatcher;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
@@ -52,7 +52,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.client.HttpClientErrorException;
 
 @ExtendWith(MockitoExtension.class)
-class IntentDispatcherTest {
+class OutboxIntentDispatcherTest {
 
   private static final String NEGOTIATION_ID = "neg-1";
   private static final String TICKET_ID = "ticket-7";
@@ -71,13 +71,13 @@ class IntentDispatcherTest {
 
   private final ObjectMapper objectMapper = new ObjectMapper();
   private OrganizationConfig config;
-  private IntentDispatcher dispatcher;
+  private OutboxIntentDispatcher dispatcher;
 
   @BeforeEach
   void setUp() {
     config = organizationConfig(ORG_EXT_ID, TicketStrategy.PER_RESOURCE);
     dispatcher =
-        new IntentDispatcher(
+        new OutboxIntentDispatcher(
             registry,
             Map.of(HelpdeskType.ZAMMAD, helpdeskClient),
             negotiatorClient,
