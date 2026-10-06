@@ -110,3 +110,4 @@ negotiator-link:
     base-backoff: PT3S
     max-backoff: PT120S
     claim-timeout: PT55S
+    worker-count: 4

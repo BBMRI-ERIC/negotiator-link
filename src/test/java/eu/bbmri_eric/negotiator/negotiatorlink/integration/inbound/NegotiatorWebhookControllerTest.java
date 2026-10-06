@@ -69,13 +69,6 @@ class NegotiatorWebhookControllerTest {
   private static final long ORG_ID = 10L;
   private static final String RESOURCE_SOURCE_ID = "bbmri:NL:LUMC:collection:res1";
   private static final String RESOURCE_ORG_EXT_ID = "bbmri:NL:LUMC";
-  private static final String AVAILABLE_SYSTEM_COMMENT =
-      "Resource '%s' changed the status to 'Resource Made Available'".formatted(RESOURCE_SOURCE_ID);
-  private static final String CHECKING_AVAILABILITY_SYSTEM_COMMENT =
-      "Resource '%s' changed the status to 'Checking Availability'".formatted(RESOURCE_SOURCE_ID);
-  private static final String CONCLUDED_SYSTEM_COMMENT =
-      "Negotiation status changed to 'Concluded'";
-  private static final String PAUSED_SYSTEM_COMMENT = "Negotiation status changed to 'Paused'";
 
   @Autowired private MockMvc mockMvc;
   @Autowired private TicketMappingRepository ticketMappingRepository;
@@ -113,6 +106,11 @@ class NegotiatorWebhookControllerTest {
   @BeforeEach
   void resetMocks() {
     Mockito.reset(helpdeskClient, negotiatorClient);
+    Mockito.doNothing().when(helpdeskClient).addComment(any(), any(), any(), any());
+    Mockito.doNothing().when(helpdeskClient).addSystemComment(any(), any(), any());
+    Mockito.doNothing().when(helpdeskClient).updateNegotiationState(any(), any(), any());
+    Mockito.doNothing().when(helpdeskClient).updateResourceState(any(), any(), any());
+    Mockito.doNothing().when(helpdeskClient).updateTicketState(any(), any(), any());
     inboxEventRepository.deleteAll();
     outboxIntentRepository.deleteAll();
   }
@@ -196,27 +194,6 @@ class NegotiatorWebhookControllerTest {
   @Test
   void receiveWebhook_negotiationStateChanged_callsUpdateNegotiationStateOnAllTickets()
       throws Exception {
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .updateNegotiationState(
-            eq(TICKET_A), eq(NegotiatorNegotiationEvent.PAUSE.toState()), any());
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .updateNegotiationState(
-            eq(TICKET_B), eq(NegotiatorNegotiationEvent.PAUSE.toState()), any());
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .updateNegotiationState(
-            eq(TICKET_RESOURCE), eq(NegotiatorNegotiationEvent.PAUSE.toState()), any());
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .addSystemComment(eq(TICKET_A), eq(PAUSED_SYSTEM_COMMENT), any());
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .addSystemComment(eq(TICKET_B), eq(PAUSED_SYSTEM_COMMENT), any());
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .addSystemComment(eq(TICKET_RESOURCE), eq(PAUSED_SYSTEM_COMMENT), any());
     String body =
         negotiationStateChangedPayload(
             NEGOTIATION_ID,
@@ -237,32 +214,6 @@ class NegotiatorWebhookControllerTest {
   @Test
   void receiveWebhook_negotiationStateMappedToTicketState_callsUpdateTicketStateOnAllTickets()
       throws Exception {
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .updateNegotiationState(
-            eq(TICKET_A), eq(NegotiatorNegotiationEvent.CONCLUDE.toState()), any());
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .updateNegotiationState(
-            eq(TICKET_B), eq(NegotiatorNegotiationEvent.CONCLUDE.toState()), any());
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .updateNegotiationState(
-            eq(TICKET_RESOURCE), eq(NegotiatorNegotiationEvent.CONCLUDE.toState()), any());
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .addSystemComment(eq(TICKET_A), eq(CONCLUDED_SYSTEM_COMMENT), any());
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .addSystemComment(eq(TICKET_B), eq(CONCLUDED_SYSTEM_COMMENT), any());
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .addSystemComment(eq(TICKET_RESOURCE), eq(CONCLUDED_SYSTEM_COMMENT), any());
-    Mockito.doNothing().when(helpdeskClient).updateTicketState(eq(TICKET_A), eq("closed"), any());
-    Mockito.doNothing().when(helpdeskClient).updateTicketState(eq(TICKET_B), eq("closed"), any());
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .updateTicketState(eq(TICKET_RESOURCE), eq("closed"), any());
     String body =
         negotiationStateChangedPayload(
             NEGOTIATION_ID,
@@ -285,15 +236,6 @@ class NegotiatorWebhookControllerTest {
   void receiveWebhook_resourceStateMappedToTicketState_updatesResourceStateThenTicketState()
       throws Exception {
     String toState = NegotiatorResourceEvent.GRANT_ACCESS_TO_RESOURCE.targetState();
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .updateResourceState(eq(TICKET_RESOURCE), eq(toState), any());
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .addSystemComment(eq(TICKET_RESOURCE), eq(AVAILABLE_SYSTEM_COMMENT), any());
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .updateTicketState(eq(TICKET_RESOURCE), eq("closed"), any());
     String body =
         resourceStateUpdatedPayload(
             NEGOTIATION_ID,

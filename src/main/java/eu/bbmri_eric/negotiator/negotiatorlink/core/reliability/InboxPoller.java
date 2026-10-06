@@ -28,7 +28,7 @@ public class InboxPoller {
     this.batchSize = properties.getInbox().getBatchSize();
   }
 
-  @Scheduled(fixedDelayString = "${negotiator-link.inbox.poll-delay-ms:1000}")
+  @Scheduled(fixedDelayString = "${negotiator-link.inbox.poll-delay-ms:500}")
   public void poll() {
     while (!processBatch()) {
       // drain until empty

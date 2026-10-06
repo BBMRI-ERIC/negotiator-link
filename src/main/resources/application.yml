@@ -41,17 +41,18 @@ negotiator-link:
     cutoff-age: PT24H
   inbox:
     batch-size: 50
-    poll-delay-ms: 1000
+    poll-delay-ms: 500
     max-attempts: 6
     base-backoff: PT1S
     max-backoff: PT30S
   outbox:
     batch-size: 50
-    poll-delay-ms: 1000
+    poll-delay-ms: 500
     max-attempts: 6
     base-backoff: PT1S
     max-backoff: PT30S
     claim-timeout: PT60S
+    worker-count: 4
   resource-events:
     MARK_AS_CHECKING_AVAILABILITY: CHECKING_AVAILABILITY
     STEP_AWAY: RESOURCE_UNAVAILABLE

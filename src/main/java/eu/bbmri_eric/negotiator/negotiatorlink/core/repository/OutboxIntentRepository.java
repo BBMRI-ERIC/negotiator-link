@@ -52,6 +52,11 @@ public interface OutboxIntentRepository extends JpaRepository<OutboxIntent, Long
   Optional<OutboxIntent> findFirstByIntentTypeAndTargetIdAndStatusInOrderByInboxRowIdDesc(
       OutboxIntentType outboxIntentType, String targetId, Collection<OutboxStatus> statuses);
 
+  @Query(
+      value = "SELECT row_id, negotiation_id FROM outbox_intent WHERE row_id IN (:rowIds)",
+      nativeQuery = true)
+  List<Object[]> findRowIdAndNegotiationIdByRowIdIn(@Param("rowIds") Collection<Long> rowIds);
+
   long countByStatusIn(Collection<OutboxStatus> statuses);
 
   long deleteByStatusInAndCreatedAtBefore(List<OutboxStatus> statuses, Instant createdAt);

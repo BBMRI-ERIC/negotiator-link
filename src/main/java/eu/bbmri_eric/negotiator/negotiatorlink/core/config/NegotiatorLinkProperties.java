@@ -35,6 +35,7 @@ public class NegotiatorLinkProperties {
     private Duration baseBackoff;
     private Duration maxBackoff;
     private Duration claimTimeout;
+    private int workerCount;
   }
 
   @Data
