@@ -10,7 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-/** Single background poller that drains the inbox. */
+/** Single background poller that processes the inbox. */
 @Slf4j
 @Component
 public class InboxPoller {
@@ -31,11 +31,11 @@ public class InboxPoller {
   @Scheduled(fixedDelayString = "${negotiator-link.inbox.poll-delay-ms:500}")
   public void poll() {
     while (!processBatch()) {
-      // drain until empty
+      // process until empty
     }
   }
 
-  /** Processes one batch. Returns {@code true} when the batch was empty (nothing left to drain). */
+  /** Processes one batch. Returns {@code true} when the batch was empty (nothing left to process). */
   private boolean processBatch() {
     List<InboxEvent> events = inboxEventRepository.claimReceivedBatch(Instant.now(), batchSize);
     events.forEach(this::processOne);

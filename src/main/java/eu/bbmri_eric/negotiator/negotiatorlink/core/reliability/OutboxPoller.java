@@ -16,8 +16,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * Polls the outbox and routes each intent to a per-negotiation worker thread. All intents for the
- * same negotiation are processed by the same worker (hash(negotiationId) % N), preserving ordering
- * within a negotiation while allowing parallel processing across negotiations.
+ * same negotiation are processed by the same worker, preserving ordering within a negotiation
+ * while allowing parallel processing across negotiations.
  */
 @Slf4j
 @Component
@@ -56,7 +56,7 @@ public class OutboxPoller {
   @Scheduled(fixedDelayString = "${negotiator-link.outbox.poll-delay-ms:500}")
   public void poll() {
     while (!deliverBatch()) {
-      // drain until empty
+      // process until empty
     }
   }
 
@@ -81,7 +81,7 @@ public class OutboxPoller {
 
   /**
    * Claims one batch, routes each intent to its negotiation's worker, and returns {@code true} when
-   * the batch was empty (nothing left to claim right now).
+   * the batch was empty (nothing left to process right now).
    */
   @SuppressWarnings("resource")
   private boolean deliverBatch() {
