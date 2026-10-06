@@ -144,8 +144,8 @@ public class OutboxDeliverer {
 
   /**
    * A {@code SET_*} state intent is skipped if a newer state intent exists for the same {@code
-   * (targetId, outboxIntentType)}. Ordering is by {@code inbox_row_id} (arrival order at the
-   * system boundary), preventing a retry backlog from replaying obsolete state.
+   * (targetId, outboxIntentType)}. Ordering is by {@code inbox_row_id} (arrival order at the system
+   * boundary), preventing a retry backlog from replaying obsolete state.
    */
   private boolean supersededByNewer(OutboxIntent intent) {
     if (!isStateIntent(intent.getIntentType())) {

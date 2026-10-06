@@ -37,8 +37,8 @@ class OutboxClaimerTest {
 
   @Test
   void claim_duePendingRows_flipsToInProgressWithClaimExpiry() {
-    OutboxIntent due = save(pending(Instant.now().minusSeconds(5)));
-    OutboxIntent notDue = save(pending(Instant.now().plusSeconds(300)));
+    OutboxIntent due = save(pending(1L, Instant.now().minusSeconds(5)));
+    OutboxIntent notDue = save(pending(2L, Instant.now().plusSeconds(300)));
 
     List<Long> claimed = claimer.claim(10, Duration.ofSeconds(60));
 
@@ -53,8 +53,8 @@ class OutboxClaimerTest {
 
   @Test
   void claim_respectsBatchLimitAndRowOrder() {
-    OutboxIntent first = save(pending(Instant.now().minusSeconds(5)));
-    save(pending(Instant.now().minusSeconds(5)));
+    OutboxIntent first = save(pending(1L, Instant.now().minusSeconds(5)));
+    save(pending(2L, Instant.now().minusSeconds(5)));
 
     List<Long> claimed = claimer.claim(1, Duration.ofSeconds(60));
 
@@ -63,15 +63,15 @@ class OutboxClaimerTest {
 
   @Test
   void claim_emptyWhenNothingToBeProcessed() {
-    save(pending(Instant.now().plusSeconds(300)));
+    save(pending(1L, Instant.now().plusSeconds(300)));
 
     assertThat(claimer.claim(10, Duration.ofSeconds(60))).isEmpty();
   }
 
   @Test
   void reclaimExpiredClaims_returnsOnlyExpiredInProgressRowsToPending() {
-    OutboxIntent expired = save(inProgress(Instant.now().minusSeconds(10)));
-    OutboxIntent live = save(inProgress(Instant.now().plusSeconds(60)));
+    OutboxIntent expired = save(inProgress(1L, Instant.now().minusSeconds(10)));
+    OutboxIntent live = save(inProgress(2L, Instant.now().plusSeconds(60)));
 
     List<Long> reclaimed = claimer.reclaimExpiredClaims();
 
@@ -88,10 +88,10 @@ class OutboxClaimerTest {
     return outboxIntentRepository.save(intent);
   }
 
-  private OutboxIntent pending(Instant nextAttemptAt) {
+  private OutboxIntent pending(Long inboxRowId, Instant nextAttemptAt) {
     OutboxIntent intent =
         new OutboxIntent(
-            null,
+            inboxRowId,
             OutboxIntentType.ADD_COMMENT,
             TargetKind.TICKET.name(),
             "ticket-1",
@@ -102,8 +102,8 @@ class OutboxClaimerTest {
     return intent;
   }
 
-  private OutboxIntent inProgress(Instant claimExpiresAt) {
-    OutboxIntent intent = pending(Instant.now());
+  private OutboxIntent inProgress(Long inboxRowId, Instant claimExpiresAt) {
+    OutboxIntent intent = pending(inboxRowId, Instant.now());
     intent.setStatus(OutboxStatus.IN_PROGRESS);
     intent.setClaimExpiresAt(claimExpiresAt);
     return intent;
