@@ -84,5 +84,6 @@ class NegotiatorLinkPropertiesTest {
     assertThat(outbox.getMaxAttempts()).isEqualTo(4);
     assertThat(outbox.getBaseBackoff()).isEqualTo(Duration.parse("PT3S"));
     assertThat(outbox.getMaxBackoff()).isEqualTo(Duration.parse("PT120S"));
+    assertThat(outbox.getClaimTimeout()).isEqualTo(Duration.parse("PT55S"));
   }
 }

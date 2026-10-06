@@ -3,8 +3,11 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.reliability;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorLinkProperties;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OutboxIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +18,8 @@ public class OutboxDeliverer {
 
   private final OutboxIntentRepository outboxIntentRepository;
   private final OutboxIntentDispatcher dispatcher;
+  private final TicketMappingRepository ticketMappingRepository;
+  private final AttachmentForwardingService attachmentForwardingService;
   private final FailureClassifier failureClassifier;
   private final int maxAttempts;
   private final Duration baseBackoff;
@@ -23,10 +28,14 @@ public class OutboxDeliverer {
   public OutboxDeliverer(
       OutboxIntentRepository outboxIntentRepository,
       OutboxIntentDispatcher dispatcher,
+      TicketMappingRepository ticketMappingRepository,
+      AttachmentForwardingService attachmentForwardingService,
       FailureClassifier failureClassifier,
       NegotiatorLinkProperties properties) {
     this.outboxIntentRepository = outboxIntentRepository;
     this.dispatcher = dispatcher;
+    this.ticketMappingRepository = ticketMappingRepository;
+    this.attachmentForwardingService = attachmentForwardingService;
     this.failureClassifier = failureClassifier;
     NegotiatorLinkProperties.OutboxProperties outbox = properties.getOutbox();
     this.maxAttempts = outbox.getMaxAttempts();
@@ -34,28 +43,50 @@ public class OutboxDeliverer {
     this.maxBackoff = outbox.getMaxBackoff();
   }
 
-  /** Delivers a single intent. Throws on failure so the poller can record it. */
-  @Transactional
-  public void deliver(Long rowId) {
+  /**
+   * Dispatches a single already-claimed ({@code IN_PROGRESS}) intent. Returns the DB side effects.
+   */
+  public DispatchResult dispatch(Long rowId) {
     OutboxIntent intent = outboxIntentRepository.findById(rowId).orElse(null);
-    if (intent == null || intent.getStatus() != OutboxStatus.PENDING) {
-      return;
+    if (intent == null || intent.getStatus() != OutboxStatus.IN_PROGRESS) {
+      return null;
     }
     if (supersededByNewer(intent)) {
       log.debug(
           "Intent {} ({}) superseded by a newer state intent — marking delivered",
           rowId,
           intent.getIntentType());
-      markDelivered(intent);
+      return DispatchResult.empty();
+    }
+    return dispatcher.dispatch(intent);
+  }
+
+  /** Persists the dispatch side effects and marks the intent delivered atomically. */
+  @Transactional
+  public void commit(Long rowId, DispatchResult result) {
+    if (result == null) {
       return;
     }
-    dispatcher.dispatch(intent);
+    OutboxIntent intent = outboxIntentRepository.findById(rowId).orElse(null);
+    if (intent == null || intent.getStatus() != OutboxStatus.IN_PROGRESS) {
+      return;
+    }
+    ticketMappingRepository.saveAll(result.ticketMappings());
+    result
+        .forwardedAttachments()
+        .ifPresent(
+            record ->
+                attachmentForwardingService.recordForwardedAttachments(
+                    record.negotiationId(),
+                    record.orgExtId(),
+                    record.ticketId(),
+                    record.attachmentIds()));
     markDelivered(intent);
   }
 
   /**
-   * A transient failure backs off and retries. Permanent failures and exhausted retries move to a
-   * terminal status.
+   * A transient failure backs off and returns the row to {@code PENDING}. Permanent failures and
+   * exhausted retries move to a terminal status.
    */
   @Transactional
   public void recordFailure(Long rowId, Throwable error) {
@@ -66,6 +97,7 @@ public class OutboxDeliverer {
     FailureClass failureClass = failureClassifier.classify(error);
     intent.setAttemptCount(intent.getAttemptCount() + 1);
     intent.setLastError(truncate(error.getMessage()));
+    intent.setClaimExpiresAt(null);
     switch (failureClass) {
       case TRANSIENT -> {
         if (intent.getAttemptCount() >= maxAttempts) {
@@ -77,6 +109,7 @@ public class OutboxDeliverer {
               maxAttempts,
               error);
         } else {
+          intent.setStatus(OutboxStatus.PENDING);
           intent.setNextAttemptAt(
               Instant.now()
                   .plus(
@@ -110,18 +143,20 @@ public class OutboxDeliverer {
   }
 
   /**
-   * A {@code SET_*} state intent is skipped if a newer pending state intent exists for the same
-   * {@code (targetId, outboxIntentType)}. Safe because field-set is idempotent, and it prevents a
-   * retry backlog from replaying obsolete state.
+   * A {@code SET_*} state intent is skipped if a newer state intent exists for the same {@code
+   * (targetId, outboxIntentType)}. Ordering is by {@code inbox_row_id} (arrival order at the
+   * system boundary), preventing a retry backlog from replaying obsolete state.
    */
   private boolean supersededByNewer(OutboxIntent intent) {
     if (!isStateIntent(intent.getIntentType())) {
       return false;
     }
     return outboxIntentRepository
-        .findFirstByIntentTypeAndTargetIdAndStatusOrderByRowIdDesc(
-            intent.getIntentType(), intent.getTargetId(), OutboxStatus.PENDING)
-        .map(latest -> latest.getRowId() > intent.getRowId())
+        .findFirstByIntentTypeAndTargetIdAndStatusInOrderByInboxRowIdDesc(
+            intent.getIntentType(),
+            intent.getTargetId(),
+            List.of(OutboxStatus.PENDING, OutboxStatus.IN_PROGRESS))
+        .map(latest -> latest.getInboxRowId() > intent.getInboxRowId())
         .orElse(false);
   }
 
@@ -134,6 +169,7 @@ public class OutboxDeliverer {
   private void markDelivered(OutboxIntent intent) {
     intent.setStatus(OutboxStatus.DELIVERED);
     intent.setDeliveredAt(Instant.now());
+    intent.setClaimExpiresAt(null);
     outboxIntentRepository.save(intent);
   }
 

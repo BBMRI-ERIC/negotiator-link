@@ -38,7 +38,7 @@ public class OutboxIntent {
   @Column(name = "row_id")
   private Long rowId;
 
-  @Column(name = "inbox_row_id")
+  @Column(name = "inbox_row_id", nullable = false)
   private Long inboxRowId;
 
   @Enumerated(EnumType.STRING)
@@ -70,6 +70,10 @@ public class OutboxIntent {
 
   @Column(name = "next_attempt_at", nullable = false)
   private Instant nextAttemptAt;
+
+  /** Claim deadline while {@link OutboxStatus#IN_PROGRESS}; null otherwise. */
+  @Column(name = "claim_expires_at")
+  private Instant claimExpiresAt;
 
   @Column(name = "last_error")
   private String lastError;

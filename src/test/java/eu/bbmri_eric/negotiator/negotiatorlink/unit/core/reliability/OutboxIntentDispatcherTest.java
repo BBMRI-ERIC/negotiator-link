@@ -1,7 +1,9 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.reliability;
 
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.organizationConfig;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -23,6 +25,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedPost;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OutboxIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.DispatchResult;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentDispatcher;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
@@ -168,7 +171,7 @@ class OutboxIntentDispatcherTest {
   }
 
   @Test
-  void dispatch_createTicket_callsHelpdeskAndPersistsMappings() {
+  void dispatch_createTicket_callsHelpdeskAndReturnsMappings() {
     var ref = new ResourceMappingRef("r-1", RESOURCE_SOURCE_ID, ORG_ID);
     var payload =
         new CreateTicketPayload(
@@ -185,10 +188,14 @@ class OutboxIntentDispatcherTest {
             eq(NEGOTIATION_ID), eq(config), eq(Set.of())))
         .thenReturn(List.of());
 
-    dispatcher.dispatch(intent(OutboxIntentType.CREATE_TICKET, payload));
+    DispatchResult result = dispatcher.dispatch(intent(OutboxIntentType.CREATE_TICKET, payload));
 
     verify(helpdeskClient).createTicket(any(), eq(config));
-    verify(ticketMappingRepository).save(any());
+    verify(ticketMappingRepository, never()).save(any());
+    assertEquals(1, result.ticketMappings().size());
+    assertEquals(TICKET_ID, result.ticketMappings().getFirst().getId().getHelpdeskTicketId());
+    assertTrue(result.forwardedAttachments().isPresent());
+    assertEquals(TICKET_ID, result.forwardedAttachments().get().ticketId());
   }
 
   @Test

@@ -30,6 +30,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostCreateDTO;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -64,7 +65,7 @@ public class OutboxIntentDispatcher {
     this.objectMapper = objectMapper;
   }
 
-  public void dispatch(OutboxIntent intent) {
+  public DispatchResult dispatch(OutboxIntent intent) {
     OrganizationConfig config =
         registry
             .findByExternalId(intent.getOrganizationExtId())
@@ -77,24 +78,31 @@ public class OutboxIntentDispatcher {
                             + intent.getRowId()));
     HelpdeskClient client = clients.get(config.type());
 
-    switch (intent.getIntentType()) {
+    return switch (intent.getIntentType()) {
       case CREATE_TICKET -> createTicket(intent, config, client);
       case LINK_TICKETS -> linkTickets(intent, config, client);
       case ADD_COMMENT -> addComment(intent, config, client);
       case ADD_SYSTEM_COMMENT -> addSystemComment(intent, config, client);
-      case SET_NEGOTIATION_STATE ->
-          client.updateNegotiationState(intent.getTargetId(), readState(intent).value(), config);
-      case SET_RESOURCE_STATE ->
-          client.updateResourceState(intent.getTargetId(), readState(intent).value(), config);
-      case SET_TICKET_STATE ->
-          client.updateTicketState(intent.getTargetId(), readState(intent).value(), config);
+      case SET_NEGOTIATION_STATE -> {
+        client.updateNegotiationState(intent.getTargetId(), readState(intent).value(), config);
+        yield DispatchResult.empty();
+      }
+      case SET_RESOURCE_STATE -> {
+        client.updateResourceState(intent.getTargetId(), readState(intent).value(), config);
+        yield DispatchResult.empty();
+      }
+      case SET_TICKET_STATE -> {
+        client.updateTicketState(intent.getTargetId(), readState(intent).value(), config);
+        yield DispatchResult.empty();
+      }
       case CREATE_POST -> createPost(intent, config);
       case SEND_RESOURCE_EVENT -> sendResourceEvent(intent, config);
       case SEND_BULK_RESOURCE_EVENT -> sendBulkResourceEvent(intent, config);
-    }
+    };
   }
 
-  private void createTicket(OutboxIntent intent, OrganizationConfig config, HelpdeskClient client) {
+  private DispatchResult createTicket(
+      OutboxIntent intent, OrganizationConfig config, HelpdeskClient client) {
     CreateTicketPayload payload = read(intent, CreateTicketPayload.class);
 
     List<ResolvedAttachment> resolved =
@@ -116,8 +124,9 @@ public class OutboxIntentDispatcher {
         payload.negotiationId(),
         intent.getOrganizationExtId());
 
+    List<TicketMapping> ticketMappings = new ArrayList<>();
     for (CreateTicketPayload.ResourceMappingRef ref : payload.resources()) {
-      ticketMappingRepository.save(
+      ticketMappings.add(
           new TicketMapping(
               new TicketMappingId(payload.negotiationId(), ticketId, ref.resourceId()),
               ref.resourceSourceId(),
@@ -125,18 +134,21 @@ public class OutboxIntentDispatcher {
               intent.getOrganizationExtId()));
     }
 
-    attachmentForwardingService.recordForwardedAttachments(
-        payload.negotiationId(),
-        intent.getOrganizationExtId(),
-        ticketId,
-        resolved.stream().map(ResolvedAttachment::attachmentId).toList());
-
     for (String postText : payload.postTexts()) {
       client.addComment(ticketId, postText, CommentType.PLAIN_TEXT, config);
     }
+
+    DispatchResult.ForwardedAttachmentsRecord forwarded =
+        new DispatchResult.ForwardedAttachmentsRecord(
+            payload.negotiationId(),
+            intent.getOrganizationExtId(),
+            ticketId,
+            resolved.stream().map(ResolvedAttachment::attachmentId).toList());
+    return new DispatchResult(ticketMappings, Optional.of(forwarded));
   }
 
-  private void linkTickets(OutboxIntent intent, OrganizationConfig config, HelpdeskClient client) {
+  private DispatchResult linkTickets(
+      OutboxIntent intent, OrganizationConfig config, HelpdeskClient client) {
     LinkTicketsPayload payload = read(intent, LinkTicketsPayload.class);
     List<String> ticketIds = new ArrayList<>();
     for (String resourceSourceId : payload.resourceSourceIds()) {
@@ -147,26 +159,29 @@ public class OutboxIntentDispatcher {
     if (ticketIds.size() > 1) {
       client.linkRelatedTickets(ticketIds, config);
     }
+    return DispatchResult.empty();
   }
 
-  private void addComment(OutboxIntent intent, OrganizationConfig config, HelpdeskClient client) {
+  private DispatchResult addComment(
+      OutboxIntent intent, OrganizationConfig config, HelpdeskClient client) {
     JsonNode node = readTree(intent);
     if (node.hasNonNull("negotiationAttachmentIds")) {
-      addCommentWithNewAttachments(node, intent, config, client);
-      return;
+      return addCommentWithNewAttachments(node, intent, config, client);
     }
 
     AddCommentPayload payload = convert(node, AddCommentPayload.class);
     client.addComment(intent.getTargetId(), payload.text(), payload.commentType(), config);
+    return DispatchResult.empty();
   }
 
-  private void addSystemComment(
+  private DispatchResult addSystemComment(
       OutboxIntent intent, OrganizationConfig config, HelpdeskClient client) {
     AddSystemCommentPayload payload = read(intent, AddSystemCommentPayload.class);
     client.addSystemComment(intent.getTargetId(), payload.message(), config);
+    return DispatchResult.empty();
   }
 
-  private void createPost(OutboxIntent intent, OrganizationConfig config) {
+  private DispatchResult createPost(OutboxIntent intent, OrganizationConfig config) {
     CreatePostPayload payload = read(intent, CreatePostPayload.class);
     String organizationExtId = config.organizationExternalId();
     String organizationId =
@@ -181,7 +196,7 @@ public class OutboxIntentDispatcher {
       log.info(
           "originated_post for negotiation '{}' already consumed by echo — post already created, skipping",
           payload.negotiationId());
-      return;
+      return DispatchResult.empty();
     }
     PostCreateDTO post =
         new PostCreateDTO()
@@ -191,21 +206,24 @@ public class OutboxIntentDispatcher {
     negotiatorClient.createPost(payload.negotiationId(), post, config);
     log.info(
         "Forwarded help desk post to negotiation '{}' as PRIVATE post", payload.negotiationId());
+    return DispatchResult.empty();
   }
 
-  private void sendResourceEvent(OutboxIntent intent, OrganizationConfig config) {
+  private DispatchResult sendResourceEvent(OutboxIntent intent, OrganizationConfig config) {
     SendResourceEventPayload payload = read(intent, SendResourceEventPayload.class);
     negotiatorClient.sendResourceEvent(
         payload.negotiationId(), payload.resourceSourceId(), payload.event(), config);
+    return DispatchResult.empty();
   }
 
-  private void sendBulkResourceEvent(OutboxIntent intent, OrganizationConfig config) {
+  private DispatchResult sendBulkResourceEvent(OutboxIntent intent, OrganizationConfig config) {
     SendBulkResourceEventPayload payload = read(intent, SendBulkResourceEventPayload.class);
     negotiatorClient.sendBulkResourceEvent(
         payload.negotiationId(), payload.resourceIds(), payload.targetState(), config);
+    return DispatchResult.empty();
   }
 
-  private void addCommentWithNewAttachments(
+  private DispatchResult addCommentWithNewAttachments(
       JsonNode node, OutboxIntent intent, OrganizationConfig config, HelpdeskClient client) {
     AddNegotiationAttachmentPayload payload = convert(node, AddNegotiationAttachmentPayload.class);
     Set<String> alreadyForwarded =
@@ -220,11 +238,13 @@ public class OutboxIntentDispatcher {
         CommentType.PLAIN_TEXT,
         resolved.stream().map(ResolvedAttachment::attachment).toList(),
         config);
-    attachmentForwardingService.recordForwardedAttachments(
-        payload.negotiationId(),
-        intent.getOrganizationExtId(),
-        intent.getTargetId(),
-        resolved.stream().map(ResolvedAttachment::attachmentId).toList());
+    DispatchResult.ForwardedAttachmentsRecord forwarded =
+        new DispatchResult.ForwardedAttachmentsRecord(
+            payload.negotiationId(),
+            intent.getOrganizationExtId(),
+            intent.getTargetId(),
+            resolved.stream().map(ResolvedAttachment::attachmentId).toList());
+    return new DispatchResult(List.of(), Optional.of(forwarded));
   }
 
   private String getOrganizationIdFromTicketMapping(

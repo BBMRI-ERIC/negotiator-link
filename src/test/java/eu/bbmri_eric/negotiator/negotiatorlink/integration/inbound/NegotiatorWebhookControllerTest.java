@@ -459,6 +459,10 @@ class NegotiatorWebhookControllerTest {
     // downstream verify(helpdeskClient...) assertions observe the applied effects.
     await()
         .atMost(Duration.ofSeconds(10))
-        .until(() -> outboxIntentRepository.countByStatus(OutboxStatus.PENDING) == 0);
+        .until(
+            () ->
+                outboxIntentRepository.countByStatusIn(
+                        List.of(OutboxStatus.PENDING, OutboxStatus.IN_PROGRESS))
+                    == 0);
   }
 }

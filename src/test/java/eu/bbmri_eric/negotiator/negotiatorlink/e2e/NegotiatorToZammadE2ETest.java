@@ -369,6 +369,10 @@ class NegotiatorToZammadE2ETest {
                     .orElse(false));
     await()
         .atMost(Duration.ofSeconds(10))
-        .until(() -> outboxIntentRepository.countByStatus(OutboxStatus.PENDING) == 0);
+        .until(
+            () ->
+                outboxIntentRepository.countByStatusIn(
+                        List.of(OutboxStatus.PENDING, OutboxStatus.IN_PROGRESS))
+                    == 0);
   }
 }
