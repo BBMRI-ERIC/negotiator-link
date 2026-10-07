@@ -60,4 +60,12 @@ public interface OutboxIntentRepository extends JpaRepository<OutboxIntent, Long
   long countByStatusIn(Collection<OutboxStatus> statuses);
 
   long deleteByStatusInAndCreatedAtBefore(List<OutboxStatus> statuses, Instant createdAt);
+
+  @Query(
+      value =
+          "SELECT DISTINCT negotiation_id FROM outbox_intent "
+              + "WHERE intent_type = 'CREATE_TICKET' AND status IN (:statuses)",
+      nativeQuery = true)
+  List<String> findNegotiationIdsWithPendingCreateTicket(
+      @Param("statuses") Collection<OutboxStatus> statuses);
 }

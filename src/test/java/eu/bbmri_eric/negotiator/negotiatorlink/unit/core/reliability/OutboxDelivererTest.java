@@ -1,5 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.reliability;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -21,6 +22,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxDeliverer;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentDispatcher;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxStatus;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationCache;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
@@ -34,6 +36,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 class OutboxDelivererTest {
@@ -49,6 +52,7 @@ class OutboxDelivererTest {
   @Mock private TicketMappingRepository ticketMappingRepository;
   @Mock private AttachmentForwardingService attachmentForwardingService;
   @Mock private FailureClassifier failureClassifier;
+  @Mock private PendingTicketCreationCache pendingTicketCreationCache;
 
   private OutboxDeliverer deliverer;
 
@@ -66,6 +70,7 @@ class OutboxDelivererTest {
             ticketMappingRepository,
             attachmentForwardingService,
             failureClassifier,
+            pendingTicketCreationCache,
             properties);
   }
 
@@ -124,7 +129,12 @@ class OutboxDelivererTest {
                 new DispatchResult.ForwardedAttachmentsRecord(
                     NEGOTIATION_ID, ORG_EXT_ID, TICKET_ID, List.of("att-1"))));
 
-    deliverer.commit(ROW_ID, result);
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      deliverer.commit(ROW_ID, result);
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
 
     verify(ticketMappingRepository).saveAll(List.of(mapping));
     verify(attachmentForwardingService)
@@ -132,6 +142,39 @@ class OutboxDelivererTest {
     assertEquals(OutboxStatus.DELIVERED, intent.getStatus());
     assertNull(intent.getClaimExpiresAt());
     verify(outboxIntentRepository).save(intent);
+  }
+
+  @Test
+  void commit_createTicket_removesCacheAfterCommit() {
+    OutboxIntent intent = intent(OutboxIntentType.CREATE_TICKET, OutboxStatus.IN_PROGRESS);
+    when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
+    DispatchResult result = new DispatchResult(List.of(), Optional.empty());
+
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      deliverer.commit(ROW_ID, result);
+      // afterCommit callbacks are not fired automatically without a real transaction
+      // verify the synchronization was registered and fire it manually
+      TransactionSynchronizationManager.getSynchronizations().forEach(s -> s.afterCommit());
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
+
+    verify(pendingTicketCreationCache).remove(NEGOTIATION_ID);
+  }
+
+  @Test
+  void commit_nonCreateTicket_doesNotTouchCache() {
+    OutboxIntent intent = intent(OutboxIntentType.ADD_COMMENT, OutboxStatus.IN_PROGRESS);
+    when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
+    DispatchResult result = new DispatchResult(List.of(), Optional.empty());
+
+    TransactionSynchronizationManager.initSynchronization();
+    deliverer.commit(ROW_ID, result);
+
+    assertThat(TransactionSynchronizationManager.getSynchronizations()).isEmpty();
+    verify(pendingTicketCreationCache, never()).remove(any());
+    TransactionSynchronizationManager.clearSynchronization();
   }
 
   @Test

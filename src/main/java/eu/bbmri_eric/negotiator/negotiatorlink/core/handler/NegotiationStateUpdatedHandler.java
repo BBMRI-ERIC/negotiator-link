@@ -14,6 +14,8 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationCache;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationException;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
@@ -55,6 +57,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
   private final OrganizationConfigRegistry registry;
   private final TicketMappingRepository ticketMappingRepository;
   private final AttachmentForwardingService attachmentForwardingService;
+  private final PendingTicketCreationCache pendingTicketCreationCache;
   private final ObjectMapper objectMapper;
 
   private record NegotiationWithConfig(
@@ -97,6 +100,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     groupByOrg(context.negotiationResources())
         .forEach(
             (orgExtId, orgResources) -> intents.addAll(ticketOrg(orgExtId, orgResources, context)));
+    pendingTicketCreationCache.track(event.getNegotiationId());
     return intents;
   }
 
@@ -293,6 +297,9 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
 
     Map<String, String> ticketToOrgExtId = getDistinctTicketIdToOrgExtId(negotiationId);
     if (ticketToOrgExtId.isEmpty()) {
+      if (pendingTicketCreationCache.isTracked(negotiationId)) {
+        throw new PendingTicketCreationException(negotiationId);
+      }
       log.debug("No mapped tickets for negotiation '{}' — skipping state update", negotiationId);
       return List.of();
     }

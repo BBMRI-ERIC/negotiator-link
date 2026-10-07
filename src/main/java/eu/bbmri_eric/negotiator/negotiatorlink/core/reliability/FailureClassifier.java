@@ -10,8 +10,11 @@ public class FailureClassifier {
 
   private static final int TOO_MANY_REQUESTS = 429;
 
-  /** Classifies a throwable thrown by an outbound client call. */
+  /** Classifies a throwable thrown by an outbound client call or during inbox processing. */
   public FailureClass classify(Throwable error) {
+    if (error instanceof PendingTicketCreationException) {
+      return FailureClass.TRANSIENT;
+    }
     if (error instanceof RestClientResponseException httpError) {
       int status = httpError.getStatusCode().value();
       if (status == TOO_MANY_REQUESTS || status >= 500) {

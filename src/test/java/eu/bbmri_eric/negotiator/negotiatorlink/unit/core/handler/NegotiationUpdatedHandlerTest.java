@@ -1,6 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.handler;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -18,6 +19,8 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HandlerResult;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationUpdatedHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationCache;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationException;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddNegotiationAttachmentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
@@ -46,6 +49,7 @@ class NegotiationUpdatedHandlerTest {
   @Mock private OrganizationConfigRegistry registry;
   @Mock private TicketMappingRepository ticketMappingRepository;
   @Mock private AttachmentForwardingService attachmentForwardingService;
+  @Mock private PendingTicketCreationCache pendingTicketCreationCache;
 
   private final ObjectMapper objectMapper = new ObjectMapper();
   private NegotiationUpdatedHandler handler;
@@ -58,14 +62,25 @@ class NegotiationUpdatedHandlerTest {
             registry,
             ticketMappingRepository,
             attachmentForwardingService,
+            pendingTicketCreationCache,
             objectMapper);
   }
 
   @Test
-  void handle_noMappedTickets_returnsNoIntents() throws Exception {
+  void handle_noMappedTickets_cacheAbsent_returnsNoIntents() throws Exception {
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(List.of());
+    when(pendingTicketCreationCache.isTracked(NEGOTIATION_ID)).thenReturn(false);
 
     assertThat(handler.handle(updatedEventNode(NEGOTIATION_ID)).intents()).isEmpty();
+  }
+
+  @Test
+  void handle_noMappedTickets_cachePresent_throwsPendingTicketCreationException() {
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(List.of());
+    when(pendingTicketCreationCache.isTracked(NEGOTIATION_ID)).thenReturn(true);
+
+    assertThatThrownBy(() -> handler.handle(updatedEventNode(NEGOTIATION_ID)))
+        .isInstanceOf(PendingTicketCreationException.class);
   }
 
   @Test

@@ -11,6 +11,8 @@ import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Slf4j
 @Component
@@ -21,6 +23,7 @@ public class OutboxDeliverer {
   private final TicketMappingRepository ticketMappingRepository;
   private final AttachmentForwardingService attachmentForwardingService;
   private final FailureClassifier failureClassifier;
+  private final PendingTicketCreationCache pendingTicketCreationCache;
   private final int maxAttempts;
   private final Duration baseBackoff;
   private final Duration maxBackoff;
@@ -31,12 +34,14 @@ public class OutboxDeliverer {
       TicketMappingRepository ticketMappingRepository,
       AttachmentForwardingService attachmentForwardingService,
       FailureClassifier failureClassifier,
+      PendingTicketCreationCache pendingTicketCreationCache,
       NegotiatorLinkProperties properties) {
     this.outboxIntentRepository = outboxIntentRepository;
     this.dispatcher = dispatcher;
     this.ticketMappingRepository = ticketMappingRepository;
     this.attachmentForwardingService = attachmentForwardingService;
     this.failureClassifier = failureClassifier;
+    this.pendingTicketCreationCache = pendingTicketCreationCache;
     NegotiatorLinkProperties.OutboxProperties outbox = properties.getOutbox();
     this.maxAttempts = outbox.getMaxAttempts();
     this.baseBackoff = outbox.getBaseBackoff();
@@ -72,6 +77,16 @@ public class OutboxDeliverer {
       return;
     }
     ticketMappingRepository.saveAll(result.ticketMappings());
+    if (intent.getIntentType() == OutboxIntentType.CREATE_TICKET) {
+      String negotiationId = intent.getNegotiationId();
+      TransactionSynchronizationManager.registerSynchronization(
+          new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+              pendingTicketCreationCache.remove(negotiationId);
+            }
+          });
+    }
     result
         .forwardedAttachments()
         .ifPresent(

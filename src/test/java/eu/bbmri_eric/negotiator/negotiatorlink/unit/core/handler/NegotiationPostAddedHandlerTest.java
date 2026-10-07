@@ -1,6 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.handler;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -20,6 +21,8 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HandlerResult;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationPostAddedHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationCache;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationException;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
@@ -56,6 +59,7 @@ class NegotiationPostAddedHandlerTest {
   @Mock private OrganizationConfigRegistry registry;
   @Mock private TicketMappingRepository ticketMappingRepository;
   @Mock private OriginatedPostRepository originatedPostRepository;
+  @Mock private PendingTicketCreationCache pendingTicketCreationCache;
 
   private final ObjectMapper objectMapper = new ObjectMapper();
   private NegotiationPostAddedHandler handler;
@@ -68,6 +72,7 @@ class NegotiationPostAddedHandlerTest {
             registry,
             ticketMappingRepository,
             originatedPostRepository,
+            pendingTicketCreationCache,
             objectMapper);
   }
 
@@ -142,7 +147,7 @@ class NegotiationPostAddedHandlerTest {
   }
 
   @Test
-  void handle_noMappings_returnsNoIntents() {
+  void handle_noMappings_cacheAbsent_returnsNoIntents() {
     var config = createConfig(ORG_EXT_ID);
     var mappings = List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID));
     when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
@@ -151,8 +156,25 @@ class NegotiationPostAddedHandlerTest {
     when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config)))
         .thenReturn(createPost(EntityModelPostDTO.TypeEnum.PRIVATE));
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(List.of());
+    when(pendingTicketCreationCache.isTracked(NEGOTIATION_ID)).thenReturn(false);
 
     assertThat(handler.handle(postEventData(ORG_ID)).intents()).isEmpty();
+  }
+
+  @Test
+  void handle_noMappings_cachePresent_throwsPendingTicketCreationException() {
+    var config = createConfig(ORG_EXT_ID);
+    var mappings = List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID));
+    when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
+        .thenReturn(mappings);
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+    when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config)))
+        .thenReturn(createPost(EntityModelPostDTO.TypeEnum.PRIVATE));
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(List.of());
+    when(pendingTicketCreationCache.isTracked(NEGOTIATION_ID)).thenReturn(true);
+
+    assertThatThrownBy(() -> handler.handle(postEventData(ORG_ID)))
+        .isInstanceOf(PendingTicketCreationException.class);
   }
 
   @Test

@@ -1,6 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.handler;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -19,6 +20,8 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HandlerResult;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationStateUpdatedHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationCache;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationException;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.CreateTicketPayload;
@@ -65,6 +68,7 @@ class NegotiationStateUpdatedHandlerTest {
   @Mock private OrganizationConfigRegistry registry;
   @Mock private TicketMappingRepository ticketMappingRepository;
   @Mock private AttachmentForwardingService attachmentForwardingService;
+  @Mock private PendingTicketCreationCache pendingTicketCreationCache;
 
   private final ObjectMapper objectMapper = new ObjectMapper();
   private NegotiationStateUpdatedHandler handler;
@@ -77,7 +81,19 @@ class NegotiationStateUpdatedHandlerTest {
             registry,
             ticketMappingRepository,
             attachmentForwardingService,
+            pendingTicketCreationCache,
             objectMapper);
+  }
+
+  @Test
+  void handle_approve_tracksNegotiationIdInCache() {
+    var resource = createResource("r-1", 1L);
+    var config = createConfig(TicketStrategy.PER_RESOURCE);
+    stubHappyPath(createNegotiation(), config, List.of(resource));
+
+    handler.handle(approveEventData());
+
+    verify(pendingTicketCreationCache).track(NEGOTIATION_ID);
   }
 
   @Test
@@ -309,10 +325,20 @@ class NegotiationStateUpdatedHandlerTest {
   }
 
   @Test
-  void handle_stateChange_noMappedTickets_emitsNoIntents() {
+  void handle_stateChange_noMappedTickets_cacheAbsent_emitsNoIntents() {
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(List.of());
+    when(pendingTicketCreationCache.isTracked(NEGOTIATION_ID)).thenReturn(false);
 
     assertThat(handler.handle(eventData(NegotiatorNegotiationEvent.PAUSE)).intents()).isEmpty();
+  }
+
+  @Test
+  void handle_stateChange_noMappedTickets_cachePresent_throwsPendingTicketCreationException() {
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(List.of());
+    when(pendingTicketCreationCache.isTracked(NEGOTIATION_ID)).thenReturn(true);
+
+    assertThatThrownBy(() -> handler.handle(eventData(NegotiatorNegotiationEvent.PAUSE)))
+        .isInstanceOf(PendingTicketCreationException.class);
   }
 
   static java.util.stream.Stream<Arguments> incompleteStateEventData() {

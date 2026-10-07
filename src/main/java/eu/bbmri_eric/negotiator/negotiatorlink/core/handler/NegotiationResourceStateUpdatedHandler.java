@@ -10,6 +10,8 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigReg
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationCache;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationException;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SetStatePayload;
@@ -32,6 +34,7 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
 
   private final TicketMappingRepository ticketMappingRepository;
   private final OrganizationConfigRegistry registry;
+  private final PendingTicketCreationCache pendingTicketCreationCache;
   private final ObjectMapper objectMapper;
 
   private record DispatchContext(
@@ -79,6 +82,11 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
         ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
             event.getNegotiationId(), event.getResourceId());
     if (mappingOpt.isEmpty()) {
+      boolean anyMappingExists =
+          !ticketMappingRepository.findByIdNegotiationId(event.getNegotiationId()).isEmpty();
+      if (!anyMappingExists && pendingTicketCreationCache.isTracked(event.getNegotiationId())) {
+        throw new PendingTicketCreationException(event.getNegotiationId());
+      }
       log.debug(
           "No ticket mapping for negotiation '{}' resource '{}' — not managed here",
           event.getNegotiationId(),

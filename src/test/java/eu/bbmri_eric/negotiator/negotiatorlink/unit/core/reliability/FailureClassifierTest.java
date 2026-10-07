@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.FailureClass;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.FailureClassifier;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -38,6 +39,12 @@ class FailureClassifierTest {
   @Test
   void classify_resourceAccessException_isTransient() {
     assertThat(classifier.classify(new ResourceAccessException("connection reset")))
+        .isEqualTo(FailureClass.TRANSIENT);
+  }
+
+  @Test
+  void classify_pendingTicketCreationException_isTransient() {
+    assertThat(classifier.classify(new PendingTicketCreationException("neg-1")))
         .isEqualTo(FailureClass.TRANSIENT);
   }
 

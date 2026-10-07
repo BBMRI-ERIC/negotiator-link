@@ -15,6 +15,8 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationCache;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationException;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
@@ -42,6 +44,7 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
   private final OrganizationConfigRegistry registry;
   private final TicketMappingRepository ticketMappingRepository;
   private final OriginatedPostRepository originatedPostRepository;
+  private final PendingTicketCreationCache pendingTicketCreationCache;
   private final ObjectMapper objectMapper;
 
   private record PostContent(String text, boolean isPublic, String textHash) {}
@@ -161,6 +164,9 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
     List<TicketMapping> allMappings =
         ticketMappingRepository.findByIdNegotiationId(event.getNegotiationId());
     if (allMappings.isEmpty()) {
+      if (pendingTicketCreationCache.isTracked(event.getNegotiationId())) {
+        throw new PendingTicketCreationException(event.getNegotiationId());
+      }
       log.debug(
           "No ticket mappings for negotiation '{}' — nothing to fan out", event.getNegotiationId());
       return new LinkedHashMap<>();

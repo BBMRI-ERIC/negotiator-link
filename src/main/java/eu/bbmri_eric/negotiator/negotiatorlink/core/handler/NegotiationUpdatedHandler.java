@@ -12,6 +12,8 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationCache;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationException;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddNegotiationAttachmentPayload;
@@ -46,6 +48,7 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
   private final OrganizationConfigRegistry registry;
   private final TicketMappingRepository ticketMappingRepository;
   private final AttachmentForwardingService attachmentForwardingService;
+  private final PendingTicketCreationCache pendingTicketCreationCache;
   private final ObjectMapper objectMapper;
 
   /** Negotiation-wide data shared by every updated ticket, resolved once per event. */
@@ -71,6 +74,9 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
     String negotiationId = event.getNegotiationId();
     List<TicketMapping> mappings = ticketMappingRepository.findByIdNegotiationId(negotiationId);
     if (mappings.isEmpty()) {
+      if (pendingTicketCreationCache.isTracked(negotiationId)) {
+        throw new PendingTicketCreationException(negotiationId);
+      }
       log.debug("No mapped tickets for negotiation '{}' — skipping update comment", negotiationId);
       return HandlerResult.empty();
     }

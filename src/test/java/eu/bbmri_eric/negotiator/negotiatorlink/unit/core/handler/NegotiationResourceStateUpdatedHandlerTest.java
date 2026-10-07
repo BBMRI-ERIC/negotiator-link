@@ -1,6 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.handler;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -17,6 +18,8 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HandlerResult;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationResourceStateUpdatedHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationCache;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationException;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SetStatePayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
@@ -47,6 +50,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
 
   @Mock private TicketMappingRepository ticketMappingRepository;
   @Mock private OrganizationConfigRegistry registry;
+  @Mock private PendingTicketCreationCache pendingTicketCreationCache;
 
   private final ObjectMapper objectMapper = new ObjectMapper();
   private NegotiationResourceStateUpdatedHandler handler;
@@ -54,14 +58,47 @@ class NegotiationResourceStateUpdatedHandlerTest {
   @BeforeEach
   void setUp() {
     handler =
-        new NegotiationResourceStateUpdatedHandler(ticketMappingRepository, registry, objectMapper);
+        new NegotiationResourceStateUpdatedHandler(
+            ticketMappingRepository, registry, pendingTicketCreationCache, objectMapper);
   }
 
   @Test
-  void handle_noMappingForResource_returnsNoIntents() {
+  void handle_noMappingForResource_noOtherMappings_cacheAbsent_returnsNoIntents() {
     when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
             NEGOTIATION_ID, RESOURCE_ID))
         .thenReturn(Optional.empty());
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(List.of());
+    when(pendingTicketCreationCache.isTracked(NEGOTIATION_ID)).thenReturn(false);
+
+    assertThat(handler.handle(eventData(NEW_STATE)).intents()).isEmpty();
+  }
+
+  @Test
+  void
+      handle_noMappingForResource_noOtherMappings_cachePresent_throwsPendingTicketCreationException() {
+    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
+            NEGOTIATION_ID, RESOURCE_ID))
+        .thenReturn(Optional.empty());
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(List.of());
+    when(pendingTicketCreationCache.isTracked(NEGOTIATION_ID)).thenReturn(true);
+
+    assertThatThrownBy(() -> handler.handle(eventData(NEW_STATE)))
+        .isInstanceOf(PendingTicketCreationException.class);
+  }
+
+  @Test
+  void handle_noMappingForResource_otherMappingsExist_returnsNoIntents() {
+    var otherMapping =
+        new TicketMapping(
+            new TicketMappingId(NEGOTIATION_ID, TICKET_ID, "other-res"),
+            "src-other",
+            "100",
+            ORG_EXT_ID);
+    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
+            NEGOTIATION_ID, RESOURCE_ID))
+        .thenReturn(Optional.empty());
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID))
+        .thenReturn(List.of(otherMapping));
 
     assertThat(handler.handle(eventData(NEW_STATE)).intents()).isEmpty();
   }
