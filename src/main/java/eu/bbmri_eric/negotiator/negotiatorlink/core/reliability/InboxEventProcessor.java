@@ -8,13 +8,16 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorLinkPropert
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.InboxEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.InboxEventRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.HelpdeskEventRouter;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.NegotiatorEventRouter;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.RouteOutcome;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import lombok.AllArgsConstructor;
@@ -27,12 +30,12 @@ import org.springframework.transaction.annotation.Transactional;
 @AllArgsConstructor
 public class InboxEventProcessor {
 
+  private final TicketMappingRepository ticketMappingRepository;
   private final InboxEventRepository inboxEventRepository;
   private final NegotiatorEventRouter negotiatorEventRouter;
   private final HelpdeskEventRouter helpdeskEventRouter;
   private final OrganizationConfigRegistry registry;
   private final Map<HelpdeskType, HelpdeskCallbackAdapter> callbackAdapters;
-  private final NegotiationIdResolver negotiationIdResolver;
   private final OutboxService outboxService;
   private final FailureClassifier failureClassifier;
   private final ObjectMapper objectMapper;
@@ -121,8 +124,7 @@ public class InboxEventProcessor {
     }
     HelpdeskCallbackEvent callbackEvent = parsed.get();
     String eventType = callbackEvent.type().name();
-    if (negotiationIdResolver
-        .resolveForHelpdeskCallback(callbackEvent.ticketId(), event.getSource())
+    if (resolveNegotiationIdForHelpdeskCallback(callbackEvent.ticketId(), event.getSource())
         .isEmpty()) {
       return RouteOutcome.skipped("no-mapping", eventType);
     }
@@ -145,6 +147,14 @@ public class InboxEventProcessor {
     event.setLastError(lastError);
     event.setProcessedAt(Instant.now());
     inboxEventRepository.save(event);
+  }
+
+  private Optional<String> resolveNegotiationIdForHelpdeskCallback(
+      String ticketId, String organizationExtId) {
+    List<TicketMapping> mappings =
+        ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
+            ticketId, organizationExtId);
+    return mappings.stream().findFirst().map(m -> m.getId().getNegotiationId());
   }
 
   private String truncate(String message) {
