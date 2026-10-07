@@ -28,6 +28,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -104,8 +105,9 @@ class NegotiationPostAddedHandlerTest {
     when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config)))
         .thenReturn(createPost(EntityModelPostDTO.TypeEnum.PRIVATE));
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
-    when(originatedPostRepository.findFirstByTextHashAndOrganizationIdOrderByCreatedAtAsc(
-            eq(POST_TEXT_HASH), eq(ORG_ID_STR)))
+    when(originatedPostRepository
+            .findFirstByTextHashAndOrganizationIdAndTicketIdInOrderByCreatedAtAsc(
+                eq(POST_TEXT_HASH), eq(ORG_ID_STR), eq(Set.of(TICKET_A))))
         .thenReturn(Optional.empty());
 
     List<PendingIntent> intents = handler.handle(postEventData(ORG_ID)).intents();
@@ -126,8 +128,9 @@ class NegotiationPostAddedHandlerTest {
     when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config)))
         .thenReturn(createPost(EntityModelPostDTO.TypeEnum.PRIVATE));
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
-    when(originatedPostRepository.findFirstByTextHashAndOrganizationIdOrderByCreatedAtAsc(
-            eq(POST_TEXT_HASH), eq(ORG_ID_STR)))
+    when(originatedPostRepository
+            .findFirstByTextHashAndOrganizationIdAndTicketIdInOrderByCreatedAtAsc(
+                eq(POST_TEXT_HASH), eq(ORG_ID_STR), eq(Set.of(TICKET_A))))
         .thenReturn(Optional.of(originated));
 
     HandlerResult result = handler.handle(postEventData(ORG_ID));
@@ -237,8 +240,9 @@ class NegotiationPostAddedHandlerTest {
             TestUtil.post(
                 POST_ID, POST_TEXT, EntityModelPostDTO.TypeEnum.PRIVATE, ORG_ID_STR, name, email));
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
-    when(originatedPostRepository.findFirstByTextHashAndOrganizationIdOrderByCreatedAtAsc(
-            eq(POST_TEXT_HASH), eq(ORG_ID_STR)))
+    when(originatedPostRepository
+            .findFirstByTextHashAndOrganizationIdAndTicketIdInOrderByCreatedAtAsc(
+                eq(POST_TEXT_HASH), eq(ORG_ID_STR), eq(Set.of(TICKET_A))))
         .thenReturn(Optional.empty());
   }
 

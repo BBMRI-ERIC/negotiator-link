@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -74,10 +75,17 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
 
     Optional<OriginatedPost> consumed =
         findConsumedOriginatedPost(
-            content.textHash(), event.getOrganizationId(), event.getPostId(), content.isPublic());
+            content.textHash(),
+            event.getOrganizationId(),
+            ticketToOrgExtId.keySet(),
+            content.isPublic());
     return consumed
         .map(
             originatedPost -> {
+              log.debug(
+                  "Deduplication: excluding originating ticket '{}' from fan-out for post '{}'",
+                  originatedPost.getTicketId(),
+                  event.getPostId());
               ticketToOrgExtId.remove(originatedPost.getTicketId());
               return HandlerResult.of(
                   fanOut(ticketToOrgExtId, content.text(), event), originatedPost);
@@ -161,26 +169,19 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
   }
 
   /**
-   * Deduplication: finds an originated-post record matching the hash and org so the originating
-   * ticket can be excluded from fan-out. Returns the record to be consumed, or {@code null}.
-   * Deletion is deferred to the inbox commit transaction.
+   * Deduplication: finds an originated post record from ticket matching the hash and org so the
+   * originating ticket can be excluded from fan-out. Returns the record to be consumed, or {@code
+   * Optional.empty()}. Deletion is deferred to the inbox commit transaction.
    */
   private Optional<OriginatedPost> findConsumedOriginatedPost(
-      String textHash, Long organizationId, String postId, boolean isPublic) {
+      String textHash, Long organizationId, Set<String> ticketIds, boolean isPublic) {
     if (isPublic) {
       return Optional.empty();
     }
     String orgIdStr = String.valueOf(organizationId);
     return originatedPostRepository
-        .findFirstByTextHashAndOrganizationIdOrderByCreatedAtAsc(textHash, orgIdStr)
-        .map(
-            originated -> {
-              log.debug(
-                  "Deduplication: excluding originating ticket '{}' from fan-out for post '{}'",
-                  originated.getTicketId(),
-                  postId);
-              return originated;
-            });
+        .findFirstByTextHashAndOrganizationIdAndTicketIdInOrderByCreatedAtAsc(
+            textHash, orgIdStr, ticketIds);
   }
 
   /** Produces one ADD_COMMENT intent per target ticket. */
