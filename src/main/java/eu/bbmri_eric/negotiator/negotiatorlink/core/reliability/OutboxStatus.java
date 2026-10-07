@@ -10,6 +10,6 @@ public enum OutboxStatus {
   DELIVERED,
   /** Permanently rejected (a non-retryable 4xx) -> not retried. */
   FAILED_PERMANENT,
-  /** Exhausted its retry budget. */
+  /** Exhausted its retry budget or failed with unexpected error. */
   DEAD_LETTER
 }
