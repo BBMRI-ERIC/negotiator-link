@@ -35,7 +35,9 @@ public class InboxPoller {
     }
   }
 
-  /** Processes one batch. Returns {@code true} when the batch was empty (nothing left to process). */
+  /**
+   * Processes one batch. Returns {@code true} when the batch was empty (nothing left to process).
+   */
   private boolean processBatch() {
     List<InboxEvent> events = inboxEventRepository.claimReceivedBatch(Instant.now(), batchSize);
     events.forEach(this::processOne);

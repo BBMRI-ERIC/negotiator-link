@@ -16,8 +16,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * Polls the outbox and routes each intent to a per-negotiation worker thread. All intents for the
- * same negotiation are processed by the same worker, preserving ordering within a negotiation
- * while allowing parallel processing across negotiations.
+ * same negotiation are processed by the same worker, preserving ordering within a negotiation while
+ * allowing parallel processing across negotiations.
  */
 @Slf4j
 @Component
