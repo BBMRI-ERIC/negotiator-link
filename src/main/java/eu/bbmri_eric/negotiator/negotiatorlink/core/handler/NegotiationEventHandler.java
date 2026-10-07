@@ -1,8 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
-import java.util.List;
 
 /** Strategy interface for handling a single Negotiator webhook event type. */
 public interface NegotiationEventHandler {
@@ -18,7 +16,7 @@ public interface NegotiationEventHandler {
    * I/O.
    *
    * @param data the webhook payload as a {@link JsonNode}
-   * @return the outbound intents to enqueue (possibly empty)
+   * @return the handler result containing intents to enqueue and an optional originated post marker
    */
-  List<PendingIntent> handle(JsonNode data);
+  HandlerResult handle(JsonNode data);
 }

@@ -133,7 +133,7 @@ public class OutboxDeliverer {
       case UNEXPECTED_ERROR -> {
         intent.setStatus(OutboxStatus.DEAD_LETTER);
         log.error(
-            "Intent {} ({}) poison — DEAD_LETTER",
+            "Intent {} ({}) unexpected error — DEAD_LETTER",
             intent.getRowId(),
             intent.getIntentType(),
             error);

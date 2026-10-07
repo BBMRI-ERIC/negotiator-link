@@ -38,8 +38,7 @@ public class HelpdeskResourceTransitionHandler
   }
 
   @Override
-  public List<PendingIntent> handle(
-      ResourceTransitionEvent transitionEvent, OrganizationConfig config) {
+  public HandlerResult handle(ResourceTransitionEvent transitionEvent, OrganizationConfig config) {
     String ticketId = transitionEvent.ticketId();
     String requestedEvent = transitionEvent.resourceTransitionEvent();
 
@@ -49,7 +48,7 @@ public class HelpdeskResourceTransitionHandler
 
     TransitionResult result = resourceTransitionService.apply(mappings, requestedEvent, config);
     if (result.rejection().isEmpty()) {
-      return result.intents();
+      return HandlerResult.of(result.intents());
     }
 
     String negotiationId = mappings.getFirst().getId().getNegotiationId();
@@ -73,7 +72,7 @@ public class HelpdeskResourceTransitionHandler
             negotiationId,
             config,
             serialize(new AddSystemCommentPayload(systemComment))));
-    return intents;
+    return HandlerResult.of(intents);
   }
 
   private PendingIntent ticketIntent(

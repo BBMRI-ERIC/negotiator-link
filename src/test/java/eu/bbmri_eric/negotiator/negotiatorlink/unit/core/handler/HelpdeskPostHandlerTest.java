@@ -11,9 +11,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedPost;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HandlerResult;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HelpdeskPostHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.PostMessageEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
@@ -22,14 +22,12 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.CreatePostPayload;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -45,7 +43,6 @@ class HelpdeskPostHandlerTest {
   private static final String SIGNED_TEXT = "From: Jane Rep <jane@mhh.de>\n\n" + POST_TEXT;
 
   @Mock private TicketMappingRepository ticketMappingRepository;
-  @Mock private OriginatedPostRepository originatedPostRepository;
   @Mock private NegotiatorClient negotiatorClient;
 
   private final ObjectMapper objectMapper = new ObjectMapper();
@@ -55,28 +52,26 @@ class HelpdeskPostHandlerTest {
   @BeforeEach
   void setUp() {
     config = organizationConfig(ORG_EXT_ID, TicketStrategy.PER_RESOURCE);
-    handler =
-        new HelpdeskPostHandler(
-            ticketMappingRepository, originatedPostRepository, negotiatorClient);
+    handler = new HelpdeskPostHandler(ticketMappingRepository, negotiatorClient);
   }
 
   @Test
-  void handle_happyPath_savesOriginatedPostAndEmitsCreatePostIntent() {
+  void handle_happyPath_returnsOriginatedPostAndEmitsCreatePostIntent() {
     when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
             TICKET_ID, ORG_EXT_ID))
         .thenReturn(List.of(mapping()));
     when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config))
         .thenReturn(negotiationWithPrivatePosts(true));
 
-    List<PendingIntent> intents = handler.handle(callbackEvent(), config);
+    HandlerResult result = handler.handle(callbackEvent(), config);
 
-    var postCaptor = ArgumentCaptor.forClass(OriginatedPost.class);
-    verify(originatedPostRepository).save(postCaptor.capture());
-    var savedPost = postCaptor.getValue();
-    assertThat(savedPost.getOrganizationId()).isEqualTo(ORG_ID);
-    assertThat(savedPost.getTicketId()).isEqualTo(TICKET_ID);
-    assertThat(savedPost.getTextHash()).isNotBlank();
+    assertThat(result.originatedPost()).isPresent();
+    var post = result.originatedPost().get();
+    assertThat(post.getOrganizationId()).isEqualTo(ORG_ID);
+    assertThat(post.getTicketId()).isEqualTo(TICKET_ID);
+    assertThat(post.getTextHash()).isNotBlank();
 
+    List<PendingIntent> intents = result.intents();
     assertThat(intents).hasSize(1);
     PendingIntent intent = intents.getFirst();
     assertThat(intent.outboxIntentType()).isEqualTo(OutboxIntentType.CREATE_POST);
@@ -91,45 +86,45 @@ class HelpdeskPostHandlerTest {
   }
 
   @Test
-  void handle_privatePostsDisabled_emitsSystemCommentIntentAndDoesNotSave() {
+  void handle_privatePostsDisabled_emitsSystemCommentIntentAndNoOriginatedPost() {
     when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
             TICKET_ID, ORG_EXT_ID))
         .thenReturn(List.of(mapping()));
     when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config))
         .thenReturn(negotiationWithPrivatePosts(false));
 
-    List<PendingIntent> intents = handler.handle(callbackEvent(), config);
+    HandlerResult result = handler.handle(callbackEvent(), config);
 
-    assertSystemCommentRejection(intents);
-    verify(originatedPostRepository, never()).save(any());
+    assertSystemCommentRejection(result.intents());
+    assertThat(result.originatedPost()).isEmpty();
   }
 
   @Test
-  void handle_privatePostsFlagNull_emitsSystemCommentIntent() {
+  void handle_privatePostsFlagNull_emitsSystemCommentIntentAndNoOriginatedPost() {
     when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
             TICKET_ID, ORG_EXT_ID))
         .thenReturn(List.of(mapping()));
     when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config))
         .thenReturn(negotiationWithPrivatePosts(null));
 
-    List<PendingIntent> intents = handler.handle(callbackEvent(), config);
+    HandlerResult result = handler.handle(callbackEvent(), config);
 
-    assertSystemCommentRejection(intents);
-    verify(originatedPostRepository, never()).save(any());
+    assertSystemCommentRejection(result.intents());
+    assertThat(result.originatedPost()).isEmpty();
   }
 
   @Test
-  void handle_getNegotiationFails_failsClosedAndEmitsSystemCommentIntent() {
+  void handle_getNegotiationFails_emitsSystemCommentIntentAndNoOriginatedPost() {
     when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
             TICKET_ID, ORG_EXT_ID))
         .thenReturn(List.of(mapping()));
     when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config))
         .thenThrow(new RuntimeException("negotiator unavailable"));
 
-    List<PendingIntent> intents = handler.handle(callbackEvent(), config);
+    HandlerResult result = handler.handle(callbackEvent(), config);
 
-    assertSystemCommentRejection(intents);
-    verify(originatedPostRepository, never()).save(any());
+    assertSystemCommentRejection(result.intents());
+    assertThat(result.originatedPost()).isEmpty();
   }
 
   private void assertSystemCommentRejection(List<PendingIntent> intents) {

@@ -11,6 +11,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HandlerResult;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HelpdeskTicketStateChangedHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketStateChangedEvent;
@@ -83,8 +84,11 @@ class HelpdeskTicketStateChangedHandlerTest {
     when(resourceTransitionService.apply(mappings, MAPPED_EVENT, config))
         .thenReturn(new TransitionResult(List.of(transitionIntent), Optional.empty()));
 
-    List<PendingIntent> intents =
+    HandlerResult result =
         handler.handle(new TicketStateChangedEvent(TICKET_ID, MAPPED_STATE), config);
+    assertThat(result.originatedPost()).isEmpty();
+
+    List<PendingIntent> intents = result.intents();
 
     assertThat(intents).containsExactly(transitionIntent);
     verify(resourceTransitionService).apply(eq(mappings), eq(MAPPED_EVENT), eq(config));
@@ -93,7 +97,7 @@ class HelpdeskTicketStateChangedHandlerTest {
   @Test
   void handle_unmappedTicketState_returnsNoIntents() {
     List<PendingIntent> intents =
-        handler.handle(new TicketStateChangedEvent(TICKET_ID, "closed"), config);
+        handler.handle(new TicketStateChangedEvent(TICKET_ID, "closed"), config).intents();
 
     assertThat(intents).isEmpty();
     verifyNoInteractions(ticketMappingRepository, resourceTransitionService);
@@ -115,7 +119,7 @@ class HelpdeskTicketStateChangedHandlerTest {
                         true))));
 
     List<PendingIntent> intents =
-        handler.handle(new TicketStateChangedEvent(TICKET_ID, MAPPED_STATE), config);
+        handler.handle(new TicketStateChangedEvent(TICKET_ID, MAPPED_STATE), config).intents();
 
     assertThat(intents).isEmpty();
     verify(resourceTransitionService).apply(eq(mappings), eq(MAPPED_EVENT), eq(config));

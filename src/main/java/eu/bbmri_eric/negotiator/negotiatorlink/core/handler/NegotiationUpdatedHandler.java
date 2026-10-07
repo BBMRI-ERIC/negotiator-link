@@ -62,17 +62,17 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
   }
 
   @Override
-  public List<PendingIntent> handle(JsonNode data) {
+  public HandlerResult handle(JsonNode data) {
     NegotiationUpdatedWebhookEvent event = parseEvent(data);
     if (event == null) {
-      return List.of();
+      return HandlerResult.empty();
     }
 
     String negotiationId = event.getNegotiationId();
     List<TicketMapping> mappings = ticketMappingRepository.findByIdNegotiationId(negotiationId);
     if (mappings.isEmpty()) {
       log.debug("No mapped tickets for negotiation '{}' — skipping update comment", negotiationId);
-      return List.of();
+      return HandlerResult.empty();
     }
 
     OrganizationConfig fetchConfig =
@@ -84,7 +84,7 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
     getDistinctTicketIdToOrgExtId(mappings)
         .forEach(
             (ticketId, orgExtId) -> intents.addAll(processTicket(ticketId, orgExtId, context)));
-    return intents;
+    return HandlerResult.of(intents);
   }
 
   /** Parses and validates the webhook event, or returns {@code null} if it is incomplete. */

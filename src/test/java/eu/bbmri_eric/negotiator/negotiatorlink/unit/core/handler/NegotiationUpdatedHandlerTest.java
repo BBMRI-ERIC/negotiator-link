@@ -14,6 +14,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigReg
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HandlerResult;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationUpdatedHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
@@ -64,12 +65,12 @@ class NegotiationUpdatedHandlerTest {
   void handle_noMappedTickets_returnsNoIntents() throws Exception {
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(List.of());
 
-    assertThat(handler.handle(updatedEventNode(NEGOTIATION_ID))).isEmpty();
+    assertThat(handler.handle(updatedEventNode(NEGOTIATION_ID)).intents()).isEmpty();
   }
 
   @Test
   void handle_nullNegotiationId_returnsNoIntents() throws Exception {
-    assertThat(handler.handle(updatedEventNode(null))).isEmpty();
+    assertThat(handler.handle(updatedEventNode(null)).intents()).isEmpty();
     verify(ticketMappingRepository, never()).findByIdNegotiationId(anyString());
   }
 
@@ -87,7 +88,10 @@ class NegotiationUpdatedHandlerTest {
     when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config)).thenReturn(negotiation);
     when(negotiatorClient.getResources(NEGOTIATION_ID, config)).thenReturn(List.of(resource));
 
-    List<PendingIntent> intents = handler.handle(updatedEventNode(NEGOTIATION_ID));
+    HandlerResult result = handler.handle(updatedEventNode(NEGOTIATION_ID));
+    assertThat(result.originatedPost()).isEmpty();
+
+    List<PendingIntent> intents = result.intents();
 
     assertThat(intents).hasSize(1);
     PendingIntent intent = intents.getFirst();
@@ -120,7 +124,7 @@ class NegotiationUpdatedHandlerTest {
     when(negotiatorClient.getResources(NEGOTIATION_ID, config1))
         .thenReturn(List.of(resource1, resource2));
 
-    List<PendingIntent> intents = handler.handle(updatedEventNode(NEGOTIATION_ID));
+    List<PendingIntent> intents = handler.handle(updatedEventNode(NEGOTIATION_ID)).intents();
 
     assertThat(intents).hasSize(2);
     assertThat(intents)
@@ -152,7 +156,7 @@ class NegotiationUpdatedHandlerTest {
             ORG_EXT_ID, TICKET_ID, List.of("a-1")))
         .thenReturn(List.of("a-1"));
 
-    List<PendingIntent> intents = handler.handle(updatedEventNode(NEGOTIATION_ID));
+    List<PendingIntent> intents = handler.handle(updatedEventNode(NEGOTIATION_ID)).intents();
 
     assertThat(intents).hasSize(2);
     assertThat(intents)
@@ -181,7 +185,7 @@ class NegotiationUpdatedHandlerTest {
     when(negotiatorClient.getResources(NEGOTIATION_ID, config))
         .thenReturn(List.of(resource1, resource2));
 
-    List<PendingIntent> intents = handler.handle(updatedEventNode(NEGOTIATION_ID));
+    List<PendingIntent> intents = handler.handle(updatedEventNode(NEGOTIATION_ID)).intents();
 
     assertThat(intents).hasSize(1);
     assertThat(intents.getFirst().targetId()).isEqualTo(TICKET_ID);

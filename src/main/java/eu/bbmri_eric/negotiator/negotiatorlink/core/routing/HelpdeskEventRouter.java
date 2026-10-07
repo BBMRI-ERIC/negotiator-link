@@ -1,6 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.routing;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HandlerResult;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HelpdeskCallbackHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
@@ -33,40 +34,43 @@ public class HelpdeskEventRouter {
                 Collectors.toMap(HelpdeskCallbackHandler::getSupportedType, Function.identity()));
   }
 
-  /** Routes the event to the appropriate handler(s) based on its type, returning their intents. */
-  public List<PendingIntent> route(HelpdeskCallbackEvent event, OrganizationConfig config) {
+  /** Routes the event to the appropriate handler(s) based on its type, returning their result. */
+  public HandlerResult route(HelpdeskCallbackEvent event, OrganizationConfig config) {
     return switch (event.type()) {
       case RESOURCE_TRANSITION, POST_MESSAGE, TICKET_STATE_CHANGED ->
           dispatch(event.type(), event, config);
       case RESOURCE_TRANSITION_WITH_POST_MESSAGE -> {
         ResourceTransitionWithPostMessageEvent combined =
             (ResourceTransitionWithPostMessageEvent) event;
-        List<PendingIntent> intents = new ArrayList<>();
-        intents.addAll(
+        HandlerResult transition =
             dispatch(
                 HelpdeskCallbackType.RESOURCE_TRANSITION,
                 new ResourceTransitionEvent(
                     combined.ticketId(),
                     combined.resourceState(),
                     combined.resourceTransitionEvent()),
-                config));
-        intents.addAll(
+                config);
+        HandlerResult post =
             dispatch(
                 HelpdeskCallbackType.POST_MESSAGE,
                 new PostMessageEvent(combined.ticketId(), combined.postText(), combined.sender()),
-                config));
-        yield intents;
+                config);
+        List<PendingIntent> intents = new ArrayList<>();
+        intents.addAll(transition.intents());
+        intents.addAll(post.intents());
+        // only POST_MESSAGE produces an originated post
+        yield new HandlerResult(intents, post.originatedPost());
       }
     };
   }
 
   @SuppressWarnings("unchecked")
-  private <T extends HelpdeskCallbackEvent> List<PendingIntent> dispatch(
+  private <T extends HelpdeskCallbackEvent> HandlerResult dispatch(
       HelpdeskCallbackType type, T event, OrganizationConfig config) {
     HelpdeskCallbackHandler<T> handler = (HelpdeskCallbackHandler<T>) handlers.get(type);
     if (handler == null) {
       log.warn("No handler registered for helpdesk callback type '{}' — skipping", type);
-      return List.of();
+      return HandlerResult.empty();
     }
     log.debug(
         "Routing helpdesk callback type '{}' to {}", type, handler.getClass().getSimpleName());

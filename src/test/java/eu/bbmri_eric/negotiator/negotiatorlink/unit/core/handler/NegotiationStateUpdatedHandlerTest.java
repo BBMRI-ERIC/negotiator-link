@@ -15,6 +15,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigReg
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HandlerResult;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationStateUpdatedHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
@@ -87,7 +88,7 @@ class NegotiationStateUpdatedHandlerTest {
     var negotiation = createNegotiation();
     stubHappyPath(negotiation, config, List.of(resource1, resource2));
 
-    List<PendingIntent> intents = handler.handle(approveEventData());
+    List<PendingIntent> intents = handler.handle(approveEventData()).intents();
 
     assertThat(intents)
         .extracting(PendingIntent::outboxIntentType)
@@ -132,7 +133,10 @@ class NegotiationStateUpdatedHandlerTest {
     var negotiation = createNegotiation();
     stubHappyPath(negotiation, config, List.of(resource1, resource2));
 
-    List<PendingIntent> intents = handler.handle(approveEventData());
+    HandlerResult result = handler.handle(approveEventData());
+    assertThat(result.originatedPost()).isEmpty();
+
+    List<PendingIntent> intents = result.intents();
 
     assertThat(intents).hasSize(1);
     assertThat(readCreate(intents.getFirst()))
@@ -157,7 +161,7 @@ class NegotiationStateUpdatedHandlerTest {
     var config = createConfig(TicketStrategy.PER_RESOURCE);
     stubHappyPath(createNegotiation(), config, List.of(resource));
 
-    List<PendingIntent> intents = handler.handle(approveEventData());
+    List<PendingIntent> intents = handler.handle(approveEventData()).intents();
 
     assertThat(intents).hasSize(1);
     assertThat(intents.getFirst().outboxIntentType()).isEqualTo(OutboxIntentType.CREATE_TICKET);
@@ -169,14 +173,15 @@ class NegotiationStateUpdatedHandlerTest {
     stubResources(createNegotiation(), config, List.of(createResource("r-1", 1L)));
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.empty());
 
-    assertThat(handler.handle(approveEventData())).isEmpty();
+    assertThat(handler.handle(approveEventData()).intents()).isEmpty();
   }
 
   @Test
   void handle_nonApproveEvent_doesNotEmitCreateTicket() {
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(List.of());
 
-    List<PendingIntent> intents = handler.handle(eventData(NegotiatorNegotiationEvent.PAUSE));
+    List<PendingIntent> intents =
+        handler.handle(eventData(NegotiatorNegotiationEvent.PAUSE)).intents();
 
     assertThat(intents)
         .extracting(PendingIntent::outboxIntentType)
@@ -188,7 +193,7 @@ class NegotiationStateUpdatedHandlerTest {
   void handle_noOrgsConfigured_emitsNoIntents() {
     when(registry.findAll()).thenReturn(List.of());
 
-    assertThat(handler.handle(approveEventData())).isEmpty();
+    assertThat(handler.handle(approveEventData()).intents()).isEmpty();
     verify(negotiatorClient, never()).getNegotiation(any(), any());
   }
 
@@ -199,7 +204,7 @@ class NegotiationStateUpdatedHandlerTest {
     when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config)).thenReturn(createNegotiation());
     when(negotiatorClient.getResources(NEGOTIATION_ID, config)).thenReturn(List.of());
 
-    assertThat(handler.handle(approveEventData())).isEmpty();
+    assertThat(handler.handle(approveEventData()).intents()).isEmpty();
   }
 
   @Test
@@ -211,7 +216,7 @@ class NegotiationStateUpdatedHandlerTest {
         .thenThrow(
             HttpClientErrorException.create(HttpStatus.FORBIDDEN, "Forbidden", null, null, null));
 
-    assertThat(handler.handle(approveEventData())).isEmpty();
+    assertThat(handler.handle(approveEventData()).intents()).isEmpty();
     verify(negotiatorClient, never()).getResources(any(), any());
   }
 
@@ -223,7 +228,7 @@ class NegotiationStateUpdatedHandlerTest {
     when(attachmentForwardingService.getNegotiationPayloadAttachmentsIds(NEGOTIATION_ID, config))
         .thenReturn(List.of("a-1"));
 
-    List<PendingIntent> intents = handler.handle(approveEventData());
+    List<PendingIntent> intents = handler.handle(approveEventData()).intents();
 
     assertThat(readCreate(intents.getFirst()).attachmentIds()).containsExactly("a-1");
   }
@@ -239,7 +244,7 @@ class NegotiationStateUpdatedHandlerTest {
     stubHappyPath(createNegotiation(), config, List.of(resource));
     stubPosts(config, List.of(newer, older)); // reversed intentionally
 
-    List<PendingIntent> intents = handler.handle(approveEventData());
+    List<PendingIntent> intents = handler.handle(approveEventData()).intents();
 
     List<String> postTexts = readCreate(intents.getFirst()).postTexts();
     assertThat(postTexts).hasSize(2);
@@ -255,7 +260,7 @@ class NegotiationStateUpdatedHandlerTest {
     stubHappyPath(createNegotiation(), config, List.of(resource));
     stubPosts(config, List.of(post));
 
-    List<PendingIntent> intents = handler.handle(approveEventData());
+    List<PendingIntent> intents = handler.handle(approveEventData()).intents();
 
     assertThat(readCreate(intents.getFirst()).postTexts()).isEmpty();
   }
@@ -266,7 +271,10 @@ class NegotiationStateUpdatedHandlerTest {
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(twoMappings());
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
 
-    List<PendingIntent> intents = handler.handle(eventData(NegotiatorNegotiationEvent.PAUSE));
+    HandlerResult result = handler.handle(eventData(NegotiatorNegotiationEvent.PAUSE));
+    assertThat(result.originatedPost()).isEmpty();
+
+    List<PendingIntent> intents = result.intents();
 
     assertThat(ticketTargets(intents, OutboxIntentType.SET_NEGOTIATION_STATE))
         .containsExactlyInAnyOrder("ticket-1", "ticket-2");
@@ -291,7 +299,8 @@ class NegotiationStateUpdatedHandlerTest {
         .thenReturn(List.of(mapping1, mapping2));
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
 
-    List<PendingIntent> intents = handler.handle(eventData(NegotiatorNegotiationEvent.PAUSE));
+    List<PendingIntent> intents =
+        handler.handle(eventData(NegotiatorNegotiationEvent.PAUSE)).intents();
 
     assertThat(ticketTargets(intents, OutboxIntentType.SET_NEGOTIATION_STATE))
         .containsExactly(TICKET_ID);
@@ -303,7 +312,7 @@ class NegotiationStateUpdatedHandlerTest {
   void handle_stateChange_noMappedTickets_emitsNoIntents() {
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(List.of());
 
-    assertThat(handler.handle(eventData(NegotiatorNegotiationEvent.PAUSE))).isEmpty();
+    assertThat(handler.handle(eventData(NegotiatorNegotiationEvent.PAUSE)).intents()).isEmpty();
   }
 
   static java.util.stream.Stream<Arguments> incompleteStateEventData() {
@@ -321,7 +330,7 @@ class NegotiationStateUpdatedHandlerTest {
       String label, String negotiationId, String toState, String eventName) {
     var data = buildStateEventData(negotiationId, toState, eventName);
 
-    assertThat(handler.handle(data)).isEmpty();
+    assertThat(handler.handle(data).intents()).isEmpty();
     verify(ticketMappingRepository, never()).findByIdNegotiationId(any());
   }
 
@@ -331,7 +340,7 @@ class NegotiationStateUpdatedHandlerTest {
         .thenReturn(List.of(mapping()));
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.empty());
 
-    assertThat(handler.handle(eventData(NegotiatorNegotiationEvent.PAUSE))).isEmpty();
+    assertThat(handler.handle(eventData(NegotiatorNegotiationEvent.PAUSE)).intents()).isEmpty();
   }
 
   @Test
@@ -342,7 +351,8 @@ class NegotiationStateUpdatedHandlerTest {
         .thenReturn(List.of(mapping()));
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
 
-    List<PendingIntent> intents = handler.handle(eventData(NegotiatorNegotiationEvent.CONCLUDE));
+    List<PendingIntent> intents =
+        handler.handle(eventData(NegotiatorNegotiationEvent.CONCLUDE)).intents();
 
     assertThat(intents)
         .extracting(PendingIntent::outboxIntentType)
@@ -363,7 +373,8 @@ class NegotiationStateUpdatedHandlerTest {
         .thenReturn(List.of(mapping()));
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
 
-    List<PendingIntent> intents = handler.handle(eventData(NegotiatorNegotiationEvent.PAUSE));
+    List<PendingIntent> intents =
+        handler.handle(eventData(NegotiatorNegotiationEvent.PAUSE)).intents();
 
     assertThat(intents)
         .extracting(PendingIntent::outboxIntentType)
@@ -386,7 +397,7 @@ class NegotiationStateUpdatedHandlerTest {
     when(negotiatorClient.getPost(NEGOTIATION_ID, "p-1", config)).thenReturn(post);
 
     List<PendingIntent> intents =
-        handler.handle(eventDataWithPost(NegotiatorNegotiationEvent.PAUSE, "p-1"));
+        handler.handle(eventDataWithPost(NegotiatorNegotiationEvent.PAUSE, "p-1")).intents();
 
     verify(negotiatorClient, times(1)).getPost(NEGOTIATION_ID, "p-1", config);
     assertThat(ticketTargets(intents, OutboxIntentType.ADD_COMMENT))

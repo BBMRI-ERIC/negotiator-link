@@ -43,18 +43,18 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
   }
 
   @Override
-  public List<PendingIntent> handle(JsonNode data) {
+  public HandlerResult handle(JsonNode data) {
     NegotiationResourceStateUpdatedWebhookEvent event = parseEvent(data);
     if (event == null) {
-      return List.of();
+      return HandlerResult.empty();
     }
 
     DispatchContext context = resolveDispatchContext(event);
     if (context == null) {
-      return List.of();
+      return HandlerResult.empty();
     }
 
-    return dispatchStateUpdate(event, context);
+    return HandlerResult.of(dispatchStateUpdate(event, context));
   }
 
   /** Parses and validates the webhook event, or returns {@code null} if it is incomplete. */

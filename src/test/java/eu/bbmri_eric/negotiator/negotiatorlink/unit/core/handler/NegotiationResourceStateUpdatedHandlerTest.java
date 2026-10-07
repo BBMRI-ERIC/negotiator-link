@@ -13,6 +13,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigReg
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HandlerResult;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationResourceStateUpdatedHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
@@ -62,7 +63,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
             NEGOTIATION_ID, RESOURCE_ID))
         .thenReturn(Optional.empty());
 
-    assertThat(handler.handle(eventData(NEW_STATE))).isEmpty();
+    assertThat(handler.handle(eventData(NEW_STATE)).intents()).isEmpty();
   }
 
   @Test
@@ -70,7 +71,10 @@ class NegotiationResourceStateUpdatedHandlerTest {
     var config = createConfig(TicketStrategy.PER_NEGOTIATION);
     stubMapping(config);
 
-    List<PendingIntent> intents = handler.handle(eventData(NEW_STATE));
+    HandlerResult result = handler.handle(eventData(NEW_STATE));
+    assertThat(result.originatedPost()).isEmpty();
+
+    List<PendingIntent> intents = result.intents();
 
     assertThat(intents).hasSize(2);
     assertThat(intents)
@@ -86,7 +90,10 @@ class NegotiationResourceStateUpdatedHandlerTest {
     var config = createConfig(TicketStrategy.PER_RESOURCE);
     stubMapping(config);
 
-    List<PendingIntent> intents = handler.handle(eventData(NEW_STATE));
+    HandlerResult result = handler.handle(eventData(NEW_STATE));
+    assertThat(result.originatedPost()).isEmpty();
+
+    List<PendingIntent> intents = result.intents();
 
     assertThat(intents).hasSize(2);
     assertThat(intents)
@@ -104,13 +111,13 @@ class NegotiationResourceStateUpdatedHandlerTest {
         .thenReturn(Optional.of(mapping()));
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.empty());
 
-    assertThat(handler.handle(eventData(NEW_STATE))).isEmpty();
+    assertThat(handler.handle(eventData(NEW_STATE)).intents()).isEmpty();
   }
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("incompleteEventCases")
   void handle_incompleteEvent_returnsNoIntents(String caseName, JsonNode data) {
-    assertThat(handler.handle(data)).isEmpty();
+    assertThat(handler.handle(data).intents()).isEmpty();
     verify(ticketMappingRepository, never()).findByIdNegotiationIdAndResourceSourceId(any(), any());
   }
 
@@ -133,7 +140,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
     var config = createConfig(TicketStrategy.PER_RESOURCE, Map.of(NEW_STATE, "closed"));
     stubMapping(config);
 
-    List<PendingIntent> intents = handler.handle(eventData(NEW_STATE));
+    List<PendingIntent> intents = handler.handle(eventData(NEW_STATE)).intents();
 
     assertThat(intents)
         .extracting(PendingIntent::outboxIntentType)
@@ -149,7 +156,7 @@ class NegotiationResourceStateUpdatedHandlerTest {
     var config = createConfig(TicketStrategy.PER_RESOURCE, Map.of("OTHER_STATE", "closed"));
     stubMapping(config);
 
-    List<PendingIntent> intents = handler.handle(eventData(NEW_STATE));
+    List<PendingIntent> intents = handler.handle(eventData(NEW_STATE)).intents();
 
     assertThat(intents)
         .extracting(PendingIntent::outboxIntentType)

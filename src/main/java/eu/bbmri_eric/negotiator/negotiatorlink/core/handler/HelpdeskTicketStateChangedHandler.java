@@ -4,7 +4,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketStateChangedEvent;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.ResourceTransitionService;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.ResourceTransitionService.TransitionResult;
@@ -35,7 +34,7 @@ public class HelpdeskTicketStateChangedHandler
   }
 
   @Override
-  public List<PendingIntent> handle(TicketStateChangedEvent event, OrganizationConfig config) {
+  public HandlerResult handle(TicketStateChangedEvent event, OrganizationConfig config) {
     String ticketId = event.ticketId();
     String newTicketState = event.newTicketState();
 
@@ -45,7 +44,7 @@ public class HelpdeskTicketStateChangedHandler
           "Ticket state '{}' on ticket '{}' has no configured resource event — discarding",
           newTicketState,
           ticketId);
-      return List.of();
+      return HandlerResult.empty();
     }
 
     List<TicketMapping> mappings =
@@ -60,6 +59,6 @@ public class HelpdeskTicketStateChangedHandler
                 + " '{}' — discarding"
             : "Ticket state '{}' applied event '{}' to resources of ticket '{}'";
     log.info(logMsg, newTicketState, mappedEvent, ticketId);
-    return result.intents();
+    return HandlerResult.of(result.intents());
   }
 }

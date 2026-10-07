@@ -15,6 +15,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HandlerResult;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HelpdeskResourceTransitionHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
@@ -75,8 +76,10 @@ class HelpdeskResourceTransitionHandlerTest {
     when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID, config))
         .thenReturn(Set.of(REQUESTED_EVENT, "STEP_AWAY"));
 
-    List<PendingIntent> intents = handler.handle(callbackEvent(), config);
+    HandlerResult result = handler.handle(callbackEvent(), config);
+    assertThat(result.originatedPost()).isEmpty();
 
+    List<PendingIntent> intents = result.intents();
     assertThat(intents).hasSize(1);
     PendingIntent intent = intents.getFirst();
     assertThat(intent.outboxIntentType()).isEqualTo(OutboxIntentType.SEND_RESOURCE_EVENT);
@@ -95,7 +98,7 @@ class HelpdeskResourceTransitionHandlerTest {
     when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID, config))
         .thenReturn(Set.of("STEP_AWAY"));
 
-    List<PendingIntent> intents = handler.handle(callbackEvent(), config);
+    List<PendingIntent> intents = handler.handle(callbackEvent(), config).intents();
 
     assertThat(intents)
         .extracting(PendingIntent::outboxIntentType)
@@ -124,7 +127,10 @@ class HelpdeskResourceTransitionHandlerTest {
     when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID_2, config))
         .thenReturn(Set.of(REQUESTED_EVENT));
 
-    List<PendingIntent> intents = handler.handle(callbackEvent(), config);
+    HandlerResult result = handler.handle(callbackEvent(), config);
+    assertThat(result.originatedPost()).isEmpty();
+
+    List<PendingIntent> intents = result.intents();
 
     assertThat(intents).hasSize(1);
     PendingIntent intent = intents.getFirst();
@@ -156,7 +162,7 @@ class HelpdeskResourceTransitionHandlerTest {
     when(negotiatorClient.getPossibleResourceEvents(NEGOTIATION_ID, RESOURCE_SOURCE_ID_2, config))
         .thenReturn(resource2Events);
 
-    List<PendingIntent> intents = handler.handle(callbackEvent(), config);
+    List<PendingIntent> intents = handler.handle(callbackEvent(), config).intents();
 
     assertThat(intents)
         .extracting(PendingIntent::outboxIntentType)

@@ -1,5 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.routing;
 
+import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedPost;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import java.util.List;
 import java.util.Optional;
@@ -12,18 +13,23 @@ import java.util.Optional;
  * (unparseable body, missing type field).
  */
 public record RouteOutcome(
-    boolean processed, String skipReason, String eventType, List<PendingIntent> intents) {
+    boolean processed,
+    String skipReason,
+    String eventType,
+    List<PendingIntent> intents,
+    Optional<OriginatedPost> originatedPost) {
 
-  public static RouteOutcome asProcessed(String eventType, List<PendingIntent> intents) {
-    return new RouteOutcome(true, null, eventType, intents);
+  public static RouteOutcome asProcessed(
+      String eventType, List<PendingIntent> intents, Optional<OriginatedPost> originatedPost) {
+    return new RouteOutcome(true, null, eventType, intents, originatedPost);
   }
 
   public static RouteOutcome skipped(String reason) {
-    return new RouteOutcome(false, reason, null, List.of());
+    return new RouteOutcome(false, reason, null, List.of(), Optional.empty());
   }
 
   public static RouteOutcome skipped(String reason, String eventType) {
-    return new RouteOutcome(false, reason, eventType, List.of());
+    return new RouteOutcome(false, reason, eventType, List.of(), Optional.empty());
   }
 
   public Optional<String> resolvedEventType() {

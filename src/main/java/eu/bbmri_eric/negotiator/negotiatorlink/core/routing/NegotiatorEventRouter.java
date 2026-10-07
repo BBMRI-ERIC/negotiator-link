@@ -2,6 +2,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.routing;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HandlerResult;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationEventHandler;
 import java.io.IOException;
 import java.util.List;
@@ -56,6 +57,7 @@ public class NegotiatorEventRouter {
     }
 
     log.debug("Routing event type '{}' to {}", type, handler.getClass().getSimpleName());
-    return RouteOutcome.asProcessed(type, handler.handle(data));
+    HandlerResult result = handler.handle(data);
+    return RouteOutcome.asProcessed(type, result.intents(), result.originatedPost());
   }
 }

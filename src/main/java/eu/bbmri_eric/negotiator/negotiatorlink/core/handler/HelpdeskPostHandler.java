@@ -15,7 +15,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.CreatePostPayload;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +30,6 @@ public class HelpdeskPostHandler implements HelpdeskCallbackHandler<PostMessageE
       "This message could not be forwarded to the Negotiator at this time. Negotiation is in the state that does not allow posting messages.";
 
   private final TicketMappingRepository ticketMappingRepository;
-  private final OriginatedPostRepository originatedPostRepository;
   private final NegotiatorClient negotiatorClient;
 
   @Override
@@ -40,7 +38,7 @@ public class HelpdeskPostHandler implements HelpdeskCallbackHandler<PostMessageE
   }
 
   @Override
-  public List<PendingIntent> handle(PostMessageEvent postMessageEvent, OrganizationConfig config) {
+  public HandlerResult handle(PostMessageEvent postMessageEvent, OrganizationConfig config) {
     String ticketId = postMessageEvent.ticketId();
 
     List<TicketMapping> mappings =
@@ -50,14 +48,14 @@ public class HelpdeskPostHandler implements HelpdeskCallbackHandler<PostMessageE
     String negotiationId = anyMapping.getId().getNegotiationId();
 
     if (!arePrivatePostsEnabled(negotiationId, config)) {
-      return List.of(rejectPostIntent(ticketId, negotiationId, config));
+      return HandlerResult.of(List.of(rejectPostIntent(ticketId, negotiationId, config)));
     }
 
     String signedText = signPost(postMessageEvent.postText(), postMessageEvent.sender());
     String textHash = sha256Hex(signedText);
 
-    originatedPostRepository.save(
-        new OriginatedPost(textHash, anyMapping.getOrganizationId(), ticketId));
+    OriginatedPost originatedPost =
+        new OriginatedPost(textHash, anyMapping.getOrganizationId(), ticketId);
 
     log.info(
         "Deciding help desk post from ticket '{}' as PRIVATE post to negotiation '{}'",
@@ -71,7 +69,7 @@ public class HelpdeskPostHandler implements HelpdeskCallbackHandler<PostMessageE
             negotiationId,
             config.organizationExternalId(),
             serialize(new CreatePostPayload(negotiationId, ticketId, signedText)));
-    return List.of(intent);
+    return HandlerResult.of(List.of(intent), originatedPost);
   }
 
   private boolean arePrivatePostsEnabled(String negotiationId, OrganizationConfig config) {

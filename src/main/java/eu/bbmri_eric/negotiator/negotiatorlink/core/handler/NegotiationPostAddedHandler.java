@@ -10,6 +10,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedPost;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
@@ -24,6 +25,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.UserResponseModel
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -49,15 +51,15 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
   }
 
   @Override
-  public List<PendingIntent> handle(JsonNode data) {
+  public HandlerResult handle(JsonNode data) {
     NegotiationPostAddedWebhookEvent event = parseEvent(data);
     if (event == null) {
-      return List.of();
+      return HandlerResult.empty();
     }
 
     PostContent content = fetchPostContent(event);
     if (content == null) {
-      return List.of();
+      return HandlerResult.empty();
     }
 
     LinkedHashMap<String, String> ticketToOrgExtId =
@@ -67,15 +69,20 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
           "No target tickets for post '{}' in negotiation '{}'",
           event.getPostId(),
           event.getNegotiationId());
-      return List.of();
+      return HandlerResult.empty();
     }
 
-    String excludedTicketId =
-        resolveDeduplicatedTicketId(
+    Optional<OriginatedPost> consumed =
+        findConsumedOriginatedPost(
             content.textHash(), event.getOrganizationId(), event.getPostId(), content.isPublic());
-    ticketToOrgExtId.remove(excludedTicketId);
-
-    return fanOut(ticketToOrgExtId, content.text(), event);
+    return consumed
+        .map(
+            originatedPost -> {
+              ticketToOrgExtId.remove(originatedPost.getTicketId());
+              return HandlerResult.of(
+                  fanOut(ticketToOrgExtId, content.text(), event), originatedPost);
+            })
+        .orElseGet(() -> HandlerResult.of(fanOut(ticketToOrgExtId, content.text(), event)));
   }
 
   /** Parses and validates the webhook event, or returns {@code null} if it is incomplete. */
@@ -154,14 +161,14 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
   }
 
   /**
-   * Deduplication: finds and consumes one originated-post record matching the hash and org, so the
-   * originating ticket is excluded from fan-out. Returns the excluded ticket id, or {@code null}.
+   * Deduplication: finds an originated-post record matching the hash and org so the originating
+   * ticket can be excluded from fan-out. Returns the record to be consumed, or {@code null}.
+   * Deletion is deferred to the inbox commit transaction.
    */
-  private String resolveDeduplicatedTicketId(
+  private Optional<OriginatedPost> findConsumedOriginatedPost(
       String textHash, Long organizationId, String postId, boolean isPublic) {
     if (isPublic) {
-      // help desks does not produce public messages -> no deduplication needed
-      return null;
+      return Optional.empty();
     }
     String orgIdStr = String.valueOf(organizationId);
     return originatedPostRepository
@@ -172,10 +179,8 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
                   "Deduplication: excluding originating ticket '{}' from fan-out for post '{}'",
                   originated.getTicketId(),
                   postId);
-              originatedPostRepository.deleteById(originated.getRowId());
-              return originated.getTicketId();
-            })
-        .orElse(null);
+              return originated;
+            });
   }
 
   /** Produces one ADD_COMMENT intent per target ticket. */

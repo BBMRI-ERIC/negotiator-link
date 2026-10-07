@@ -16,6 +16,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedPost;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HandlerResult;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationPostAddedHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
@@ -79,7 +80,7 @@ class NegotiationPostAddedHandlerTest {
     when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), any(OrganizationConfig.class)))
         .thenReturn(createPost(EntityModelPostDTO.TypeEnum.PUBLIC));
 
-    List<PendingIntent> intents = handler.handle(postEventData(null));
+    List<PendingIntent> intents = handler.handle(postEventData(null)).intents();
 
     assertThat(intents).hasSize(2);
     assertThat(intents)
@@ -107,7 +108,7 @@ class NegotiationPostAddedHandlerTest {
             eq(POST_TEXT_HASH), eq(ORG_ID_STR)))
         .thenReturn(Optional.empty());
 
-    List<PendingIntent> intents = handler.handle(postEventData(ORG_ID));
+    List<PendingIntent> intents = handler.handle(postEventData(ORG_ID)).intents();
 
     assertThat(intents).hasSize(1);
     assertThat(intents.getFirst().targetId()).isEqualTo(TICKET_A);
@@ -129,10 +130,12 @@ class NegotiationPostAddedHandlerTest {
             eq(POST_TEXT_HASH), eq(ORG_ID_STR)))
         .thenReturn(Optional.of(originated));
 
-    List<PendingIntent> intents = handler.handle(postEventData(ORG_ID));
+    HandlerResult result = handler.handle(postEventData(ORG_ID));
 
-    assertThat(intents).isEmpty();
-    verify(originatedPostRepository).deleteById(any());
+    assertThat(result.intents()).isEmpty();
+    assertThat(result.originatedPost()).isPresent();
+    assertThat(result.originatedPost().get().getTicketId()).isEqualTo(TICKET_A);
+    assertThat(result.originatedPost().get().getTextHash()).isEqualTo(POST_TEXT_HASH);
   }
 
   @Test
@@ -146,7 +149,7 @@ class NegotiationPostAddedHandlerTest {
         .thenReturn(createPost(EntityModelPostDTO.TypeEnum.PRIVATE));
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(List.of());
 
-    assertThat(handler.handle(postEventData(ORG_ID))).isEmpty();
+    assertThat(handler.handle(postEventData(ORG_ID)).intents()).isEmpty();
   }
 
   @Test
@@ -154,7 +157,7 @@ class NegotiationPostAddedHandlerTest {
     when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
         .thenReturn(List.of());
 
-    assertThat(handler.handle(postEventData(ORG_ID))).isEmpty();
+    assertThat(handler.handle(postEventData(ORG_ID)).intents()).isEmpty();
     verify(negotiatorClient, never()).getPost(any(), any(), any());
   }
 
@@ -162,7 +165,7 @@ class NegotiationPostAddedHandlerTest {
   void handle_noConfigForPublicPost_returnsNoIntents() {
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(List.of());
 
-    assertThat(handler.handle(postEventData(null))).isEmpty();
+    assertThat(handler.handle(postEventData(null)).intents()).isEmpty();
     verify(negotiatorClient, never()).getPost(any(), any(), any());
   }
 
@@ -178,7 +181,7 @@ class NegotiationPostAddedHandlerTest {
   void handle_incompleteEvent_returnsNoIntents(String label, String postId, String negotiationId) {
     var incompleteData = buildEventData(postId, negotiationId, null);
 
-    assertThat(handler.handle(incompleteData)).isEmpty();
+    assertThat(handler.handle(incompleteData).intents()).isEmpty();
     verify(negotiatorClient, never()).getPost(any(), any(), any());
   }
 
@@ -191,7 +194,7 @@ class NegotiationPostAddedHandlerTest {
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
     when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config))).thenReturn(null);
 
-    assertThat(handler.handle(postEventData(ORG_ID))).isEmpty();
+    assertThat(handler.handle(postEventData(ORG_ID)).intents()).isEmpty();
     verify(ticketMappingRepository, never()).findByIdNegotiationId(any());
   }
 
@@ -199,7 +202,7 @@ class NegotiationPostAddedHandlerTest {
   void handle_privatePost_withCreatedByNameAndEmail_prependsSenderHeader() {
     stubPrivatePost("Jane Doe", "jane@example.com");
 
-    List<PendingIntent> intents = handler.handle(postEventData(ORG_ID));
+    List<PendingIntent> intents = handler.handle(postEventData(ORG_ID)).intents();
 
     assertThat(readText(intents.getFirst()))
         .isEqualTo("From: Jane Doe <jane@example.com>\n\n" + POST_TEXT);
@@ -209,7 +212,7 @@ class NegotiationPostAddedHandlerTest {
   void handle_privatePost_withCreatedByNameOnly_prependsNameHeader() {
     stubPrivatePost("Jane Doe", null);
 
-    List<PendingIntent> intents = handler.handle(postEventData(ORG_ID));
+    List<PendingIntent> intents = handler.handle(postEventData(ORG_ID)).intents();
 
     assertThat(readText(intents.getFirst())).isEqualTo("From: Jane Doe\n\n" + POST_TEXT);
   }
@@ -218,7 +221,7 @@ class NegotiationPostAddedHandlerTest {
   void handle_privatePost_withCreatedByEmailOnly_prependsEmailHeader() {
     stubPrivatePost(null, "jane@example.com");
 
-    List<PendingIntent> intents = handler.handle(postEventData(ORG_ID));
+    List<PendingIntent> intents = handler.handle(postEventData(ORG_ID)).intents();
 
     assertThat(readText(intents.getFirst())).isEqualTo("From: jane@example.com\n\n" + POST_TEXT);
   }

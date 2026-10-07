@@ -9,8 +9,10 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.InboxEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HandlerResult;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.InboxEventRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.HelpdeskEventRouter;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.NegotiatorEventRouter;
@@ -38,6 +40,7 @@ public class InboxEventProcessor {
   private final Map<HelpdeskType, HelpdeskCallbackAdapter> callbackAdapters;
   private final OutboxService outboxService;
   private final FailureClassifier failureClassifier;
+  private final OriginatedPostRepository originatedPostRepository;
   private final ObjectMapper objectMapper;
   private final NegotiatorLinkProperties properties;
 
@@ -57,6 +60,20 @@ public class InboxEventProcessor {
     }
     outcome.resolvedEventType().ifPresent(event::setEventType);
     if (outcome.processed()) {
+      outcome
+          .originatedPost()
+          .ifPresent(
+              post -> {
+                boolean isCreate =
+                    outcome.intents().stream()
+                        .anyMatch(
+                            intent -> intent.outboxIntentType() == OutboxIntentType.CREATE_POST);
+                if (isCreate) {
+                  originatedPostRepository.save(post);
+                } else {
+                  originatedPostRepository.deleteById(post.getRowId());
+                }
+              });
       outboxService.enqueue(outcome.intents(), event);
       markTerminal(event, InboxStatus.PROCESSED, null, null);
     } else {
@@ -128,7 +145,9 @@ public class InboxEventProcessor {
         .isEmpty()) {
       return RouteOutcome.skipped("no-mapping", eventType);
     }
-    return RouteOutcome.asProcessed(eventType, helpdeskEventRouter.route(callbackEvent, config));
+    HandlerResult handlerResult = helpdeskEventRouter.route(callbackEvent, config);
+    return RouteOutcome.asProcessed(
+        eventType, handlerResult.intents(), handlerResult.originatedPost());
   }
 
   private Map<String, Object> parsePayload(InboxEvent event) {

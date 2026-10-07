@@ -75,16 +75,16 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
   }
 
   @Override
-  public List<PendingIntent> handle(JsonNode data) {
+  public HandlerResult handle(JsonNode data) {
     NegotiationStateUpdatedWebhookEvent event = parseEvent(data);
     if (event == null) {
-      return List.of();
+      return HandlerResult.empty();
     }
 
     if (APPROVE_EVENT.equals(event.getEvent().getValue())) {
-      return handleApprove(event); // create tickets
+      return HandlerResult.of(handleApprove(event)); // create tickets
     }
-    return handleStateChange(event);
+    return HandlerResult.of(handleStateChange(event));
   }
 
   private List<PendingIntent> handleApprove(NegotiationStateUpdatedWebhookEvent event) {
