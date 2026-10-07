@@ -27,7 +27,6 @@ class InboxPollerTest {
   private static final String DELIVERY_ID = "delivery-1";
   private static final String PAYLOAD = "{}";
   private static final String ROUTING_FAILURE = "Negotiator unreachable";
-  // Matches negotiator-link.inbox.max-attempts in src/test/resources/application.yml.
   private static final int MAX_ATTEMPTS = 3;
 
   @Autowired private InboxPoller inboxPoller;
