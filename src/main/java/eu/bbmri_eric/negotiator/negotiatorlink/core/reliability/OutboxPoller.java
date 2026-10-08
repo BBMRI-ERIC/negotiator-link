@@ -111,7 +111,7 @@ public class OutboxPoller {
   }
 
   private ExecutorService routingWorker(String negotiationId) {
-    return workers[Math.abs(negotiationId.hashCode()) % workers.length];
+    return workers[Math.floorMod(negotiationId.hashCode(), workers.length)];
   }
 
   private void deliverOne(Long rowId, UUID claimToken) {
