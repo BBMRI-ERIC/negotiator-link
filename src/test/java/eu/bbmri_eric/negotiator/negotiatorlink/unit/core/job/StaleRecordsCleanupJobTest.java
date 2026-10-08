@@ -34,7 +34,7 @@ class StaleRecordsCleanupJobTest {
             outboxIntentRepository,
             Duration.ofHours(24));
     job.deleteStaleRows();
-    verify(originatedPostRepository).deleteByCreatedAtBefore(any(Instant.class));
+    verify(originatedPostRepository).deleteTerminalAndOrphanedByCreatedAtBefore(any(Instant.class));
     verify(inboxEventRepository)
         .deleteByStatusInAndReceivedAtBefore(
             eq(List.of(InboxStatus.PROCESSED, InboxStatus.SKIPPED)), any(Instant.class));

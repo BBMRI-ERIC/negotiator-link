@@ -184,13 +184,10 @@ public class OutboxIntentDispatcher {
   private DispatchResult createPost(OutboxIntent intent, OrganizationConfig config) {
     CreatePostPayload payload = read(intent, CreatePostPayload.class);
     String organizationExtId = config.organizationExternalId();
-    String organizationId =
-        getOrganizationIdFromTicketMapping(
-            payload.ticketId(), organizationExtId, intent.getRowId());
 
     boolean alreadyConsumed =
         originatedPostRepository
-            .findFirstByTicketIdAndOrganizationId(payload.ticketId(), organizationId)
+            .findFirstByTicketIdAndOrganizationExtId(payload.ticketId(), organizationExtId)
             .isEmpty();
     if (alreadyConsumed) {
       log.info(
@@ -245,20 +242,6 @@ public class OutboxIntentDispatcher {
             intent.getTargetId(),
             resolved.stream().map(ResolvedAttachment::attachmentId).toList());
     return new DispatchResult(List.of(), Optional.of(forwarded));
-  }
-
-  private String getOrganizationIdFromTicketMapping(
-      String ticketId, String organizationExtId, Long rowId) {
-    return ticketMappingRepository
-        .findByIdHelpdeskTicketIdAndOrganizationExtId(ticketId, organizationExtId)
-        .stream()
-        .findFirst()
-        .map(TicketMapping::getOrganizationId)
-        .orElseThrow(
-            () ->
-                new IllegalStateException(
-                    "No ticket mapping for ticket '%s' org '%s' — cannot deliver intent %s"
-                        .formatted(ticketId, organizationExtId, rowId)));
   }
 
   private SetStatePayload readState(OutboxIntent intent) {

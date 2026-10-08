@@ -5,14 +5,34 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.Set;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface OriginatedPostRepository extends JpaRepository<OriginatedPost, Long> {
 
-  Optional<OriginatedPost> findFirstByTextHashAndOrganizationIdAndTicketIdInOrderByCreatedAtAsc(
-      String textHash, String organizationId, Set<String> ticketIds);
+  Optional<OriginatedPost> findFirstByTextHashAndOrganizationExtIdAndTicketIdInOrderByCreatedAtAsc(
+      String textHash, String organizationExtId, Set<String> ticketIds);
 
-  Optional<OriginatedPost> findFirstByTicketIdAndOrganizationId(
-      String ticketId, String organizationId);
+  Optional<OriginatedPost> findFirstByTicketIdAndOrganizationExtId(
+      String ticketId, String organizationExtId);
 
-  long deleteByCreatedAtBefore(Instant cutoff);
+  /**
+   * Deletes originated_post rows older than {@code cutoff} only when every CREATE_POST outbox
+   * intent targeting the same ticket_id and organization is in a terminal state.
+   */
+  @Modifying
+  @Query(
+      value =
+          "DELETE FROM originated_post op "
+              + "WHERE op.created_at < :cutoff "
+              + "AND NOT EXISTS ("
+              + "  SELECT 1 FROM outbox_intent oi "
+              + "  WHERE oi.intent_type = 'CREATE_POST' "
+              + "    AND oi.target_id = op.ticket_id "
+              + "    AND oi.organization_ext_id = op.organization_ext_id "
+              + "    AND oi.status NOT IN ('DELIVERED', 'FAILED_PERMANENT', 'DEAD_LETTER')"
+              + ")",
+      nativeQuery = true)
+  long deleteTerminalAndOrphanedByCreatedAtBefore(@Param("cutoff") Instant cutoff);
 }

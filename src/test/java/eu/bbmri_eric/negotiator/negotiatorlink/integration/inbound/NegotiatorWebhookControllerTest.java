@@ -175,7 +175,7 @@ class NegotiatorWebhookControllerTest {
     String postText = "Hello from help desk";
     String textHash = sha256Hex(postText);
 
-    originatedPostRepository.save(new OriginatedPost(textHash, String.valueOf(ORG_ID), TICKET_A));
+    originatedPostRepository.save(new OriginatedPost(textHash, ORG_EXT_ID, TICKET_A));
 
     when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(postId), any()))
         .thenReturn(

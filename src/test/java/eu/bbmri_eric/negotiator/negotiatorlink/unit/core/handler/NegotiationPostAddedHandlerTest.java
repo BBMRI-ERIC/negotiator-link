@@ -111,8 +111,8 @@ class NegotiationPostAddedHandlerTest {
         .thenReturn(createPost(EntityModelPostDTO.TypeEnum.PRIVATE));
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
     when(originatedPostRepository
-            .findFirstByTextHashAndOrganizationIdAndTicketIdInOrderByCreatedAtAsc(
-                eq(POST_TEXT_HASH), eq(ORG_ID_STR), eq(Set.of(TICKET_A))))
+            .findFirstByTextHashAndOrganizationExtIdAndTicketIdInOrderByCreatedAtAsc(
+                eq(POST_TEXT_HASH), eq(ORG_EXT_ID), eq(Set.of(TICKET_A))))
         .thenReturn(Optional.empty());
 
     List<PendingIntent> intents = handler.handle(postEventData(ORG_ID)).intents();
@@ -126,7 +126,7 @@ class NegotiationPostAddedHandlerTest {
   void handle_originatedPost_excludesOriginatingTicket() {
     var config = createConfig(ORG_EXT_ID);
     var mappings = List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID));
-    var originated = new OriginatedPost(POST_TEXT_HASH, ORG_ID_STR, TICKET_A);
+    var originated = new OriginatedPost(POST_TEXT_HASH, ORG_EXT_ID, TICKET_A);
     when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
         .thenReturn(mappings);
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
@@ -134,8 +134,8 @@ class NegotiationPostAddedHandlerTest {
         .thenReturn(createPost(EntityModelPostDTO.TypeEnum.PRIVATE));
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
     when(originatedPostRepository
-            .findFirstByTextHashAndOrganizationIdAndTicketIdInOrderByCreatedAtAsc(
-                eq(POST_TEXT_HASH), eq(ORG_ID_STR), eq(Set.of(TICKET_A))))
+            .findFirstByTextHashAndOrganizationExtIdAndTicketIdInOrderByCreatedAtAsc(
+                eq(POST_TEXT_HASH), eq(ORG_EXT_ID), eq(Set.of(TICKET_A))))
         .thenReturn(Optional.of(originated));
 
     HandlerResult result = handler.handle(postEventData(ORG_ID));
@@ -263,8 +263,8 @@ class NegotiationPostAddedHandlerTest {
                 POST_ID, POST_TEXT, EntityModelPostDTO.TypeEnum.PRIVATE, ORG_ID_STR, name, email));
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
     when(originatedPostRepository
-            .findFirstByTextHashAndOrganizationIdAndTicketIdInOrderByCreatedAtAsc(
-                eq(POST_TEXT_HASH), eq(ORG_ID_STR), eq(Set.of(TICKET_A))))
+            .findFirstByTextHashAndOrganizationExtIdAndTicketIdInOrderByCreatedAtAsc(
+                eq(POST_TEXT_HASH), eq(ORG_EXT_ID), eq(Set.of(TICKET_A))))
         .thenReturn(Optional.empty());
   }
 

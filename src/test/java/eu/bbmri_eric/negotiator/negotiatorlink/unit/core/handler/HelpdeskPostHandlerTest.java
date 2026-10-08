@@ -67,7 +67,7 @@ class HelpdeskPostHandlerTest {
 
     assertThat(result.originatedPost()).isPresent();
     var post = result.originatedPost().get();
-    assertThat(post.getOrganizationId()).isEqualTo(ORG_ID);
+    assertThat(post.getOrganizationExtId()).isEqualTo(ORG_EXT_ID);
     assertThat(post.getTicketId()).isEqualTo(TICKET_ID);
     assertThat(post.getTextHash()).isNotBlank();
 

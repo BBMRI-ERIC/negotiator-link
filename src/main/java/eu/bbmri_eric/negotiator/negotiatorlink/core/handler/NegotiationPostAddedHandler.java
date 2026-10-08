@@ -79,7 +79,7 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
     Optional<OriginatedPost> consumed =
         findConsumedOriginatedPost(
             content.textHash(),
-            event.getOrganizationId(),
+            ticketToOrgExtId.values().iterator().next(),
             ticketToOrgExtId.keySet(),
             content.isPublic());
     return consumed
@@ -180,14 +180,13 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
    * Optional.empty()}. Deletion is deferred to the inbox commit transaction.
    */
   private Optional<OriginatedPost> findConsumedOriginatedPost(
-      String textHash, Long organizationId, Set<String> ticketIds, boolean isPublic) {
+      String textHash, String organizationExtId, Set<String> ticketIds, boolean isPublic) {
     if (isPublic) {
       return Optional.empty();
     }
-    String orgIdStr = String.valueOf(organizationId);
     return originatedPostRepository
-        .findFirstByTextHashAndOrganizationIdAndTicketIdInOrderByCreatedAtAsc(
-            textHash, orgIdStr, ticketIds);
+        .findFirstByTextHashAndOrganizationExtIdAndTicketIdInOrderByCreatedAtAsc(
+            textHash, organizationExtId, ticketIds);
   }
 
   /** Produces one ADD_COMMENT intent per target ticket. */

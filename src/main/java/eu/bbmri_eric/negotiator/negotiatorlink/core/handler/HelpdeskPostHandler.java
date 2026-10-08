@@ -55,7 +55,7 @@ public class HelpdeskPostHandler implements HelpdeskCallbackHandler<PostMessageE
     String textHash = sha256Hex(signedText);
 
     OriginatedPost originatedPost =
-        new OriginatedPost(textHash, anyMapping.getOrganizationId(), ticketId);
+        new OriginatedPost(textHash, config.organizationExternalId(), ticketId);
 
     log.info(
         "Deciding help desk post from ticket '{}' as PRIVATE post to negotiation '{}'",

@@ -131,12 +131,10 @@ class OutboxIntentDispatcherTest {
 
   @Test
   void dispatch_createPost_originatedPostPresent_createsPrivatePost() {
-    when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
-            TICKET_ID, ORG_EXT_ID))
-        .thenReturn(List.of(ticketMapping()));
-    when(originatedPostRepository.findFirstByTicketIdAndOrganizationId(TICKET_ID, ORG_ID))
+    when(originatedPostRepository.findFirstByTicketIdAndOrganizationExtId(TICKET_ID, ORG_EXT_ID))
         .thenReturn(
-            Optional.of(new OriginatedPost(HashUtil.sha256Hex(SIGNED_TEXT), ORG_ID, TICKET_ID)));
+            Optional.of(
+                new OriginatedPost(HashUtil.sha256Hex(SIGNED_TEXT), ORG_EXT_ID, TICKET_ID)));
 
     dispatcher.dispatch(
         intent(
@@ -156,10 +154,7 @@ class OutboxIntentDispatcherTest {
 
   @Test
   void dispatch_createPost_originatedPostConsumedByEcho_skipsCreate() {
-    when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
-            TICKET_ID, ORG_EXT_ID))
-        .thenReturn(List.of(ticketMapping()));
-    when(originatedPostRepository.findFirstByTicketIdAndOrganizationId(TICKET_ID, ORG_ID))
+    when(originatedPostRepository.findFirstByTicketIdAndOrganizationExtId(TICKET_ID, ORG_EXT_ID))
         .thenReturn(Optional.empty());
 
     dispatcher.dispatch(
