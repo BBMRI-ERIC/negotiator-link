@@ -46,6 +46,7 @@ public class OutboxIntentDispatcher {
   private final TicketMappingRepository ticketMappingRepository;
   private final OriginatedPostRepository originatedPostRepository;
   private final AttachmentForwardingService attachmentForwardingService;
+  private final PendingTicketCreationCache pendingTicketCreationCache;
   private final ObjectMapper objectMapper;
 
   public OutboxIntentDispatcher(
@@ -55,6 +56,7 @@ public class OutboxIntentDispatcher {
       TicketMappingRepository ticketMappingRepository,
       OriginatedPostRepository originatedPostRepository,
       AttachmentForwardingService attachmentForwardingService,
+      PendingTicketCreationCache pendingTicketCreationCache,
       ObjectMapper objectMapper) {
     this.registry = registry;
     this.clients = clients;
@@ -62,6 +64,7 @@ public class OutboxIntentDispatcher {
     this.ticketMappingRepository = ticketMappingRepository;
     this.originatedPostRepository = originatedPostRepository;
     this.attachmentForwardingService = attachmentForwardingService;
+    this.pendingTicketCreationCache = pendingTicketCreationCache;
     this.objectMapper = objectMapper;
   }
 
@@ -155,6 +158,9 @@ public class OutboxIntentDispatcher {
       ticketMappingRepository
           .findByIdNegotiationIdAndResourceSourceId(payload.negotiationId(), resourceSourceId)
           .ifPresent(mapping -> ticketIds.add(mapping.getId().getHelpdeskTicketId()));
+    }
+    if (pendingTicketCreationCache.isTracked(payload.negotiationId())) {
+      throw new PendingTicketCreationException(payload.negotiationId());
     }
     if (ticketIds.size() > 1) {
       client.linkRelatedTickets(ticketIds, config);

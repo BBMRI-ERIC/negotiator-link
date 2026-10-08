@@ -28,6 +28,8 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.DispatchResult;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentDispatcher;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationCache;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationException;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
@@ -72,6 +74,7 @@ class OutboxIntentDispatcherTest {
   @Mock private TicketMappingRepository ticketMappingRepository;
   @Mock private OriginatedPostRepository originatedPostRepository;
   @Mock private AttachmentForwardingService attachmentForwardingService;
+  @Mock private PendingTicketCreationCache pendingTicketCreationCache;
 
   private final ObjectMapper objectMapper = new ObjectMapper();
   private OrganizationConfig config;
@@ -88,6 +91,7 @@ class OutboxIntentDispatcherTest {
             ticketMappingRepository,
             originatedPostRepository,
             attachmentForwardingService,
+            pendingTicketCreationCache,
             objectMapper);
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
   }
@@ -222,6 +226,31 @@ class OutboxIntentDispatcherTest {
         .thenReturn(Optional.of(mapping));
     when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(NEGOTIATION_ID, "r-2"))
         .thenReturn(Optional.empty());
+
+    dispatcher.dispatch(intent(OutboxIntentType.LINK_TICKETS, payload));
+
+    verify(helpdeskClient, never()).linkRelatedTickets(any(), any());
+  }
+
+  @Test
+  void
+      dispatch_linkTickets_noMappingsFound_createTicketPending_throwsPendingTicketCreationException() {
+    var payload = new LinkTicketsPayload(NEGOTIATION_ID, List.of("r-1", "r-2"));
+    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(any(), any()))
+        .thenReturn(Optional.empty());
+    when(pendingTicketCreationCache.isTracked(NEGOTIATION_ID)).thenReturn(true);
+
+    assertThrows(
+        PendingTicketCreationException.class,
+        () -> dispatcher.dispatch(intent(OutboxIntentType.LINK_TICKETS, payload)));
+  }
+
+  @Test
+  void dispatch_linkTickets_noMappingsFound_createTicketNotPending_skips() {
+    var payload = new LinkTicketsPayload(NEGOTIATION_ID, List.of("r-1", "r-2"));
+    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(any(), any()))
+        .thenReturn(Optional.empty());
+    when(pendingTicketCreationCache.isTracked(NEGOTIATION_ID)).thenReturn(false);
 
     dispatcher.dispatch(intent(OutboxIntentType.LINK_TICKETS, payload));
 

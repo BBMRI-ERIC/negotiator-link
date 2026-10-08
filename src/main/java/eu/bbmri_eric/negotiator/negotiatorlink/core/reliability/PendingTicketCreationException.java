@@ -5,6 +5,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.reliability;
  * The inbox poller treats this as a transient failure and re-schedules the event with backoff.
  */
 public class PendingTicketCreationException extends RuntimeException {
+
   public PendingTicketCreationException(String negotiationId) {
     super("Ticket(s) not yet created for negotiation '%s'".formatted(negotiationId));
   }
