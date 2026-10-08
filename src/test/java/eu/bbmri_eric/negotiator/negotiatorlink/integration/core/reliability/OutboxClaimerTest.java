@@ -14,6 +14,8 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepos
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,19 +38,24 @@ class OutboxClaimerTest {
   }
 
   @Test
-  void claim_duePendingRows_flipsToInProgressWithClaimExpiry() {
+  void claim_duePendingRows_flipsToInProgressWithClaimExpiryAndToken() {
     OutboxIntent due = save(pending(1L, Instant.now().minusSeconds(5)));
     OutboxIntent notDue = save(pending(2L, Instant.now().plusSeconds(300)));
 
-    List<Long> claimed = claimer.claim(10, Duration.ofSeconds(60));
+    Map<Long, UUID> claimed = claimer.claim(10, Duration.ofSeconds(60));
 
-    assertThat(claimed).containsExactly(due.getRowId());
+    assertThat(claimed).containsOnlyKeys(due.getRowId());
+    UUID token = claimed.get(due.getRowId());
+    assertThat(token).isNotNull();
+
     OutboxIntent reloadedDue = outboxIntentRepository.findById(due.getRowId()).orElseThrow();
     assertThat(reloadedDue.getStatus()).isEqualTo(OutboxStatus.IN_PROGRESS);
     assertThat(reloadedDue.getClaimExpiresAt()).isNotNull();
+    assertThat(reloadedDue.getClaimToken()).isEqualTo(token);
+
     OutboxIntent reloadedNotDue = outboxIntentRepository.findById(notDue.getRowId()).orElseThrow();
     assertThat(reloadedNotDue.getStatus()).isEqualTo(OutboxStatus.PENDING);
-    assertThat(reloadedNotDue.getClaimExpiresAt()).isNull();
+    assertThat(reloadedNotDue.getClaimToken()).isNull();
   }
 
   @Test
@@ -56,9 +63,9 @@ class OutboxClaimerTest {
     OutboxIntent first = save(pending(1L, Instant.now().minusSeconds(5)));
     save(pending(2L, Instant.now().minusSeconds(5)));
 
-    List<Long> claimed = claimer.claim(1, Duration.ofSeconds(60));
+    Map<Long, UUID> claimed = claimer.claim(1, Duration.ofSeconds(60));
 
-    assertThat(claimed).containsExactly(first.getRowId());
+    assertThat(claimed).containsOnlyKeys(first.getRowId());
   }
 
   @Test
@@ -69,7 +76,35 @@ class OutboxClaimerTest {
   }
 
   @Test
-  void reclaimExpiredClaims_returnsOnlyExpiredInProgressRowsToPending() {
+  void activateClaim_matchingToken_updatesExpiryAndReturnsTrue() {
+    OutboxIntent intent = save(pending(1L, Instant.now()));
+    Map<Long, UUID> claimed = claimer.claim(10, Duration.ofSeconds(30));
+    UUID token = claimed.get(intent.getRowId());
+
+    boolean activated = claimer.activateClaim(intent.getRowId(), token, Duration.ofSeconds(60));
+
+    assertThat(activated).isTrue();
+    OutboxIntent reloaded = outboxIntentRepository.findById(intent.getRowId()).orElseThrow();
+    assertThat(reloaded.getClaimExpiresAt()).isAfter(Instant.now().plusSeconds(50));
+  }
+
+  @Test
+  void activateClaim_wrongToken_doesNotExtendAndReturnsFalse() {
+    OutboxIntent intent = save(pending(1L, Instant.now()));
+    claimer.claim(10, Duration.ofSeconds(30));
+    Instant expiryBefore =
+        outboxIntentRepository.findById(intent.getRowId()).orElseThrow().getClaimExpiresAt();
+
+    boolean activated =
+        claimer.activateClaim(intent.getRowId(), UUID.randomUUID(), Duration.ofSeconds(60));
+
+    assertThat(activated).isFalse();
+    OutboxIntent reloaded = outboxIntentRepository.findById(intent.getRowId()).orElseThrow();
+    assertThat(reloaded.getClaimExpiresAt()).isEqualTo(expiryBefore);
+  }
+
+  @Test
+  void reclaimExpiredClaims_returnsOnlyExpiredInProgressRowsToPendingAndClearsToken() {
     OutboxIntent expired = save(inProgress(1L, Instant.now().minusSeconds(10)));
     OutboxIntent live = save(inProgress(2L, Instant.now().plusSeconds(60)));
 
@@ -80,6 +115,7 @@ class OutboxClaimerTest {
         outboxIntentRepository.findById(expired.getRowId()).orElseThrow();
     assertThat(reloadedExpired.getStatus()).isEqualTo(OutboxStatus.PENDING);
     assertThat(reloadedExpired.getClaimExpiresAt()).isNull();
+    assertThat(reloadedExpired.getClaimToken()).isNull();
     OutboxIntent reloadedLive = outboxIntentRepository.findById(live.getRowId()).orElseThrow();
     assertThat(reloadedLive.getStatus()).isEqualTo(OutboxStatus.IN_PROGRESS);
   }
@@ -106,6 +142,7 @@ class OutboxClaimerTest {
     OutboxIntent intent = pending(inboxRowId, Instant.now());
     intent.setStatus(OutboxStatus.IN_PROGRESS);
     intent.setClaimExpiresAt(claimExpiresAt);
+    intent.setClaimToken(UUID.randomUUID());
     return intent;
   }
 }

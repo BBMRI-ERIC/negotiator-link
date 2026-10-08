@@ -7,6 +7,8 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -22,15 +24,29 @@ public interface OutboxIntentRepository extends JpaRepository<OutboxIntent, Long
       nativeQuery = true)
   List<Long> selectDispatchableIds(@Param("now") Instant now, @Param("limit") int limit);
 
-  /** Flips the given rows to {@code IN_PROGRESS} and stamps the claim expiry. */
+  /** Flips the given rows to {@code IN_PROGRESS} and stamps the claim expiry and token. */
   @Modifying(clearAutomatically = true)
   @Query(
       value =
-          "UPDATE outbox_intent SET status = 'IN_PROGRESS', claim_expires_at = :claimUntil "
+          "UPDATE outbox_intent SET status = 'IN_PROGRESS', claim_expires_at = :claimUntil, claim_token = :token "
               + "WHERE row_id IN (:rowIds)",
       nativeQuery = true)
   void markClaimed(
-      @Param("rowIds") Collection<Long> rowIds, @Param("claimUntil") Instant claimUntil);
+      @Param("rowIds") Collection<Long> rowIds,
+      @Param("claimUntil") Instant claimUntil,
+      @Param("token") UUID token);
+
+  /** Extends the claim expiry for a row only when the token still matches. */
+  @Modifying(clearAutomatically = true)
+  @Query(
+      value =
+          "UPDATE outbox_intent SET claim_expires_at = :claimUntil "
+              + "WHERE row_id = :rowId AND claim_token = :token AND status = 'IN_PROGRESS'",
+      nativeQuery = true)
+  int extendClaim(
+      @Param("rowId") Long rowId,
+      @Param("token") UUID token,
+      @Param("claimUntil") Instant claimUntil);
 
   /** Selects and locks IN_PROGRESS rows whose claim has expired. */
   @Query(
@@ -45,7 +61,7 @@ public interface OutboxIntentRepository extends JpaRepository<OutboxIntent, Long
   @Modifying(clearAutomatically = true)
   @Query(
       value =
-          "UPDATE outbox_intent SET status = 'PENDING', claim_expires_at = NULL "
+          "UPDATE outbox_intent SET status = 'PENDING', claim_expires_at = NULL, claim_token = NULL "
               + "WHERE row_id IN (:rowIds)",
       nativeQuery = true)
   void releaseClaims(@Param("rowIds") Collection<Long> rowIds);
@@ -56,7 +72,7 @@ public interface OutboxIntentRepository extends JpaRepository<OutboxIntent, Long
   @Query(
       value = "SELECT row_id, negotiation_id FROM outbox_intent WHERE row_id IN (:rowIds)",
       nativeQuery = true)
-  List<Object[]> findRowIdAndNegotiationIdByRowIdIn(@Param("rowIds") Collection<Long> rowIds);
+  List<Object[]> findRowIdAndNegotiationIdByRowIdIn(@Param("rowIds") Set<Long> rowIds);
 
   long countByStatusIn(Collection<OutboxStatus> statuses);
 

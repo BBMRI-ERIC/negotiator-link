@@ -8,6 +8,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwarding
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,11 +50,16 @@ public class OutboxDeliverer {
   }
 
   /**
-   * Dispatches a single already-claimed ({@code IN_PROGRESS}) intent. Returns the DB side effects.
+   * Dispatches a single already-claimed ({@code IN_PROGRESS}) intent. Returns the DB side effects,
+   * or null if the row is gone or the token no longer matches (reclaimed by the reaper).
    */
-  public DispatchResult dispatch(Long rowId) {
+  public DispatchResult dispatch(Long rowId, UUID claimToken) {
     OutboxIntent intent = outboxIntentRepository.findById(rowId).orElse(null);
     if (intent == null || intent.getStatus() != OutboxStatus.IN_PROGRESS) {
+      return null;
+    }
+    if (!claimToken.equals(intent.getClaimToken())) {
+      log.warn("Intent {} token mismatch — row was reclaimed; discarding stale dispatch", rowId);
       return null;
     }
     if (supersededByNewer(intent)) {
@@ -68,12 +74,16 @@ public class OutboxDeliverer {
 
   /** Persists the dispatch side effects and marks the intent delivered atomically. */
   @Transactional
-  public void commit(Long rowId, DispatchResult result) {
+  public void commit(Long rowId, UUID claimToken, DispatchResult result) {
     if (result == null) {
       return;
     }
     OutboxIntent intent = outboxIntentRepository.findById(rowId).orElse(null);
     if (intent == null || intent.getStatus() != OutboxStatus.IN_PROGRESS) {
+      return;
+    }
+    if (!claimToken.equals(intent.getClaimToken())) {
+      log.warn("Intent {} token mismatch on commit — row was reclaimed; discarding result", rowId);
       return;
     }
     ticketMappingRepository.saveAll(result.ticketMappings());
@@ -104,15 +114,22 @@ public class OutboxDeliverer {
    * exhausted retries move to a terminal status.
    */
   @Transactional
-  public void recordFailure(Long rowId, Throwable error) {
+  public void recordFailure(Long rowId, UUID claimToken, Throwable error) {
     OutboxIntent intent = outboxIntentRepository.findById(rowId).orElse(null);
     if (intent == null) {
+      return;
+    }
+    if (!claimToken.equals(intent.getClaimToken())) {
+      log.warn(
+          "Intent {} token mismatch on recordFailure — row was reclaimed; ignoring stale failure",
+          rowId);
       return;
     }
     FailureClass failureClass = failureClassifier.classify(error);
     intent.setAttemptCount(intent.getAttemptCount() + 1);
     intent.setLastError(truncate(error.getMessage()));
     intent.setClaimExpiresAt(null);
+    intent.setClaimToken(null);
     switch (failureClass) {
       case TRANSIENT -> {
         if (intent.getAttemptCount() >= maxAttempts) {
@@ -185,6 +202,7 @@ public class OutboxDeliverer {
     intent.setStatus(OutboxStatus.DELIVERED);
     intent.setDeliveredAt(Instant.now());
     intent.setClaimExpiresAt(null);
+    intent.setClaimToken(null);
     outboxIntentRepository.save(intent);
   }
 

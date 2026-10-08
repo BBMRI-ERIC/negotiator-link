@@ -52,6 +52,7 @@ negotiator-link:
     base-backoff: PT1S
     max-backoff: PT30S
     claim-timeout: PT60S
+    claim-reap-interval-ms: 30000
     worker-count: 4
   resource-events:
     MARK_AS_CHECKING_AVAILABILITY: CHECKING_AVAILABILITY

@@ -12,6 +12,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.UUID;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -74,6 +75,10 @@ public class OutboxIntent {
   /** Claim deadline while {@link OutboxStatus#IN_PROGRESS}; null otherwise. */
   @Column(name = "claim_expires_at")
   private Instant claimExpiresAt;
+
+  /** Unique token for this claim; guards commit/failure against expired-and-reclaimed rows. */
+  @Column(name = "claim_token")
+  private UUID claimToken;
 
   @Column(name = "last_error")
   private String lastError;

@@ -31,6 +31,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,6 +47,7 @@ class OutboxDelivererTest {
   private static final String TICKET_ID = "ticket-7";
   private static final String ORG_EXT_ID = "bbmri:DE:MHH";
   private static final int MAX_ATTEMPTS = 4;
+  private static final UUID CLAIM_TOKEN = UUID.randomUUID();
 
   @Mock private OutboxIntentRepository outboxIntentRepository;
   @Mock private OutboxIntentDispatcher dispatcher;
@@ -80,7 +82,7 @@ class OutboxDelivererTest {
     when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
     when(dispatcher.dispatch(intent)).thenReturn(DispatchResult.empty());
 
-    DispatchResult result = deliverer.dispatch(ROW_ID);
+    DispatchResult result = deliverer.dispatch(ROW_ID, CLAIM_TOKEN);
 
     assertEquals(DispatchResult.empty(), result);
     verify(dispatcher).dispatch(intent);
@@ -91,7 +93,17 @@ class OutboxDelivererTest {
     OutboxIntent intent = intent(OutboxIntentType.ADD_COMMENT, OutboxStatus.PENDING);
     when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
 
-    assertNull(deliverer.dispatch(ROW_ID));
+    assertNull(deliverer.dispatch(ROW_ID, CLAIM_TOKEN));
+    verify(dispatcher, never()).dispatch(any());
+  }
+
+  @Test
+  void dispatch_tokenMismatch_returnsNullAndDoesNotDispatch() {
+    OutboxIntent intent = intent(OutboxIntentType.ADD_COMMENT, OutboxStatus.IN_PROGRESS);
+    intent.setClaimToken(UUID.randomUUID()); // different token — simulates reclaim by reaper
+    when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
+
+    assertNull(deliverer.dispatch(ROW_ID, CLAIM_TOKEN));
     verify(dispatcher, never()).dispatch(any());
   }
 
@@ -110,7 +122,7 @@ class OutboxDelivererTest {
             eq(List.of(OutboxStatus.PENDING, OutboxStatus.IN_PROGRESS))))
         .thenReturn(Optional.of(newer));
 
-    DispatchResult result = deliverer.dispatch(ROW_ID);
+    DispatchResult result = deliverer.dispatch(ROW_ID, CLAIM_TOKEN);
 
     assertEquals(DispatchResult.empty(), result);
     verify(dispatcher, never()).dispatch(any());
@@ -131,7 +143,7 @@ class OutboxDelivererTest {
 
     TransactionSynchronizationManager.initSynchronization();
     try {
-      deliverer.commit(ROW_ID, result);
+      deliverer.commit(ROW_ID, CLAIM_TOKEN, result);
     } finally {
       TransactionSynchronizationManager.clearSynchronization();
     }
@@ -141,7 +153,65 @@ class OutboxDelivererTest {
         .recordForwardedAttachments(NEGOTIATION_ID, ORG_EXT_ID, TICKET_ID, List.of("att-1"));
     assertEquals(OutboxStatus.DELIVERED, intent.getStatus());
     assertNull(intent.getClaimExpiresAt());
+    assertNull(intent.getClaimToken());
     verify(outboxIntentRepository).save(intent);
+  }
+
+  @Test
+  void commit_tokenMismatch_doesNothing() {
+    OutboxIntent intent = intent(OutboxIntentType.ADD_COMMENT, OutboxStatus.IN_PROGRESS);
+    intent.setClaimToken(UUID.randomUUID()); // different token — simulates reclaim by reaper
+    when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
+    DispatchResult result = new DispatchResult(List.of(), Optional.empty());
+
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      deliverer.commit(ROW_ID, CLAIM_TOKEN, result);
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
+
+    verify(ticketMappingRepository, never()).saveAll(any());
+    assertEquals(OutboxStatus.IN_PROGRESS, intent.getStatus());
+    verify(outboxIntentRepository, never()).save(any());
+  }
+
+  @Test
+  void commit_rowReclaimedToPendingWithClearedToken_discardsResult() {
+    OutboxIntent intent = intent(OutboxIntentType.CREATE_TICKET, OutboxStatus.PENDING);
+    intent.setClaimToken(null);
+    when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
+    DispatchResult result = new DispatchResult(List.of(ticketMapping()), Optional.empty());
+
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      deliverer.commit(ROW_ID, CLAIM_TOKEN, result);
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
+
+    verify(ticketMappingRepository, never()).saveAll(any());
+    assertEquals(OutboxStatus.PENDING, intent.getStatus());
+    verify(outboxIntentRepository, never()).save(any());
+  }
+
+  @Test
+  void commit_inProgressWithNullToken_discardsResult() {
+    OutboxIntent intent = intent(OutboxIntentType.CREATE_TICKET, OutboxStatus.IN_PROGRESS);
+    intent.setClaimToken(null);
+    when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
+    DispatchResult result = new DispatchResult(List.of(ticketMapping()), Optional.empty());
+
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      deliverer.commit(ROW_ID, CLAIM_TOKEN, result);
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
+
+    verify(ticketMappingRepository, never()).saveAll(any());
+    assertEquals(OutboxStatus.IN_PROGRESS, intent.getStatus());
+    verify(outboxIntentRepository, never()).save(any());
   }
 
   @Test
@@ -152,7 +222,7 @@ class OutboxDelivererTest {
 
     TransactionSynchronizationManager.initSynchronization();
     try {
-      deliverer.commit(ROW_ID, result);
+      deliverer.commit(ROW_ID, CLAIM_TOKEN, result);
       // afterCommit callbacks are not fired automatically without a real transaction
       // verify the synchronization was registered and fire it manually
       TransactionSynchronizationManager.getSynchronizations().forEach(s -> s.afterCommit());
@@ -170,7 +240,7 @@ class OutboxDelivererTest {
     DispatchResult result = new DispatchResult(List.of(), Optional.empty());
 
     TransactionSynchronizationManager.initSynchronization();
-    deliverer.commit(ROW_ID, result);
+    deliverer.commit(ROW_ID, CLAIM_TOKEN, result);
 
     assertThat(TransactionSynchronizationManager.getSynchronizations()).isEmpty();
     verify(pendingTicketCreationCache, never()).remove(any());
@@ -179,7 +249,7 @@ class OutboxDelivererTest {
 
   @Test
   void commit_nullResult_doesNothing() {
-    deliverer.commit(ROW_ID, null);
+    deliverer.commit(ROW_ID, CLAIM_TOKEN, null);
 
     verify(outboxIntentRepository, never()).findById(any());
     verify(ticketMappingRepository, never()).saveAll(any());
@@ -192,7 +262,7 @@ class OutboxDelivererTest {
     DispatchResult result = new DispatchResult(List.of(ticketMapping()), Optional.empty());
     doThrow(new RuntimeException("db down")).when(ticketMappingRepository).saveAll(any());
 
-    assertThrows(RuntimeException.class, () -> deliverer.commit(ROW_ID, result));
+    assertThrows(RuntimeException.class, () -> deliverer.commit(ROW_ID, CLAIM_TOKEN, result));
 
     assertEquals(OutboxStatus.IN_PROGRESS, intent.getStatus());
     verify(outboxIntentRepository, never()).save(intent);
@@ -206,12 +276,25 @@ class OutboxDelivererTest {
     when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
     when(failureClassifier.classify(any())).thenReturn(FailureClass.TRANSIENT);
 
-    deliverer.recordFailure(ROW_ID, new RuntimeException("5xx"));
+    deliverer.recordFailure(ROW_ID, CLAIM_TOKEN, new RuntimeException("5xx"));
 
     assertEquals(OutboxStatus.PENDING, intent.getStatus());
     assertEquals(1, intent.getAttemptCount());
     assertNull(intent.getClaimExpiresAt());
+    assertNull(intent.getClaimToken());
     verify(outboxIntentRepository).save(intent);
+  }
+
+  @Test
+  void recordFailure_tokenMismatch_doesNothing() {
+    OutboxIntent intent = intent(OutboxIntentType.ADD_COMMENT, OutboxStatus.IN_PROGRESS);
+    intent.setClaimToken(UUID.randomUUID()); // different token — simulates reclaim by reaper
+    when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
+
+    deliverer.recordFailure(ROW_ID, CLAIM_TOKEN, new RuntimeException("5xx"));
+
+    verify(outboxIntentRepository, never()).save(any());
+    assertEquals(OutboxStatus.IN_PROGRESS, intent.getStatus());
   }
 
   @Test
@@ -221,10 +304,11 @@ class OutboxDelivererTest {
     when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
     when(failureClassifier.classify(any())).thenReturn(FailureClass.TRANSIENT);
 
-    deliverer.recordFailure(ROW_ID, new RuntimeException("5xx"));
+    deliverer.recordFailure(ROW_ID, CLAIM_TOKEN, new RuntimeException("5xx"));
 
     assertEquals(OutboxStatus.DEAD_LETTER, intent.getStatus());
     assertNull(intent.getClaimExpiresAt());
+    assertNull(intent.getClaimToken());
   }
 
   @Test
@@ -233,10 +317,11 @@ class OutboxDelivererTest {
     when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
     when(failureClassifier.classify(any())).thenReturn(FailureClass.PERMANENT);
 
-    deliverer.recordFailure(ROW_ID, new RuntimeException("4xx"));
+    deliverer.recordFailure(ROW_ID, CLAIM_TOKEN, new RuntimeException("4xx"));
 
     assertEquals(OutboxStatus.FAILED_PERMANENT, intent.getStatus());
     assertNull(intent.getClaimExpiresAt());
+    assertNull(intent.getClaimToken());
   }
 
   @Test
@@ -245,10 +330,11 @@ class OutboxDelivererTest {
     when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
     when(failureClassifier.classify(any())).thenReturn(FailureClass.UNEXPECTED_ERROR);
 
-    deliverer.recordFailure(ROW_ID, new RuntimeException("boom"));
+    deliverer.recordFailure(ROW_ID, CLAIM_TOKEN, new RuntimeException("boom"));
 
     assertEquals(OutboxStatus.DEAD_LETTER, intent.getStatus());
     assertNull(intent.getClaimExpiresAt());
+    assertNull(intent.getClaimToken());
   }
 
   private OutboxIntent intent(OutboxIntentType type, OutboxStatus status) {
@@ -257,6 +343,7 @@ class OutboxDelivererTest {
             1L, type, TargetKind.TICKET.name(), TICKET_ID, NEGOTIATION_ID, ORG_EXT_ID, "{}");
     intent.setRowId(ROW_ID);
     intent.setStatus(status);
+    intent.setClaimToken(CLAIM_TOKEN);
     return intent;
   }
 

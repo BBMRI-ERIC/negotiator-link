@@ -7,6 +7,8 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -85,19 +87,21 @@ public class OutboxPoller {
    */
   @SuppressWarnings("resource")
   private boolean deliverBatch() {
-    List<Long> rowIds = claimer.claim(batchSize, claimTimeout);
-    if (rowIds.isEmpty()) {
+    Map<Long, UUID> claimed = claimer.claim(batchSize, claimTimeout);
+    if (claimed.isEmpty()) {
       return true;
     }
-    Map<Long, String> negotiationIdByRowId = loadNegotiationIds(rowIds);
-    for (Long rowId : rowIds) {
+    Map<Long, String> negotiationIdByRowId = loadNegotiationIds(claimed.keySet());
+    for (Map.Entry<Long, UUID> entry : claimed.entrySet()) {
+      Long rowId = entry.getKey();
+      UUID token = entry.getValue();
       String negotiationId = negotiationIdByRowId.getOrDefault(rowId, rowId.toString());
-      routingWorker(negotiationId).submit(() -> deliverOne(rowId));
+      routingWorker(negotiationId).submit(() -> deliverOne(rowId, token));
     }
     return false;
   }
 
-  private Map<Long, String> loadNegotiationIds(List<Long> rowIds) {
+  private Map<Long, String> loadNegotiationIds(Set<Long> rowIds) {
     List<Object[]> pairs = outboxIntentRepository.findRowIdAndNegotiationIdByRowIdIn(rowIds);
     Map<Long, String> result = new HashMap<>(pairs.size());
     for (Object[] pair : pairs) {
@@ -110,13 +114,18 @@ public class OutboxPoller {
     return workers[Math.abs(negotiationId.hashCode()) % workers.length];
   }
 
-  private void deliverOne(Long rowId) {
+  private void deliverOne(Long rowId, UUID claimToken) {
+    boolean stillOwned = claimer.activateClaim(rowId, claimToken, claimTimeout);
+    if (!stillOwned) {
+      log.warn("Intent {} was reclaimed before worker started processing — skipping", rowId);
+      return;
+    }
     try {
-      DispatchResult result = deliverer.dispatch(rowId);
-      deliverer.commit(rowId, result);
+      DispatchResult result = deliverer.dispatch(rowId, claimToken);
+      deliverer.commit(rowId, claimToken, result);
     } catch (Exception e) {
       log.error("Outbox delivery failed for intent {} — recording failure", rowId, e);
-      deliverer.recordFailure(rowId, e);
+      deliverer.recordFailure(rowId, claimToken, e);
     }
   }
 }

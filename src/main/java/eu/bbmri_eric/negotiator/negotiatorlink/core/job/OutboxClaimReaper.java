@@ -22,7 +22,7 @@ public class OutboxClaimReaper {
     this.claimer = claimer;
   }
 
-  @Scheduled(fixedDelayString = "${negotiator-link.outbox.claim-reap-interval-ms:60000}")
+  @Scheduled(fixedDelayString = "${negotiator-link.outbox.claim-reap-interval-ms:30000}")
   public void reclaimExpiredClaims() {
     List<Long> reclaimed = claimer.reclaimExpiredClaims();
     if (!reclaimed.isEmpty()) {

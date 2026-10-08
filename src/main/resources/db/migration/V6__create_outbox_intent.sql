@@ -11,6 +11,7 @@ CREATE TABLE outbox_intent (
     attempt_count       INTEGER      NOT NULL DEFAULT 0,
     next_attempt_at     TIMESTAMP WITH TIME ZONE NOT NULL,
     claim_expires_at    TIMESTAMP WITH TIME ZONE,
+    claim_token         UUID,
     last_error          VARCHAR(255),
     created_at          TIMESTAMP WITH TIME ZONE NOT NULL,
     delivered_at        TIMESTAMP WITH TIME ZONE
