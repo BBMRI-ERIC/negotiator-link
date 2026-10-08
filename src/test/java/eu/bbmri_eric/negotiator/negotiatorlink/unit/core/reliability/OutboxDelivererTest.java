@@ -121,7 +121,9 @@ class OutboxDelivererTest {
                 eq(OutboxIntentType.SET_TICKET_STATE),
                 eq(ORG_EXT_ID),
                 eq(TICKET_ID),
-                eq(List.of(OutboxStatus.PENDING, OutboxStatus.IN_PROGRESS))))
+                eq(
+                    List.of(
+                        OutboxStatus.PENDING, OutboxStatus.IN_PROGRESS, OutboxStatus.DELIVERED))))
         .thenReturn(Optional.of(newer));
 
     DispatchResult result = deliverer.dispatch(ROW_ID, CLAIM_TOKEN);

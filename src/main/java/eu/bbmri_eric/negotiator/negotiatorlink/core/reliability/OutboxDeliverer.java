@@ -176,8 +176,10 @@ public class OutboxDeliverer {
 
   /**
    * A {@code SET_*} state intent is skipped if a newer state intent exists for the same {@code
-   * (targetId, outboxIntentType)}. Ordering is by {@code inbox_row_id} (arrival order at the system
-   * boundary), preventing a retry backlog from replaying obsolete state.
+   * (intentType, organizationExtId, targetId)}. Ordering is by {@code inbox_row_id} (arrival order
+   * at the system boundary), preventing a retry backlog from replaying obsolete state. {@code
+   * DELIVERED} intents are included so that a retried older intent does not overwrite a state that
+   * a newer intent already applied successfully.
    */
   private boolean supersededByNewer(OutboxIntent intent) {
     if (!isStateIntent(intent.getIntentType())) {
@@ -188,7 +190,7 @@ public class OutboxDeliverer {
             intent.getIntentType(),
             intent.getOrganizationExtId(),
             intent.getTargetId(),
-            List.of(OutboxStatus.PENDING, OutboxStatus.IN_PROGRESS))
+            List.of(OutboxStatus.PENDING, OutboxStatus.IN_PROGRESS, OutboxStatus.DELIVERED))
         .map(latest -> latest.getInboxRowId() > intent.getInboxRowId())
         .orElse(false);
   }
