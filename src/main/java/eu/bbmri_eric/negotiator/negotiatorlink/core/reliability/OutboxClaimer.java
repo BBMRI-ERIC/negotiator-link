@@ -40,8 +40,8 @@ public class OutboxClaimer {
   }
 
   /**
-   * Resets the claim expiry when the worker actually starts processing.Only takes effect when
-   * the token still matches. Returns true if the claim was successfully extended, otherwise false.
+   * Resets the claim expiry when the worker actually starts processing.Only takes effect when the
+   * token still matches. Returns true if the claim was successfully extended, otherwise false.
    */
   @Transactional
   public boolean activateClaim(Long rowId, UUID token, Duration claimTimeout) {

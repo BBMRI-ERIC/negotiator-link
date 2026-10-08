@@ -66,8 +66,12 @@ public interface OutboxIntentRepository extends JpaRepository<OutboxIntent, Long
       nativeQuery = true)
   void releaseClaims(@Param("rowIds") Collection<Long> rowIds);
 
-  Optional<OutboxIntent> findFirstByIntentTypeAndTargetIdAndStatusInOrderByInboxRowIdDesc(
-      OutboxIntentType outboxIntentType, String targetId, Collection<OutboxStatus> statuses);
+  Optional<OutboxIntent>
+      findFirstByIntentTypeAndOrganizationExtIdAndTargetIdAndStatusInOrderByInboxRowIdDesc(
+          OutboxIntentType intentType,
+          String organizationExtId,
+          String targetId,
+          Collection<OutboxStatus> statuses);
 
   @Query(
       value = "SELECT row_id, negotiation_id FROM outbox_intent WHERE row_id IN (:rowIds)",

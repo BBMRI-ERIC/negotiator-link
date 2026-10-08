@@ -184,8 +184,9 @@ public class OutboxDeliverer {
       return false;
     }
     return outboxIntentRepository
-        .findFirstByIntentTypeAndTargetIdAndStatusInOrderByInboxRowIdDesc(
+        .findFirstByIntentTypeAndOrganizationExtIdAndTargetIdAndStatusInOrderByInboxRowIdDesc(
             intent.getIntentType(),
+            intent.getOrganizationExtId(),
             intent.getTargetId(),
             List.of(OutboxStatus.PENDING, OutboxStatus.IN_PROGRESS))
         .map(latest -> latest.getInboxRowId() > intent.getInboxRowId())

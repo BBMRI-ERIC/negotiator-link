@@ -116,10 +116,12 @@ class OutboxDelivererTest {
     newer.setRowId(ROW_ID + 1);
     newer.setInboxRowId(2L);
     when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(older));
-    when(outboxIntentRepository.findFirstByIntentTypeAndTargetIdAndStatusInOrderByInboxRowIdDesc(
-            eq(OutboxIntentType.SET_TICKET_STATE),
-            eq(TICKET_ID),
-            eq(List.of(OutboxStatus.PENDING, OutboxStatus.IN_PROGRESS))))
+    when(outboxIntentRepository
+            .findFirstByIntentTypeAndOrganizationExtIdAndTargetIdAndStatusInOrderByInboxRowIdDesc(
+                eq(OutboxIntentType.SET_TICKET_STATE),
+                eq(ORG_EXT_ID),
+                eq(TICKET_ID),
+                eq(List.of(OutboxStatus.PENDING, OutboxStatus.IN_PROGRESS))))
         .thenReturn(Optional.of(newer));
 
     DispatchResult result = deliverer.dispatch(ROW_ID, CLAIM_TOKEN);
