@@ -107,7 +107,7 @@ public class OutboxIntentDispatcher {
 
     List<ResolvedAttachment> resolved =
         attachmentForwardingService.getNegotiationPayloadAttachmentsToForward(
-            payload.negotiationId(), config, Set.of());
+            payload.negotiationId(), payload.attachmentIds(), config, Set.of());
     List<Attachment> attachments = resolved.stream().map(ResolvedAttachment::attachment).toList();
 
     CreateTicketRequest request =
@@ -231,7 +231,7 @@ public class OutboxIntentDispatcher {
             intent.getOrganizationExtId(), intent.getTargetId());
     List<ResolvedAttachment> resolved =
         attachmentForwardingService.getNegotiationPayloadAttachmentsToForward(
-            payload.negotiationId(), config, alreadyForwarded);
+            payload.negotiationId(), payload.negotiationAttachmentIds(), config, alreadyForwarded);
     client.addComment(
         intent.getTargetId(),
         payload.text(),

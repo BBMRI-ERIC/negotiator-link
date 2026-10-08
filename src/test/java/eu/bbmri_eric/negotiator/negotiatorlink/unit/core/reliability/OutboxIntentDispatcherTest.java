@@ -185,7 +185,7 @@ class OutboxIntentDispatcherTest {
             List.of());
     when(helpdeskClient.createTicket(any(), eq(config))).thenReturn(TICKET_ID);
     when(attachmentForwardingService.getNegotiationPayloadAttachmentsToForward(
-            eq(NEGOTIATION_ID), eq(config), eq(Set.of())))
+            eq(NEGOTIATION_ID), eq(List.of()), eq(config), eq(Set.of())))
         .thenReturn(List.of());
 
     DispatchResult result = dispatcher.dispatch(intent(OutboxIntentType.CREATE_TICKET, payload));

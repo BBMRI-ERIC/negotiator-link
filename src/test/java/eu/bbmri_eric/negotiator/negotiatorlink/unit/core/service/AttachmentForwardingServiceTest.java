@@ -54,7 +54,8 @@ class AttachmentForwardingServiceTest {
     when(negotiatorClient.downloadAttachment("a-1", config)).thenReturn("bytes".getBytes());
 
     List<ResolvedAttachment> attachments =
-        service.getNegotiationPayloadAttachmentsToForward(NEGOTIATION_ID, config, Set.of());
+        service.getNegotiationPayloadAttachmentsToForward(
+            NEGOTIATION_ID, List.of("a-1", "a-2"), config, Set.of());
 
     assertThat(attachments).hasSize(1);
     assertThat(attachments.getFirst().attachmentId()).isEqualTo("a-1");
@@ -72,11 +73,30 @@ class AttachmentForwardingServiceTest {
     when(negotiatorClient.downloadAttachment("a-2", config)).thenReturn("bytes".getBytes());
 
     List<ResolvedAttachment> attachments =
-        service.getNegotiationPayloadAttachmentsToForward(NEGOTIATION_ID, config, Set.of("a-1"));
+        service.getNegotiationPayloadAttachmentsToForward(
+            NEGOTIATION_ID, List.of("a-1", "a-2"), config, Set.of("a-1"));
 
     assertThat(attachments).hasSize(1);
     assertThat(attachments.getFirst().attachmentId()).isEqualTo("a-2");
     verify(negotiatorClient, never()).downloadAttachment("a-1", config);
+    verifyNoInteractions(forwardedAttachmentRepository);
+  }
+
+  @Test
+  void getNegotiationPayloadAttachmentsToForward_onlyResolvesSnapshotIds() {
+    var a1 = metadata("a-1", null, "one.txt", "text/plain");
+    var a2 = metadata("a-2", null, "two.txt", "text/plain");
+
+    when(negotiatorClient.getAttachments(NEGOTIATION_ID, config)).thenReturn(List.of(a1, a2));
+    when(negotiatorClient.downloadAttachment("a-1", config)).thenReturn("bytes".getBytes());
+
+    List<ResolvedAttachment> attachments =
+        service.getNegotiationPayloadAttachmentsToForward(
+            NEGOTIATION_ID, List.of("a-1"), config, Set.of());
+
+    assertThat(attachments).hasSize(1);
+    assertThat(attachments.getFirst().attachmentId()).isEqualTo("a-1");
+    verify(negotiatorClient, never()).downloadAttachment("a-2", config);
     verifyNoInteractions(forwardedAttachmentRepository);
   }
 
@@ -87,7 +107,8 @@ class AttachmentForwardingServiceTest {
     when(negotiatorClient.getAttachments(NEGOTIATION_ID, config)).thenReturn(List.of(a1));
 
     List<ResolvedAttachment> attachments =
-        service.getNegotiationPayloadAttachmentsToForward(NEGOTIATION_ID, config, Set.of("a-1"));
+        service.getNegotiationPayloadAttachmentsToForward(
+            NEGOTIATION_ID, List.of("a-1"), config, Set.of("a-1"));
 
     assertThat(attachments).isEmpty();
     verify(negotiatorClient, never()).downloadAttachment("a-1", config);

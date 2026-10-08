@@ -35,14 +35,19 @@ public class AttachmentForwardingService {
   public record ResolvedAttachment(String attachmentId, Attachment attachment) {}
 
   /**
-   * Return all negotiation-level attachments for {@code negotiationId} minus those whose IDs are in
-   * {@code forwardedAttachmentIds}.
+   * Return negotiation-level attachments whose IDs are in {@code attachmentIds} (snapshotted at
+   * intent-creation time), minus those already forwarded ({@code forwardedAttachmentIds}).
    */
   public List<ResolvedAttachment> getNegotiationPayloadAttachmentsToForward(
-      String negotiationId, OrganizationConfig config, Set<String> forwardedAttachmentIds) {
+      String negotiationId,
+      List<String> attachmentIds,
+      OrganizationConfig config,
+      Set<String> forwardedAttachmentIds) {
     List<AttachmentMetadataDTO> metadata = negotiatorClient.getAttachments(negotiationId, config);
     log.debug("Retrieved {} attachments for negotiation '{}'", metadata.size(), negotiationId);
+    Set<String> candidateIds = Set.copyOf(attachmentIds);
     return metadata.stream()
+        .filter(a -> candidateIds.contains(a.getId()))
         .filter(a -> !forwardedAttachmentIds.contains(a.getId()))
         // TODO: once the Negotiator post <--> attachment link ships and AttachmentMetadataDTO
         //       exposes postId, extend to: getOrganizationId() == null && getPostId() == null
