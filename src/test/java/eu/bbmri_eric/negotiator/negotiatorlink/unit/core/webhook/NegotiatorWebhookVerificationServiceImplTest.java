@@ -5,6 +5,7 @@ import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.signedWebhoo
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.standardwebhooks.exceptions.EmptyWebhookSecretException;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.webhook.NegotiatorWebhookVerificationServiceImpl;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.webhook.WebhookAuthenticationException;
 import java.nio.charset.StandardCharsets;
@@ -22,7 +23,7 @@ class NegotiatorWebhookVerificationServiceImplTest {
   private NegotiatorWebhookVerificationServiceImpl service;
 
   @BeforeEach
-  void setUp() {
+  void setUp() throws EmptyWebhookSecretException {
     service = new NegotiatorWebhookVerificationServiceImpl(SECRET);
   }
 
