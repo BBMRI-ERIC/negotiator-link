@@ -16,8 +16,6 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -50,8 +48,7 @@ public class InboxEvent {
   @Column(name = "event_type")
   private String eventType;
 
-  @JdbcTypeCode(SqlTypes.JSON)
-  @Column(name = "payload", nullable = false)
+  @Column(name = "payload", nullable = false, columnDefinition = "text")
   private String payload;
 
   @Enumerated(EnumType.STRING)

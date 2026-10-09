@@ -3,7 +3,7 @@ CREATE TABLE inbox_event (
     source       VARCHAR(255) NOT NULL,
     delivery_id  VARCHAR(255) NOT NULL,
     event_type   VARCHAR(255),
-    payload      JSONB        NOT NULL,
+    payload      TEXT         NOT NULL,
     status       VARCHAR(255) NOT NULL,
     skip_reason  VARCHAR(255),
     last_error   VARCHAR(255),

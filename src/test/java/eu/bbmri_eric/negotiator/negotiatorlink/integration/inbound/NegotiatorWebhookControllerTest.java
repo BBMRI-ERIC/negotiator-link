@@ -7,7 +7,9 @@ import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.postAddedPay
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.resourceStateUpdatedPayload;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.signedWebhookPayload;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.utf8;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
@@ -154,6 +156,21 @@ class NegotiatorWebhookControllerTest {
     var webhookId = "msg-004";
     var staleTimestamp = Instant.now().minusSeconds(6 * 60);
     performWebhook(webhookId, staleTimestamp, BODY).andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void receiveWebhook_whenMalformedJson_returns200AndInboxEventSkipped() throws Exception {
+    var webhookId = "msg-malformed-001";
+    var timestamp = Instant.now();
+    performWebhook(webhookId, timestamp, "not-valid-json{{{").andExpect(status().isOk());
+
+    inboxEventRepository
+        .findBySourceAndDeliveryId(EventSource.NEGOTIATOR.name(), webhookId)
+        .ifPresent(
+            e -> {
+              assertNotNull(e.getSkipReason());
+              assertThat(e.getSkipReason().startsWith("unparseable"));
+            });
   }
 
   @Test
