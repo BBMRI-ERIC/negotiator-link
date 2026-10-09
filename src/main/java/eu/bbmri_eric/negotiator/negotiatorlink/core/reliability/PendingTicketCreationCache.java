@@ -41,9 +41,16 @@ public class PendingTicketCreationCache {
     return cache.getIfPresent(negotiationId) != null;
   }
 
-  /** Removes a negotiation from the cache once its ticket has been successfully created. */
-  public void remove(String negotiationId) {
-    cache.invalidate(negotiationId);
+  /**
+   * Clears the cache entry only once no nonterminal CREATE_TICKET intent remains for the
+   * negotiation.
+   */
+  public void removeIfNoPendingCreateTicket(String negotiationId) {
+    long remaining =
+        outboxIntentRepository.countPendingCreateTicket(negotiationId, OutboxStatus.NONTERMINAL);
+    if (remaining == 0) {
+      cache.invalidate(negotiationId);
+    }
   }
 
   /**
@@ -53,8 +60,7 @@ public class PendingTicketCreationCache {
   @EventListener(ApplicationReadyEvent.class)
   public void warmFromOutbox() {
     List<String> pending =
-        outboxIntentRepository.findNegotiationIdsWithPendingCreateTicket(
-            List.of(OutboxStatus.PENDING, OutboxStatus.IN_PROGRESS));
+        outboxIntentRepository.findNegotiationIdsWithPendingCreateTicket(OutboxStatus.NONTERMINAL);
     if (pending.isEmpty()) {
       return;
     }

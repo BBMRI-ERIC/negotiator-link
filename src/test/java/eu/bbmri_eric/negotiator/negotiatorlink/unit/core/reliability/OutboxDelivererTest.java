@@ -234,7 +234,7 @@ class OutboxDelivererTest {
       TransactionSynchronizationManager.clearSynchronization();
     }
 
-    verify(pendingTicketCreationCache).remove(NEGOTIATION_ID);
+    verify(pendingTicketCreationCache).removeIfNoPendingCreateTicket(NEGOTIATION_ID);
   }
 
   @Test
@@ -247,7 +247,7 @@ class OutboxDelivererTest {
     deliverer.commit(ROW_ID, CLAIM_TOKEN, result);
 
     assertThat(TransactionSynchronizationManager.getSynchronizations()).isEmpty();
-    verify(pendingTicketCreationCache, never()).remove(any());
+    verify(pendingTicketCreationCache, never()).removeIfNoPendingCreateTicket(any());
     TransactionSynchronizationManager.clearSynchronization();
   }
 

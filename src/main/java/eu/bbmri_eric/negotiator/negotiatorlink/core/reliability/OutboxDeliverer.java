@@ -93,7 +93,7 @@ public class OutboxDeliverer {
           new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-              pendingTicketCreationCache.remove(negotiationId);
+              pendingTicketCreationCache.removeIfNoPendingCreateTicket(negotiationId);
             }
           });
     }

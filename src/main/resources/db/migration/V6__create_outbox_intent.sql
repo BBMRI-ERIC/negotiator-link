@@ -20,3 +20,4 @@ CREATE TABLE outbox_intent (
 CREATE INDEX ix_outbox_dispatch ON outbox_intent (status, next_attempt_at);
 CREATE INDEX ix_outbox_staleness ON outbox_intent (intent_type, target_id, status, inbox_row_id DESC);
 CREATE INDEX ix_outbox_claim ON outbox_intent (status, claim_expires_at);
+CREATE INDEX ix_outbox_pending_create_ticket ON outbox_intent (negotiation_id, intent_type, status);

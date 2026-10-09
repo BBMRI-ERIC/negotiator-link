@@ -89,4 +89,15 @@ public interface OutboxIntentRepository extends JpaRepository<OutboxIntent, Long
       nativeQuery = true)
   List<String> findNegotiationIdsWithPendingCreateTicket(
       @Param("statuses") Collection<OutboxStatus> statuses);
+
+  @Query(
+      value =
+          "SELECT COUNT(*) FROM outbox_intent "
+              + "WHERE intent_type = 'CREATE_TICKET' "
+              + "AND negotiation_id = :negotiationId "
+              + "AND status IN (:statuses)",
+      nativeQuery = true)
+  long countPendingCreateTicket(
+      @Param("negotiationId") String negotiationId,
+      @Param("statuses") Collection<OutboxStatus> statuses);
 }
