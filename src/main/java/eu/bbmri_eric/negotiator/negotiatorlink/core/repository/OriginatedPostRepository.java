@@ -1,7 +1,9 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.repository;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedPost;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxStatus;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.Set;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -32,8 +34,10 @@ public interface OriginatedPostRepository extends JpaRepository<OriginatedPost, 
               + "  WHERE oi.intent_type = 'CREATE_POST' "
               + "    AND oi.target_id = op.ticket_id "
               + "    AND oi.organization_ext_id = op.organization_ext_id "
-              + "    AND oi.status NOT IN ('DELIVERED', 'FAILED_PERMANENT', 'DEAD_LETTER')"
+              + "    AND oi.status IN (:nonterminalStatuses)"
               + ")",
       nativeQuery = true)
-  long deleteTerminalAndOrphanedByCreatedAtBefore(@Param("cutoff") Instant cutoff);
+  long deleteTerminalAndOrphanedByCreatedAtBefore(
+      @Param("cutoff") Instant cutoff,
+      @Param("nonterminalStatuses") Collection<OutboxStatus> nonterminalStatuses);
 }

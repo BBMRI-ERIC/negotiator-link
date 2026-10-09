@@ -38,7 +38,9 @@ public class StaleRecordsCleanupJob {
   @Scheduled(cron = "${negotiator-link.cleanup.cron:0 0 0 * * *}")
   public void deleteStaleRows() {
     Instant cutoff = Instant.now().minus(cutoffAge);
-    long deletedPosts = originatedPostRepository.deleteTerminalAndOrphanedByCreatedAtBefore(cutoff);
+    long deletedPosts =
+        originatedPostRepository.deleteTerminalAndOrphanedByCreatedAtBefore(
+            cutoff, OutboxStatus.NONTERMINAL);
     long deletedInbox =
         inboxEventRepository.deleteByStatusInAndReceivedAtBefore(
             List.of(InboxStatus.PROCESSED, InboxStatus.SKIPPED), cutoff);
