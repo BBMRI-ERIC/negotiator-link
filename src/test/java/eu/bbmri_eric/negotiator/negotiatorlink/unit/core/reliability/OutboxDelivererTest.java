@@ -21,7 +21,9 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.FailureClassifie
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxDeliverer;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentDispatcher;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxService;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxStatus;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationCache;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepository;
@@ -51,6 +53,7 @@ class OutboxDelivererTest {
 
   @Mock private OutboxIntentRepository outboxIntentRepository;
   @Mock private OutboxIntentDispatcher dispatcher;
+  @Mock private OutboxService outboxService;
   @Mock private TicketMappingRepository ticketMappingRepository;
   @Mock private AttachmentForwardingService attachmentForwardingService;
   @Mock private FailureClassifier failureClassifier;
@@ -69,6 +72,7 @@ class OutboxDelivererTest {
         new OutboxDeliverer(
             outboxIntentRepository,
             dispatcher,
+            outboxService,
             ticketMappingRepository,
             attachmentForwardingService,
             failureClassifier,
@@ -159,6 +163,33 @@ class OutboxDelivererTest {
     assertNull(intent.getClaimExpiresAt());
     assertNull(intent.getClaimToken());
     verify(outboxIntentRepository).save(intent);
+  }
+
+  @Test
+  void commit_enqueuesFollowUpIntentsAgainstOriginatingInboxRow() {
+    OutboxIntent intent = intent(OutboxIntentType.CREATE_TICKET, OutboxStatus.IN_PROGRESS);
+    intent.setInboxRowId(99L);
+    when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
+    PendingIntent child =
+        new PendingIntent(
+            OutboxIntentType.ADD_COMMENT,
+            TargetKind.TICKET,
+            TICKET_ID,
+            NEGOTIATION_ID,
+            ORG_EXT_ID,
+            "{\"text\":\"backlog\",\"commentType\":\"PLAIN_TEXT\"}");
+    DispatchResult result =
+        new DispatchResult(List.of(ticketMapping()), Optional.empty(), List.of(child));
+
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      deliverer.commit(ROW_ID, CLAIM_TOKEN, result);
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
+
+    verify(outboxService).enqueue(List.of(child), 99L);
+    assertEquals(OutboxStatus.DELIVERED, intent.getStatus());
   }
 
   @Test

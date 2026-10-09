@@ -21,11 +21,19 @@ public class OutboxService {
 
   /** Enqueues the given intents as {@code PENDING} outbox rows. */
   public void enqueue(List<PendingIntent> intents, InboxEvent sourceEvent) {
+    enqueue(intents, sourceEvent.getRowId());
+  }
+
+  /** Enqueues the given intents as {@code PENDING} outbox rows. */
+  public void enqueue(List<PendingIntent> intents, Long inboxRowId) {
+    if (intents.isEmpty()) {
+      return;
+    }
     List<OutboxIntent> outboxIntents = new ArrayList<>();
     for (PendingIntent intent : intents) {
       outboxIntents.add(
           new OutboxIntent(
-              sourceEvent.getRowId(),
+              inboxRowId,
               intent.outboxIntentType(),
               intent.targetKind().name(),
               intent.targetId(),

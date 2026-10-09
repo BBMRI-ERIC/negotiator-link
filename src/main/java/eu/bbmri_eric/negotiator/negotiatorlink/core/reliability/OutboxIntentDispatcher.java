@@ -1,6 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.reliability;
 
 import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.HashUtil.sha256Hex;
+import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PayloadUtil.serialize;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -139,8 +140,16 @@ public class OutboxIntentDispatcher {
               intent.getOrganizationExtId()));
     }
 
+    List<PendingIntent> initialComments = new ArrayList<>();
     for (String postText : payload.postTexts()) {
-      client.addComment(ticketId, postText, CommentType.PLAIN_TEXT, config);
+      initialComments.add(
+          new PendingIntent(
+              OutboxIntentType.ADD_COMMENT,
+              TargetKind.TICKET,
+              ticketId,
+              payload.negotiationId(),
+              intent.getOrganizationExtId(),
+              serialize(new AddCommentPayload(postText, CommentType.PLAIN_TEXT))));
     }
 
     DispatchResult.ForwardedAttachmentsRecord forwarded =
@@ -149,7 +158,7 @@ public class OutboxIntentDispatcher {
             intent.getOrganizationExtId(),
             ticketId,
             resolved.stream().map(ResolvedAttachment::attachmentId).toList());
-    return new DispatchResult(ticketMappings, Optional.of(forwarded));
+    return new DispatchResult(ticketMappings, Optional.of(forwarded), initialComments);
   }
 
   private DispatchResult linkTickets(

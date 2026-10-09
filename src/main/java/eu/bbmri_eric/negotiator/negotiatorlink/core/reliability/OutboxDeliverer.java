@@ -21,6 +21,7 @@ public class OutboxDeliverer {
 
   private final OutboxIntentRepository outboxIntentRepository;
   private final OutboxIntentDispatcher dispatcher;
+  private final OutboxService outboxService;
   private final TicketMappingRepository ticketMappingRepository;
   private final AttachmentForwardingService attachmentForwardingService;
   private final FailureClassifier failureClassifier;
@@ -32,6 +33,7 @@ public class OutboxDeliverer {
   public OutboxDeliverer(
       OutboxIntentRepository outboxIntentRepository,
       OutboxIntentDispatcher dispatcher,
+      OutboxService outboxService,
       TicketMappingRepository ticketMappingRepository,
       AttachmentForwardingService attachmentForwardingService,
       FailureClassifier failureClassifier,
@@ -39,6 +41,7 @@ public class OutboxDeliverer {
       NegotiatorLinkProperties properties) {
     this.outboxIntentRepository = outboxIntentRepository;
     this.dispatcher = dispatcher;
+    this.outboxService = outboxService;
     this.ticketMappingRepository = ticketMappingRepository;
     this.attachmentForwardingService = attachmentForwardingService;
     this.failureClassifier = failureClassifier;
@@ -87,6 +90,7 @@ public class OutboxDeliverer {
       return;
     }
     ticketMappingRepository.saveAll(result.ticketMappings());
+    outboxService.enqueue(result.followUpIntents(), intent.getInboxRowId());
     if (intent.getIntentType() == OutboxIntentType.CREATE_TICKET) {
       String negotiationId = intent.getNegotiationId();
       TransactionSynchronizationManager.registerSynchronization(

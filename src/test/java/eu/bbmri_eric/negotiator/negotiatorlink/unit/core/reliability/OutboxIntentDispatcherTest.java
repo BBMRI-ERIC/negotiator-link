@@ -195,10 +195,50 @@ class OutboxIntentDispatcherTest {
 
     verify(helpdeskClient).createTicket(any(), eq(config));
     verify(ticketMappingRepository, never()).save(any());
+    verify(helpdeskClient, never()).addComment(any(), any(), any(), any());
     assertEquals(1, result.ticketMappings().size());
     assertEquals(TICKET_ID, result.ticketMappings().getFirst().getId().getHelpdeskTicketId());
     assertTrue(result.forwardedAttachments().isPresent());
     assertEquals(TICKET_ID, result.forwardedAttachments().get().ticketId());
+    assertTrue(result.followUpIntents().isEmpty());
+  }
+
+  @Test
+  void dispatch_createTicket_emitsInitialBacklogAsAddCommentChildrenInsteadOfPostingInline()
+      throws Exception {
+    var ref = new ResourceMappingRef("r-1", RESOURCE_SOURCE_ID, ORG_ID);
+    var payload =
+        new CreateTicketPayload(
+            NEGOTIATION_ID,
+            "title",
+            "APPROVED",
+            "SUBMITTED",
+            "body",
+            List.of(),
+            List.of(ref),
+            List.of("first post", "second post"));
+    when(helpdeskClient.createTicket(any(), eq(config))).thenReturn(TICKET_ID);
+    when(attachmentForwardingService.getNegotiationPayloadAttachmentsToForward(
+            eq(NEGOTIATION_ID), eq(List.of()), eq(config), eq(Set.of())))
+        .thenReturn(List.of());
+
+    DispatchResult result = dispatcher.dispatch(intent(OutboxIntentType.CREATE_TICKET, payload));
+
+    verify(helpdeskClient, never()).addComment(any(), any(), any(), any());
+    assertEquals(2, result.followUpIntents().size());
+    var first = result.followUpIntents().getFirst();
+    assertEquals(OutboxIntentType.ADD_COMMENT, first.outboxIntentType());
+    assertEquals(TargetKind.TICKET, first.targetKind());
+    assertEquals(TICKET_ID, first.targetId());
+    assertEquals(NEGOTIATION_ID, first.negotiationId());
+    assertEquals(ORG_EXT_ID, first.organizationExtId());
+    assertEquals(
+        "first post", objectMapper.readValue(first.payloadJson(), AddCommentPayload.class).text());
+    assertEquals(
+        "second post",
+        objectMapper
+            .readValue(result.followUpIntents().get(1).payloadJson(), AddCommentPayload.class)
+            .text());
   }
 
   @Test
