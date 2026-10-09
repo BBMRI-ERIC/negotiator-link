@@ -18,8 +18,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
- * Dispatches a verified {@link HelpdeskCallbackEvent} to the correct {@link
- * HelpdeskEventHandler} implementation(s) and returns the outbound intents they decide.
+ * Dispatches a verified {@link HelpdeskCallbackEvent} to the correct {@link HelpdeskEventHandler}
+ * implementation(s) and returns the outbound intents they decide.
  */
 @Slf4j
 @Service
@@ -30,8 +30,7 @@ public class HelpdeskEventRouter {
   public HelpdeskEventRouter(List<HelpdeskEventHandler<?>> handlers) {
     this.handlers =
         handlers.stream()
-            .collect(
-                Collectors.toMap(HelpdeskEventHandler::getSupportedType, Function.identity()));
+            .collect(Collectors.toMap(HelpdeskEventHandler::getSupportedType, Function.identity()));
   }
 
   /** Routes the event to the appropriate handler(s) based on its type, returning their result. */
