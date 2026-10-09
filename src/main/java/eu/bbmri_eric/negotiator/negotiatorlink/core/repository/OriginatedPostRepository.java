@@ -32,7 +32,7 @@ public interface OriginatedPostRepository extends JpaRepository<OriginatedPost, 
               + "AND NOT EXISTS ("
               + "  SELECT 1 FROM outbox_intent oi "
               + "  WHERE oi.intent_type = 'CREATE_POST' "
-              + "    AND oi.target_id = op.ticket_id "
+              + "    AND oi.payload->>'ticketId' = op.ticket_id "
               + "    AND oi.organization_ext_id = op.organization_ext_id "
               + "    AND oi.status IN (:nonterminalStatuses)"
               + ")",
