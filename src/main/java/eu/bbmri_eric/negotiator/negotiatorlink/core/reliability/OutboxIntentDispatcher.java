@@ -1,5 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.reliability;
 
+import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.HashUtil.sha256Hex;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
@@ -191,9 +193,11 @@ public class OutboxIntentDispatcher {
     CreatePostPayload payload = read(intent, CreatePostPayload.class);
     String organizationExtId = config.organizationExternalId();
 
+    String textHash = sha256Hex(payload.signedText());
     boolean alreadyConsumed =
         originatedPostRepository
-            .findFirstByTicketIdAndOrganizationExtId(payload.ticketId(), organizationExtId)
+            .findFirstByTextHashAndOrganizationExtIdAndTicketIdOrderByCreatedAtAsc(
+                textHash, organizationExtId, payload.ticketId())
             .isEmpty();
     if (alreadyConsumed) {
       log.info(

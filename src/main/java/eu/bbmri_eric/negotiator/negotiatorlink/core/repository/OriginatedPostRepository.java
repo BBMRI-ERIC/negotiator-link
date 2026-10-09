@@ -14,8 +14,8 @@ public interface OriginatedPostRepository extends JpaRepository<OriginatedPost, 
   Optional<OriginatedPost> findFirstByTextHashAndOrganizationExtIdAndTicketIdInOrderByCreatedAtAsc(
       String textHash, String organizationExtId, Set<String> ticketIds);
 
-  Optional<OriginatedPost> findFirstByTicketIdAndOrganizationExtId(
-      String ticketId, String organizationExtId);
+  Optional<OriginatedPost> findFirstByTextHashAndOrganizationExtIdAndTicketIdOrderByCreatedAtAsc(
+      String textHash, String organizationExtId, String ticketId);
 
   /**
    * Deletes originated_post rows older than {@code cutoff} only when every CREATE_POST outbox

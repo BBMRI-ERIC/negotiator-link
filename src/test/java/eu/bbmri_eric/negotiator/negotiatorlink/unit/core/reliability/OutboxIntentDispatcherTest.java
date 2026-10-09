@@ -135,7 +135,9 @@ class OutboxIntentDispatcherTest {
 
   @Test
   void dispatch_createPost_originatedPostPresent_createsPrivatePost() {
-    when(originatedPostRepository.findFirstByTicketIdAndOrganizationExtId(TICKET_ID, ORG_EXT_ID))
+    when(originatedPostRepository
+            .findFirstByTextHashAndOrganizationExtIdAndTicketIdOrderByCreatedAtAsc(
+                HashUtil.sha256Hex(SIGNED_TEXT), ORG_EXT_ID, TICKET_ID))
         .thenReturn(
             Optional.of(
                 new OriginatedPost(HashUtil.sha256Hex(SIGNED_TEXT), ORG_EXT_ID, TICKET_ID)));
@@ -158,7 +160,9 @@ class OutboxIntentDispatcherTest {
 
   @Test
   void dispatch_createPost_originatedPostConsumedByEcho_skipsCreate() {
-    when(originatedPostRepository.findFirstByTicketIdAndOrganizationExtId(TICKET_ID, ORG_EXT_ID))
+    when(originatedPostRepository
+            .findFirstByTextHashAndOrganizationExtIdAndTicketIdOrderByCreatedAtAsc(
+                HashUtil.sha256Hex(SIGNED_TEXT), ORG_EXT_ID, TICKET_ID))
         .thenReturn(Optional.empty());
 
     dispatcher.dispatch(
