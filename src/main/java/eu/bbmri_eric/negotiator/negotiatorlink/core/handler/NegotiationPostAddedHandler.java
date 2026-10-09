@@ -25,6 +25,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDT
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.NegotiationPostAddedWebhookEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.UserResponseModel;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
@@ -79,7 +80,7 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
     Optional<OriginatedPost> consumed =
         findConsumedOriginatedPost(
             content.textHash(),
-            ticketToOrgExtId.values().iterator().next(),
+            new HashSet<>(ticketToOrgExtId.values()),
             ticketToOrgExtId.keySet(),
             content.isPublic());
     return consumed
@@ -180,13 +181,13 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
    * Optional.empty()}. Deletion is deferred to the inbox commit transaction.
    */
   private Optional<OriginatedPost> findConsumedOriginatedPost(
-      String textHash, String organizationExtId, Set<String> ticketIds, boolean isPublic) {
+      String textHash, Set<String> organizationExtIds, Set<String> ticketIds, boolean isPublic) {
     if (isPublic) {
       return Optional.empty();
     }
     return originatedPostRepository
-        .findFirstByTextHashAndOrganizationExtIdAndTicketIdInOrderByCreatedAtAsc(
-            textHash, organizationExtId, ticketIds);
+        .findFirstByTextHashAndOrganizationExtIdInAndTicketIdInOrderByCreatedAtAsc(
+            textHash, organizationExtIds, ticketIds);
   }
 
   /** Produces one ADD_COMMENT intent per target ticket. */

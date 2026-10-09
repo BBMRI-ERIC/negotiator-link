@@ -111,8 +111,8 @@ class NegotiationPostAddedHandlerTest {
         .thenReturn(createPost(EntityModelPostDTO.TypeEnum.PRIVATE));
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
     when(originatedPostRepository
-            .findFirstByTextHashAndOrganizationExtIdAndTicketIdInOrderByCreatedAtAsc(
-                eq(POST_TEXT_HASH), eq(ORG_EXT_ID), eq(Set.of(TICKET_A))))
+            .findFirstByTextHashAndOrganizationExtIdInAndTicketIdInOrderByCreatedAtAsc(
+                eq(POST_TEXT_HASH), eq(Set.of(ORG_EXT_ID)), eq(Set.of(TICKET_A))))
         .thenReturn(Optional.empty());
 
     List<PendingIntent> intents = handler.handle(postEventData(ORG_ID)).intents();
@@ -134,8 +134,8 @@ class NegotiationPostAddedHandlerTest {
         .thenReturn(createPost(EntityModelPostDTO.TypeEnum.PRIVATE));
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
     when(originatedPostRepository
-            .findFirstByTextHashAndOrganizationExtIdAndTicketIdInOrderByCreatedAtAsc(
-                eq(POST_TEXT_HASH), eq(ORG_EXT_ID), eq(Set.of(TICKET_A))))
+            .findFirstByTextHashAndOrganizationExtIdInAndTicketIdInOrderByCreatedAtAsc(
+                eq(POST_TEXT_HASH), eq(Set.of(ORG_EXT_ID)), eq(Set.of(TICKET_A))))
         .thenReturn(Optional.of(originated));
 
     HandlerResult result = handler.handle(postEventData(ORG_ID));
@@ -263,8 +263,8 @@ class NegotiationPostAddedHandlerTest {
                 POST_ID, POST_TEXT, EntityModelPostDTO.TypeEnum.PRIVATE, ORG_ID_STR, name, email));
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
     when(originatedPostRepository
-            .findFirstByTextHashAndOrganizationExtIdAndTicketIdInOrderByCreatedAtAsc(
-                eq(POST_TEXT_HASH), eq(ORG_EXT_ID), eq(Set.of(TICKET_A))))
+            .findFirstByTextHashAndOrganizationExtIdInAndTicketIdInOrderByCreatedAtAsc(
+                eq(POST_TEXT_HASH), eq(Set.of(ORG_EXT_ID)), eq(Set.of(TICKET_A))))
         .thenReturn(Optional.empty());
   }
 

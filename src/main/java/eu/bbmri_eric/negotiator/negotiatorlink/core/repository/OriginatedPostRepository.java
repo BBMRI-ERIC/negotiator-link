@@ -11,8 +11,9 @@ import org.springframework.data.repository.query.Param;
 
 public interface OriginatedPostRepository extends JpaRepository<OriginatedPost, Long> {
 
-  Optional<OriginatedPost> findFirstByTextHashAndOrganizationExtIdAndTicketIdInOrderByCreatedAtAsc(
-      String textHash, String organizationExtId, Set<String> ticketIds);
+  Optional<OriginatedPost>
+      findFirstByTextHashAndOrganizationExtIdInAndTicketIdInOrderByCreatedAtAsc(
+          String textHash, Set<String> organizationExtIds, Set<String> ticketIds);
 
   Optional<OriginatedPost> findFirstByTextHashAndOrganizationExtIdAndTicketIdOrderByCreatedAtAsc(
       String textHash, String organizationExtId, String ticketId);
