@@ -23,7 +23,7 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class HelpdeskTicketStateChangedHandler
-    implements HelpdeskCallbackHandler<TicketStateChangedEvent> {
+    implements HelpdeskEventHandler<TicketStateChangedEvent> {
 
   private final TicketMappingRepository ticketMappingRepository;
   private final ResourceTransitionService resourceTransitionService;

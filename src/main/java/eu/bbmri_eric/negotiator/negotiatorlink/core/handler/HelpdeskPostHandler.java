@@ -24,7 +24,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class HelpdeskPostHandler implements HelpdeskCallbackHandler<PostMessageEvent> {
+public class HelpdeskPostHandler implements HelpdeskEventHandler<PostMessageEvent> {
 
   private static final String POST_REJECTED_MESSAGE =
       "This message could not be forwarded to the Negotiator at this time. Negotiation is in the state that does not allow posting messages.";

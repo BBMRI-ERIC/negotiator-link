@@ -2,7 +2,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.routing;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HandlerResult;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HelpdeskCallbackHandler;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HelpdeskEventHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.PostMessageEvent;
@@ -19,19 +19,19 @@ import org.springframework.stereotype.Service;
 
 /**
  * Dispatches a verified {@link HelpdeskCallbackEvent} to the correct {@link
- * HelpdeskCallbackHandler} implementation(s) and returns the outbound intents they decide.
+ * HelpdeskEventHandler} implementation(s) and returns the outbound intents they decide.
  */
 @Slf4j
 @Service
 public class HelpdeskEventRouter {
 
-  private final Map<HelpdeskCallbackType, HelpdeskCallbackHandler<?>> handlers;
+  private final Map<HelpdeskCallbackType, HelpdeskEventHandler<?>> handlers;
 
-  public HelpdeskEventRouter(List<HelpdeskCallbackHandler<?>> handlers) {
+  public HelpdeskEventRouter(List<HelpdeskEventHandler<?>> handlers) {
     this.handlers =
         handlers.stream()
             .collect(
-                Collectors.toMap(HelpdeskCallbackHandler::getSupportedType, Function.identity()));
+                Collectors.toMap(HelpdeskEventHandler::getSupportedType, Function.identity()));
   }
 
   /** Routes the event to the appropriate handler(s) based on its type, returning their result. */
@@ -67,7 +67,7 @@ public class HelpdeskEventRouter {
   @SuppressWarnings("unchecked")
   private <T extends HelpdeskCallbackEvent> HandlerResult dispatch(
       HelpdeskCallbackType type, T event, OrganizationConfig config) {
-    HelpdeskCallbackHandler<T> handler = (HelpdeskCallbackHandler<T>) handlers.get(type);
+    HelpdeskEventHandler<T> handler = (HelpdeskEventHandler<T>) handlers.get(type);
     if (handler == null) {
       log.warn("No handler registered for helpdesk callback type '{}' — skipping", type);
       return HandlerResult.empty();

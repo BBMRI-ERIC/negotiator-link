@@ -5,7 +5,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
 
 /** Strategy interface for processing a verified helpdesk callback event */
-public interface HelpdeskCallbackHandler<T extends HelpdeskCallbackEvent> {
+public interface HelpdeskEventHandler<T extends HelpdeskCallbackEvent> {
 
   /** Returns the callback type this handler processes. */
   HelpdeskCallbackType getSupportedType();
