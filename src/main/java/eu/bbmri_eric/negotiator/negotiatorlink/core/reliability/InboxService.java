@@ -46,6 +46,9 @@ public class InboxService {
           effectiveDeliveryId);
       return Optional.of(event);
     } catch (DataIntegrityViolationException e) {
+      if (inboxEventRepository.findBySourceAndDeliveryId(source, effectiveDeliveryId).isEmpty()) {
+        throw e;
+      }
       log.debug(
           "Duplicate inbound delivery '{}' from '{}' — acknowledged, not reprocessed",
           effectiveDeliveryId,
