@@ -37,11 +37,12 @@ class StaleRecordsCleanupJobTest {
     verify(originatedPostRepository)
         .deleteTerminalAndOrphanedByCreatedAtBefore(
             any(Instant.class), eq(OutboxStatus.NONTERMINAL));
-    verify(inboxEventRepository)
-        .deleteByStatusInAndReceivedAtBefore(
-            eq(List.of(InboxStatus.PROCESSED, InboxStatus.SKIPPED)), any(Instant.class));
     verify(outboxIntentRepository)
         .deleteByStatusInAndCreatedAtBefore(
             eq(List.of(OutboxStatus.DELIVERED, OutboxStatus.FAILED_PERMANENT)), any(Instant.class));
+    verify(inboxEventRepository)
+        .deleteOrphanedByStatusInAndReceivedAtBefore(
+            eq(List.of(InboxStatus.PROCESSED.name(), InboxStatus.SKIPPED.name())),
+            any(Instant.class));
   }
 }

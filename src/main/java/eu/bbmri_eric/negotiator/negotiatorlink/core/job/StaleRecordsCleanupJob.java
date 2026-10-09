@@ -41,12 +41,12 @@ public class StaleRecordsCleanupJob {
     long deletedPosts =
         originatedPostRepository.deleteTerminalAndOrphanedByCreatedAtBefore(
             cutoff, OutboxStatus.NONTERMINAL);
-    long deletedInbox =
-        inboxEventRepository.deleteByStatusInAndReceivedAtBefore(
-            List.of(InboxStatus.PROCESSED, InboxStatus.SKIPPED), cutoff);
     long deletedOutbox =
         outboxIntentRepository.deleteByStatusInAndCreatedAtBefore(
             List.of(OutboxStatus.DELIVERED, OutboxStatus.FAILED_PERMANENT), cutoff);
+    long deletedInbox =
+        inboxEventRepository.deleteOrphanedByStatusInAndReceivedAtBefore(
+            List.of(InboxStatus.PROCESSED.name(), InboxStatus.SKIPPED.name()), cutoff);
     log.info(
         "Cleaned up stale records older than {}: {} posts, {} inbox events, {} outbox intents",
         cutoffAge,
