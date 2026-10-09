@@ -113,8 +113,8 @@ class NegotiatorWebhookControllerTest {
     Mockito.doNothing().when(helpdeskClient).updateNegotiationState(any(), any(), any());
     Mockito.doNothing().when(helpdeskClient).updateResourceState(any(), any(), any());
     Mockito.doNothing().when(helpdeskClient).updateTicketState(any(), any(), any());
-    inboxEventRepository.deleteAll();
     outboxIntentRepository.deleteAll();
+    inboxEventRepository.deleteAll();
   }
 
   @Test
