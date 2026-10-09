@@ -65,7 +65,6 @@ public class ResourceTransitionService {
    * @return a {@link TransitionResult} carrying the intent to enqueue, or a {@link Rejection}
    *     listing the resources that could not accept the event
    */
-  @Transactional
   public TransitionResult apply(
       List<TicketMapping> mappings, String requestedEvent, OrganizationConfig config) {
     if (config.ticketStrategy() == TicketStrategy.PER_RESOURCE) {
