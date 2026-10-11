@@ -372,7 +372,7 @@ class NegotiatorToZammadE2ETest {
         .until(
             () ->
                 outboxIntentRepository.countByStatusIn(
-                        List.of(OutboxStatus.PENDING, OutboxStatus.IN_PROCESS))
+                        List.of(OutboxStatus.PENDING, OutboxStatus.IN_PROGRESS))
                     == 0);
   }
 }

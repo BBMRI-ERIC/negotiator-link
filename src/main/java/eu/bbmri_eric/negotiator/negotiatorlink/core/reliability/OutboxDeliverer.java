@@ -58,7 +58,7 @@ public class OutboxDeliverer {
    */
   public DispatchResult dispatch(Long rowId, UUID claimToken) {
     OutboxIntent intent = outboxIntentRepository.findById(rowId).orElse(null);
-    if (intent == null || intent.getStatus() != OutboxStatus.IN_PROCESS) {
+    if (intent == null || intent.getStatus() != OutboxStatus.IN_PROGRESS) {
       return null;
     }
     if (!claimToken.equals(intent.getClaimToken())) {
@@ -82,7 +82,7 @@ public class OutboxDeliverer {
       return;
     }
     OutboxIntent intent = outboxIntentRepository.findById(rowId).orElse(null);
-    if (intent == null || intent.getStatus() != OutboxStatus.IN_PROCESS) {
+    if (intent == null || intent.getStatus() != OutboxStatus.IN_PROGRESS) {
       return;
     }
     if (!claimToken.equals(intent.getClaimToken())) {
@@ -194,7 +194,7 @@ public class OutboxDeliverer {
             intent.getIntentType(),
             intent.getOrganizationExtId(),
             intent.getTargetId(),
-            List.of(OutboxStatus.PENDING, OutboxStatus.IN_PROCESS, OutboxStatus.DELIVERED))
+            List.of(OutboxStatus.PENDING, OutboxStatus.IN_PROGRESS, OutboxStatus.DELIVERED))
         .map(latest -> latest.getInboxRowId() > intent.getInboxRowId())
         .orElse(false);
   }
