@@ -1,6 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.job;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 
@@ -12,7 +13,9 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRep
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepository;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -36,7 +39,9 @@ class StaleRecordsCleanupJobTest {
     job.deleteStaleRows();
     verify(originatedPostRepository)
         .deleteTerminalAndOrphanedByCreatedAtBefore(
-            any(Instant.class), eq(OutboxStatus.NON_TERMINAL));
+            any(Instant.class),
+            argThat(
+                (Collection<String> c) -> Set.copyOf(c).equals(Set.of("PENDING", "IN_PROGRESS"))));
     verify(outboxIntentRepository)
         .deleteByStatusInAndCreatedAtBefore(
             eq(List.of(OutboxStatus.DELIVERED, OutboxStatus.FAILED_PERMANENT)), any(Instant.class));

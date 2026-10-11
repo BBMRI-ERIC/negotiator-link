@@ -1,7 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.repository;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedPost;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxStatus;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Optional;
@@ -39,5 +38,5 @@ public interface OriginatedPostRepository extends JpaRepository<OriginatedPost, 
       nativeQuery = true)
   long deleteTerminalAndOrphanedByCreatedAtBefore(
       @Param("cutoff") Instant cutoff,
-      @Param("nonterminalStatuses") Collection<OutboxStatus> nonterminalStatuses);
+      @Param("nonterminalStatuses") Collection<String> nonterminalStatuses);
 }

@@ -83,20 +83,17 @@ public interface OutboxIntentRepository extends JpaRepository<OutboxIntent, Long
   long deleteByStatusInAndCreatedAtBefore(List<OutboxStatus> statuses, Instant createdAt);
 
   @Query(
-      value =
-          "SELECT DISTINCT negotiation_id FROM outbox_intent "
-              + "WHERE intent_type = 'CREATE_TICKET' AND status IN (:statuses)",
-      nativeQuery = true)
+      "SELECT DISTINCT o.negotiationId FROM OutboxIntent o "
+          + "WHERE o.intentType = eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType.CREATE_TICKET "
+          + "AND o.status IN :statuses")
   List<String> findNegotiationIdsWithPendingCreateTicket(
       @Param("statuses") Collection<OutboxStatus> statuses);
 
   @Query(
-      value =
-          "SELECT COUNT(*) FROM outbox_intent "
-              + "WHERE intent_type = 'CREATE_TICKET' "
-              + "AND negotiation_id = :negotiationId "
-              + "AND status IN (:statuses)",
-      nativeQuery = true)
+      "SELECT COUNT(o) FROM OutboxIntent o "
+          + "WHERE o.intentType = eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType.CREATE_TICKET "
+          + "AND o.negotiationId = :negotiationId "
+          + "AND o.status IN :statuses")
   long countPendingCreateTicket(
       @Param("negotiationId") String negotiationId,
       @Param("statuses") Collection<OutboxStatus> statuses);

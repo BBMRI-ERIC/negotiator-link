@@ -40,7 +40,7 @@ public class StaleRecordsCleanupJob {
     Instant cutoff = Instant.now().minus(cutoffAge);
     long deletedPosts =
         originatedPostRepository.deleteTerminalAndOrphanedByCreatedAtBefore(
-            cutoff, OutboxStatus.NON_TERMINAL);
+            cutoff, OutboxStatus.NON_TERMINAL.stream().map(Enum::name).toList());
     long deletedOutbox =
         outboxIntentRepository.deleteByStatusInAndCreatedAtBefore(
             List.of(OutboxStatus.DELIVERED, OutboxStatus.FAILED_PERMANENT), cutoff);
