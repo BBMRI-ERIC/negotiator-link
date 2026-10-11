@@ -72,7 +72,7 @@ public class OutboxIntent {
   @Column(name = "next_attempt_at", nullable = false)
   private Instant nextAttemptAt;
 
-  /** Claim deadline while {@link OutboxStatus#IN_PROGRESS}; null otherwise. */
+  /** Claim deadline while {@link OutboxStatus#IN_PROCESS}; null otherwise. */
   @Column(name = "claim_expires_at")
   private Instant claimExpiresAt;
 

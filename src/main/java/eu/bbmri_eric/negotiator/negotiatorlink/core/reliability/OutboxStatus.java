@@ -9,7 +9,7 @@ public enum OutboxStatus {
   /** Awaiting delivery. Claimable by the outbox deliverer. */
   PENDING(false),
   /** Claimed by a poller and currently being delivered. */
-  IN_PROGRESS(false),
+  IN_PROCESS(false),
   /** Successfully delivered to the external system. */
   DELIVERED(true),
   /** Permanently rejected (a non-retryable 4xx) -> not retried. */

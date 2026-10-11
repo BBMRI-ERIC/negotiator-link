@@ -82,7 +82,7 @@ class OutboxDelivererTest {
 
   @Test
   void dispatch_claimedIntent_returnsDispatchResult() {
-    OutboxIntent intent = intent(OutboxIntentType.ADD_COMMENT, OutboxStatus.IN_PROGRESS);
+    OutboxIntent intent = intent(OutboxIntentType.ADD_COMMENT, OutboxStatus.IN_PROCESS);
     when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
     when(dispatcher.dispatch(intent)).thenReturn(DispatchResult.empty());
 
@@ -103,7 +103,7 @@ class OutboxDelivererTest {
 
   @Test
   void dispatch_tokenMismatch_returnsNullAndDoesNotDispatch() {
-    OutboxIntent intent = intent(OutboxIntentType.ADD_COMMENT, OutboxStatus.IN_PROGRESS);
+    OutboxIntent intent = intent(OutboxIntentType.ADD_COMMENT, OutboxStatus.IN_PROCESS);
     intent.setClaimToken(UUID.randomUUID()); // different token — simulates reclaim by reaper
     when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
 
@@ -113,10 +113,10 @@ class OutboxDelivererTest {
 
   @Test
   void dispatch_supersededStateIntent_returnsEmptyWithoutDispatching() {
-    OutboxIntent older = intent(OutboxIntentType.SET_TICKET_STATE, OutboxStatus.IN_PROGRESS);
+    OutboxIntent older = intent(OutboxIntentType.SET_TICKET_STATE, OutboxStatus.IN_PROCESS);
     older.setRowId(ROW_ID);
     older.setInboxRowId(1L);
-    OutboxIntent newer = intent(OutboxIntentType.SET_TICKET_STATE, OutboxStatus.IN_PROGRESS);
+    OutboxIntent newer = intent(OutboxIntentType.SET_TICKET_STATE, OutboxStatus.IN_PROCESS);
     newer.setRowId(ROW_ID + 1);
     newer.setInboxRowId(2L);
     when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(older));
@@ -127,7 +127,7 @@ class OutboxDelivererTest {
                 eq(TICKET_ID),
                 eq(
                     List.of(
-                        OutboxStatus.PENDING, OutboxStatus.IN_PROGRESS, OutboxStatus.DELIVERED))))
+                        OutboxStatus.PENDING, OutboxStatus.IN_PROCESS, OutboxStatus.DELIVERED))))
         .thenReturn(Optional.of(newer));
 
     DispatchResult result = deliverer.dispatch(ROW_ID, CLAIM_TOKEN);
@@ -138,7 +138,7 @@ class OutboxDelivererTest {
 
   @Test
   void commit_persistsSideEffectsAndMarksDelivered() {
-    OutboxIntent intent = intent(OutboxIntentType.CREATE_TICKET, OutboxStatus.IN_PROGRESS);
+    OutboxIntent intent = intent(OutboxIntentType.CREATE_TICKET, OutboxStatus.IN_PROCESS);
     intent.setClaimExpiresAt(Instant.now().plusSeconds(30));
     when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
     TicketMapping mapping = ticketMapping();
@@ -167,7 +167,7 @@ class OutboxDelivererTest {
 
   @Test
   void commit_enqueuesFollowUpIntentsAgainstOriginatingInboxRow() {
-    OutboxIntent intent = intent(OutboxIntentType.CREATE_TICKET, OutboxStatus.IN_PROGRESS);
+    OutboxIntent intent = intent(OutboxIntentType.CREATE_TICKET, OutboxStatus.IN_PROCESS);
     intent.setInboxRowId(99L);
     when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
     PendingIntent child =
@@ -194,7 +194,7 @@ class OutboxDelivererTest {
 
   @Test
   void commit_tokenMismatch_doesNothing() {
-    OutboxIntent intent = intent(OutboxIntentType.ADD_COMMENT, OutboxStatus.IN_PROGRESS);
+    OutboxIntent intent = intent(OutboxIntentType.ADD_COMMENT, OutboxStatus.IN_PROCESS);
     intent.setClaimToken(UUID.randomUUID()); // different token — simulates reclaim by reaper
     when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
     DispatchResult result = new DispatchResult(List.of(), Optional.empty());
@@ -207,7 +207,7 @@ class OutboxDelivererTest {
     }
 
     verify(ticketMappingRepository, never()).saveAll(any());
-    assertEquals(OutboxStatus.IN_PROGRESS, intent.getStatus());
+    assertEquals(OutboxStatus.IN_PROCESS, intent.getStatus());
     verify(outboxIntentRepository, never()).save(any());
   }
 
@@ -232,7 +232,7 @@ class OutboxDelivererTest {
 
   @Test
   void commit_inProgressWithNullToken_discardsResult() {
-    OutboxIntent intent = intent(OutboxIntentType.CREATE_TICKET, OutboxStatus.IN_PROGRESS);
+    OutboxIntent intent = intent(OutboxIntentType.CREATE_TICKET, OutboxStatus.IN_PROCESS);
     intent.setClaimToken(null);
     when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
     DispatchResult result = new DispatchResult(List.of(ticketMapping()), Optional.empty());
@@ -245,13 +245,13 @@ class OutboxDelivererTest {
     }
 
     verify(ticketMappingRepository, never()).saveAll(any());
-    assertEquals(OutboxStatus.IN_PROGRESS, intent.getStatus());
+    assertEquals(OutboxStatus.IN_PROCESS, intent.getStatus());
     verify(outboxIntentRepository, never()).save(any());
   }
 
   @Test
   void commit_createTicket_removesCacheAfterCommit() {
-    OutboxIntent intent = intent(OutboxIntentType.CREATE_TICKET, OutboxStatus.IN_PROGRESS);
+    OutboxIntent intent = intent(OutboxIntentType.CREATE_TICKET, OutboxStatus.IN_PROCESS);
     when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
     DispatchResult result = new DispatchResult(List.of(), Optional.empty());
 
@@ -270,7 +270,7 @@ class OutboxDelivererTest {
 
   @Test
   void commit_nonCreateTicket_doesNotTouchCache() {
-    OutboxIntent intent = intent(OutboxIntentType.ADD_COMMENT, OutboxStatus.IN_PROGRESS);
+    OutboxIntent intent = intent(OutboxIntentType.ADD_COMMENT, OutboxStatus.IN_PROCESS);
     when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
     DispatchResult result = new DispatchResult(List.of(), Optional.empty());
 
@@ -292,20 +292,20 @@ class OutboxDelivererTest {
 
   @Test
   void commit_persistenceThrows_doesNotMarkDelivered() {
-    OutboxIntent intent = intent(OutboxIntentType.CREATE_TICKET, OutboxStatus.IN_PROGRESS);
+    OutboxIntent intent = intent(OutboxIntentType.CREATE_TICKET, OutboxStatus.IN_PROCESS);
     when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
     DispatchResult result = new DispatchResult(List.of(ticketMapping()), Optional.empty());
     doThrow(new RuntimeException("db down")).when(ticketMappingRepository).saveAll(any());
 
     assertThrows(RuntimeException.class, () -> deliverer.commit(ROW_ID, CLAIM_TOKEN, result));
 
-    assertEquals(OutboxStatus.IN_PROGRESS, intent.getStatus());
+    assertEquals(OutboxStatus.IN_PROCESS, intent.getStatus());
     verify(outboxIntentRepository, never()).save(intent);
   }
 
   @Test
   void recordFailure_transientWithBudget_returnsToPendingWithBackoffAndClearsClaim() {
-    OutboxIntent intent = intent(OutboxIntentType.ADD_COMMENT, OutboxStatus.IN_PROGRESS);
+    OutboxIntent intent = intent(OutboxIntentType.ADD_COMMENT, OutboxStatus.IN_PROCESS);
     intent.setAttemptCount(0);
     intent.setClaimExpiresAt(Instant.now());
     when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
@@ -322,19 +322,19 @@ class OutboxDelivererTest {
 
   @Test
   void recordFailure_tokenMismatch_doesNothing() {
-    OutboxIntent intent = intent(OutboxIntentType.ADD_COMMENT, OutboxStatus.IN_PROGRESS);
+    OutboxIntent intent = intent(OutboxIntentType.ADD_COMMENT, OutboxStatus.IN_PROCESS);
     intent.setClaimToken(UUID.randomUUID()); // different token — simulates reclaim by reaper
     when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
 
     deliverer.recordFailure(ROW_ID, CLAIM_TOKEN, new RuntimeException("5xx"));
 
     verify(outboxIntentRepository, never()).save(any());
-    assertEquals(OutboxStatus.IN_PROGRESS, intent.getStatus());
+    assertEquals(OutboxStatus.IN_PROCESS, intent.getStatus());
   }
 
   @Test
   void recordFailure_transientExhausted_deadLetters() {
-    OutboxIntent intent = intent(OutboxIntentType.ADD_COMMENT, OutboxStatus.IN_PROGRESS);
+    OutboxIntent intent = intent(OutboxIntentType.ADD_COMMENT, OutboxStatus.IN_PROCESS);
     intent.setAttemptCount(MAX_ATTEMPTS - 1);
     when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
     when(failureClassifier.classify(any())).thenReturn(FailureClass.TRANSIENT);
@@ -348,7 +348,7 @@ class OutboxDelivererTest {
 
   @Test
   void recordFailure_permanent_marksFailedPermanent() {
-    OutboxIntent intent = intent(OutboxIntentType.ADD_COMMENT, OutboxStatus.IN_PROGRESS);
+    OutboxIntent intent = intent(OutboxIntentType.ADD_COMMENT, OutboxStatus.IN_PROCESS);
     when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
     when(failureClassifier.classify(any())).thenReturn(FailureClass.PERMANENT);
 
@@ -361,7 +361,7 @@ class OutboxDelivererTest {
 
   @Test
   void recordFailure_unexpected_deadLetters() {
-    OutboxIntent intent = intent(OutboxIntentType.ADD_COMMENT, OutboxStatus.IN_PROGRESS);
+    OutboxIntent intent = intent(OutboxIntentType.ADD_COMMENT, OutboxStatus.IN_PROCESS);
     when(outboxIntentRepository.findById(ROW_ID)).thenReturn(Optional.of(intent));
     when(failureClassifier.classify(any())).thenReturn(FailureClass.UNEXPECTED_ERROR);
 

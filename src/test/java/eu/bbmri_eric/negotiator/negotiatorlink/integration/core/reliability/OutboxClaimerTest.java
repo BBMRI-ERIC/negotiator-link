@@ -49,7 +49,7 @@ class OutboxClaimerTest {
     assertThat(token).isNotNull();
 
     OutboxIntent reloadedDue = outboxIntentRepository.findById(due.getRowId()).orElseThrow();
-    assertThat(reloadedDue.getStatus()).isEqualTo(OutboxStatus.IN_PROGRESS);
+    assertThat(reloadedDue.getStatus()).isEqualTo(OutboxStatus.IN_PROCESS);
     assertThat(reloadedDue.getClaimExpiresAt()).isNotNull();
     assertThat(reloadedDue.getClaimToken()).isEqualTo(token);
 
@@ -117,7 +117,7 @@ class OutboxClaimerTest {
     assertThat(reloadedExpired.getClaimExpiresAt()).isNull();
     assertThat(reloadedExpired.getClaimToken()).isNull();
     OutboxIntent reloadedLive = outboxIntentRepository.findById(live.getRowId()).orElseThrow();
-    assertThat(reloadedLive.getStatus()).isEqualTo(OutboxStatus.IN_PROGRESS);
+    assertThat(reloadedLive.getStatus()).isEqualTo(OutboxStatus.IN_PROCESS);
   }
 
   private OutboxIntent save(OutboxIntent intent) {
@@ -140,7 +140,7 @@ class OutboxClaimerTest {
 
   private OutboxIntent inProgress(Long inboxRowId, Instant claimExpiresAt) {
     OutboxIntent intent = pending(inboxRowId, Instant.now());
-    intent.setStatus(OutboxStatus.IN_PROGRESS);
+    intent.setStatus(OutboxStatus.IN_PROCESS);
     intent.setClaimExpiresAt(claimExpiresAt);
     intent.setClaimToken(UUID.randomUUID());
     return intent;

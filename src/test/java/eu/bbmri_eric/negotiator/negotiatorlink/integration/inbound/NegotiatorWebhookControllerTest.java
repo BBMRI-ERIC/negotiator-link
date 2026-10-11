@@ -421,7 +421,7 @@ class NegotiatorWebhookControllerTest {
         .until(
             () ->
                 outboxIntentRepository.countByStatusIn(
-                        List.of(OutboxStatus.PENDING, OutboxStatus.IN_PROGRESS))
+                        List.of(OutboxStatus.PENDING, OutboxStatus.IN_PROCESS))
                     == 0);
   }
 }
