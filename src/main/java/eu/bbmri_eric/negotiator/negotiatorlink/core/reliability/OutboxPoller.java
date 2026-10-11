@@ -11,6 +11,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -20,6 +21,12 @@ import org.springframework.stereotype.Component;
  * Polls the outbox and routes each intent to a per-negotiation worker thread. All intents for the
  * same negotiation are processed by the same worker, preserving ordering within a negotiation while
  * allowing parallel processing across negotiations.
+ *
+ * <p>Outstanding work is bounded to {@code workerCount * queueDepth} by a global in-flight
+ * semaphore: the poller claims only as many rows as there are free permits and acquires a permit
+ * before each submit, so it never enqueues more than the workers can hold. This caps memory and
+ * keeps a claimed row from waiting in a worker queue past its lease — which would let {@code
+ * OutboxClaimReaper} release it and have the next poll re-claim and re-submit it in a tight loop.
  */
 @Slf4j
 @Component
@@ -28,9 +35,9 @@ public class OutboxPoller {
   private final OutboxClaimer claimer;
   private final OutboxDeliverer deliverer;
   private final OutboxIntentRepository outboxIntentRepository;
-  private final int batchSize;
   private final Duration claimTimeout;
   private final ExecutorService[] workers;
+  private final Semaphore inFlight;
 
   public OutboxPoller(
       OutboxClaimer claimer,
@@ -40,11 +47,10 @@ public class OutboxPoller {
     this.claimer = claimer;
     this.deliverer = deliverer;
     this.outboxIntentRepository = outboxIntentRepository;
-    NegotiatorLinkProperties.OutboxProperties outbox = properties.getOutbox();
-    this.batchSize = outbox.getBatchSize();
-    this.claimTimeout = outbox.getClaimTimeout();
+    NegotiatorLinkProperties.OutboxProperties outboxProperties = properties.getOutbox();
+    this.claimTimeout = outboxProperties.getClaimTimeout();
 
-    int workerCount = outbox.getWorkerCount();
+    int workerCount = outboxProperties.getWorkerCount();
     this.workers = new ExecutorService[workerCount];
     for (int i = 0; i < workerCount; i++) {
       final int idx = i;
@@ -53,6 +59,7 @@ public class OutboxPoller {
           Executors.newSingleThreadExecutor(r -> new Thread(r, "outbox-worker-" + idx));
       workers[i] = worker;
     }
+    this.inFlight = new Semaphore(workerCount * outboxProperties.getQueueDepth());
   }
 
   @Scheduled(fixedDelayString = "${negotiator-link.outbox.poll-delay-ms:500}")
@@ -82,12 +89,16 @@ public class OutboxPoller {
   }
 
   /**
-   * Claims one batch, routes each intent to its negotiation's worker, and returns {@code true} when
-   * the batch was empty (nothing left to process right now).
+   * Claims at most as many rows as there are free in-flight permits, routes each to its
+   * negotiation's worker, and returns {@code true} when no free capacity or an empty table.
    */
   @SuppressWarnings("resource")
   private boolean deliverBatch() {
-    Map<Long, UUID> claimed = claimer.claim(batchSize, claimTimeout);
+    int free = inFlight.availablePermits();
+    if (free == 0) {
+      return true;
+    }
+    Map<Long, UUID> claimed = claimer.claim(free, claimTimeout);
     if (claimed.isEmpty()) {
       return true;
     }
@@ -96,7 +107,24 @@ public class OutboxPoller {
       Long rowId = entry.getKey();
       UUID token = entry.getValue();
       String negotiationId = negotiationIdByRowId.getOrDefault(rowId, rowId.toString());
-      routingWorker(negotiationId).submit(() -> deliverOne(rowId, token));
+      inFlight.acquireUninterruptibly();
+      boolean submitted = false;
+      try {
+        routingWorker(negotiationId)
+            .submit(
+                () -> {
+                  try {
+                    deliverOne(rowId, token);
+                  } finally {
+                    inFlight.release();
+                  }
+                });
+        submitted = true;
+      } finally {
+        if (!submitted) {
+          inFlight.release();
+        }
+      }
     }
     return false;
   }

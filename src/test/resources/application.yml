@@ -104,10 +104,11 @@ negotiator-link:
     base-backoff: PT2S
     max-backoff: PT60S
   outbox:
-    batch-size: 10
     poll-delay-ms: 200
     max-attempts: 4
     base-backoff: PT3S
     max-backoff: PT120S
-    claim-timeout: PT55S
-    worker-count: 4
+    claim-timeout: PT600S
+    claim-reap-interval: PT60S
+    worker-count: 3
+    queue-depth: 10

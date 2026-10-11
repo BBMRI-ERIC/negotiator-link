@@ -29,13 +29,14 @@ public class NegotiatorLinkProperties {
 
   @Data
   public static class OutboxProperties {
-    private int batchSize;
     private long pollDelayMs;
     private int maxAttempts;
     private Duration baseBackoff;
     private Duration maxBackoff;
     private Duration claimTimeout;
+    private Duration claimReapInterval;
     private int workerCount;
+    private int queueDepth;
   }
 
   @Data

@@ -79,11 +79,13 @@ class NegotiatorLinkPropertiesTest {
   @Test
   void outboxProperties_whenConfigured_bindAllFields() {
     NegotiatorLinkProperties.OutboxProperties outbox = properties.getOutbox();
-    assertThat(outbox.getBatchSize()).isEqualTo(10);
     assertThat(outbox.getPollDelayMs()).isEqualTo(200);
     assertThat(outbox.getMaxAttempts()).isEqualTo(4);
     assertThat(outbox.getBaseBackoff()).isEqualTo(Duration.parse("PT3S"));
     assertThat(outbox.getMaxBackoff()).isEqualTo(Duration.parse("PT120S"));
-    assertThat(outbox.getClaimTimeout()).isEqualTo(Duration.parse("PT55S"));
+    assertThat(outbox.getClaimTimeout()).isEqualTo(Duration.parse("PT600S"));
+    assertThat(outbox.getClaimReapInterval()).isEqualTo(Duration.parse("PT60S"));
+    assertThat(outbox.getWorkerCount()).isEqualTo(3);
+    assertThat(outbox.getQueueDepth()).isEqualTo(10);
   }
 }

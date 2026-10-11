@@ -2,6 +2,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.job;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxClaimer;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -22,7 +23,9 @@ public class OutboxClaimReaper {
     this.claimer = claimer;
   }
 
-  @Scheduled(fixedDelayString = "${negotiator-link.outbox.claim-reap-interval-ms:30000}")
+  @Scheduled(
+      fixedDelayString = "${negotiator-link.outbox.claim-reap-interval:60}",
+      timeUnit = TimeUnit.SECONDS)
   public void reclaimExpiredClaims() {
     List<Long> reclaimed = claimer.reclaimExpiredClaims();
     if (!reclaimed.isEmpty()) {
