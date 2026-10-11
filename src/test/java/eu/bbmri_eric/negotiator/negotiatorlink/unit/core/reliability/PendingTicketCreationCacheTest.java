@@ -42,7 +42,7 @@ class PendingTicketCreationCacheTest {
   @Test
   void removeIfNoPendingCreateTicket_noneRemaining_clearsEntry() {
     cache.track(NEGOTIATION_ID);
-    when(outboxIntentRepository.countPendingCreateTicket(NEGOTIATION_ID, OutboxStatus.NONTERMINAL))
+    when(outboxIntentRepository.countPendingCreateTicket(NEGOTIATION_ID, OutboxStatus.NON_TERMINAL))
         .thenReturn(0L);
 
     cache.removeIfNoPendingCreateTicket(NEGOTIATION_ID);
@@ -53,7 +53,7 @@ class PendingTicketCreationCacheTest {
   @Test
   void removeIfNoPendingCreateTicket_otherTicketStillPending_keepsEntryTracked() {
     cache.track(NEGOTIATION_ID);
-    when(outboxIntentRepository.countPendingCreateTicket(NEGOTIATION_ID, OutboxStatus.NONTERMINAL))
+    when(outboxIntentRepository.countPendingCreateTicket(NEGOTIATION_ID, OutboxStatus.NON_TERMINAL))
         .thenReturn(1L);
 
     cache.removeIfNoPendingCreateTicket(NEGOTIATION_ID);
@@ -63,7 +63,8 @@ class PendingTicketCreationCacheTest {
 
   @Test
   void warmFromOutbox_tracksNonterminalCreateTicketNegotiations() {
-    when(outboxIntentRepository.findNegotiationIdsWithPendingCreateTicket(OutboxStatus.NONTERMINAL))
+    when(outboxIntentRepository.findNegotiationIdsWithPendingCreateTicket(
+            OutboxStatus.NON_TERMINAL))
         .thenReturn(List.of(NEGOTIATION_ID, "neg-2"));
 
     cache.warmFromOutbox();
@@ -74,7 +75,8 @@ class PendingTicketCreationCacheTest {
 
   @Test
   void warmFromOutbox_noPending_tracksNothing() {
-    when(outboxIntentRepository.findNegotiationIdsWithPendingCreateTicket(OutboxStatus.NONTERMINAL))
+    when(outboxIntentRepository.findNegotiationIdsWithPendingCreateTicket(
+            OutboxStatus.NON_TERMINAL))
         .thenReturn(List.of());
 
     cache.warmFromOutbox();

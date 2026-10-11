@@ -3,8 +3,10 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.reliability;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
+import lombok.Getter;
 
 /** Lifecycle status of a durable outbound intent. */
+@Getter
 public enum OutboxStatus {
   /** Awaiting delivery. Claimable by the outbox deliverer. */
   PENDING(false),
@@ -17,24 +19,15 @@ public enum OutboxStatus {
   /** Exhausted its retry budget or failed with unexpected error. */
   DEAD_LETTER(true);
 
+  /** Whether an intent in this status has reached a final state and will not be delivered again. */
   private final boolean terminal;
 
   OutboxStatus(boolean terminal) {
     this.terminal = terminal;
   }
 
-  /** Whether an intent in this status has reached a final state and will not be delivered again. */
-  public boolean isTerminal() {
-    return terminal;
-  }
-
-  /**
-   * Statuses in which an intent still awaits (or is mid-) delivery. Single source of truth for "a
-   * CREATE_TICKET is still in process" — shared by the pending-ticket cache's warm-up and its
-   * conditional removal so the two never drift. Unordered: use only for {@code IN (:statuses)}
-   * membership checks, never where ordering matters.
-   */
-  public static final Set<OutboxStatus> NONTERMINAL =
+  /** Statuses in which an intent still awaits (or is mid-) delivery. */
+  public static final Set<OutboxStatus> NON_TERMINAL =
       Arrays.stream(values())
           .filter(status -> !status.isTerminal())
           .collect(Collectors.toUnmodifiableSet());

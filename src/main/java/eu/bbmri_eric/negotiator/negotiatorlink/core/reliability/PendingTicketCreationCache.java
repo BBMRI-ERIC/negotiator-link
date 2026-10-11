@@ -47,7 +47,7 @@ public class PendingTicketCreationCache {
    */
   public void removeIfNoPendingCreateTicket(String negotiationId) {
     long remaining =
-        outboxIntentRepository.countPendingCreateTicket(negotiationId, OutboxStatus.NONTERMINAL);
+        outboxIntentRepository.countPendingCreateTicket(negotiationId, OutboxStatus.NON_TERMINAL);
     if (remaining == 0) {
       cache.invalidate(negotiationId);
     }
@@ -60,7 +60,7 @@ public class PendingTicketCreationCache {
   @EventListener(ApplicationReadyEvent.class)
   public void warmFromOutbox() {
     List<String> pending =
-        outboxIntentRepository.findNegotiationIdsWithPendingCreateTicket(OutboxStatus.NONTERMINAL);
+        outboxIntentRepository.findNegotiationIdsWithPendingCreateTicket(OutboxStatus.NON_TERMINAL);
     if (pending.isEmpty()) {
       return;
     }
