@@ -2,6 +2,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.handler;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.AdditionalMatchers.aryEq;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -31,7 +32,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -110,9 +110,8 @@ class NegotiationPostAddedHandlerTest {
     when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config)))
         .thenReturn(createPost(EntityModelPostDTO.TypeEnum.PRIVATE));
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
-    when(originatedPostRepository
-            .findFirstByTextHashAndOrganizationExtIdInAndTicketIdInOrderByCreatedAtAsc(
-                eq(POST_TEXT_HASH), eq(Set.of(ORG_EXT_ID)), eq(Set.of(TICKET_A))))
+    when(originatedPostRepository.findFirstByTextHashAndValidTicketOrgPairs(
+            eq(POST_TEXT_HASH), aryEq(new String[] {TICKET_A}), aryEq(new String[] {ORG_EXT_ID})))
         .thenReturn(Optional.empty());
 
     List<PendingIntent> intents = handler.handle(postEventData(ORG_ID)).intents();
@@ -133,9 +132,8 @@ class NegotiationPostAddedHandlerTest {
     when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config)))
         .thenReturn(createPost(EntityModelPostDTO.TypeEnum.PRIVATE));
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
-    when(originatedPostRepository
-            .findFirstByTextHashAndOrganizationExtIdInAndTicketIdInOrderByCreatedAtAsc(
-                eq(POST_TEXT_HASH), eq(Set.of(ORG_EXT_ID)), eq(Set.of(TICKET_A))))
+    when(originatedPostRepository.findFirstByTextHashAndValidTicketOrgPairs(
+            eq(POST_TEXT_HASH), aryEq(new String[] {TICKET_A}), aryEq(new String[] {ORG_EXT_ID})))
         .thenReturn(Optional.of(originated));
 
     HandlerResult result = handler.handle(postEventData(ORG_ID));
@@ -262,9 +260,8 @@ class NegotiationPostAddedHandlerTest {
             TestUtil.post(
                 POST_ID, POST_TEXT, EntityModelPostDTO.TypeEnum.PRIVATE, ORG_ID_STR, name, email));
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
-    when(originatedPostRepository
-            .findFirstByTextHashAndOrganizationExtIdInAndTicketIdInOrderByCreatedAtAsc(
-                eq(POST_TEXT_HASH), eq(Set.of(ORG_EXT_ID)), eq(Set.of(TICKET_A))))
+    when(originatedPostRepository.findFirstByTextHashAndValidTicketOrgPairs(
+            eq(POST_TEXT_HASH), aryEq(new String[] {TICKET_A}), aryEq(new String[] {ORG_EXT_ID})))
         .thenReturn(Optional.empty());
   }
 

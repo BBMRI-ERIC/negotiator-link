@@ -25,11 +25,9 @@ import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDT
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.NegotiationPostAddedWebhookEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.UserResponseModel;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -78,11 +76,7 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
     }
 
     Optional<OriginatedPost> consumed =
-        findConsumedOriginatedPost(
-            content.textHash(),
-            new HashSet<>(ticketToOrgExtId.values()),
-            ticketToOrgExtId.keySet(),
-            content.isPublic());
+        findConsumedOriginatedPost(content.textHash(), ticketToOrgExtId, content.isPublic());
     return consumed
         .map(
             originatedPost -> {
@@ -176,18 +170,18 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
   }
 
   /**
-   * Deduplication: finds an originated post record from ticket matching the hash and org so the
-   * originating ticket can be excluded from fan-out. Returns the record to be consumed, or {@code
-   * Optional.empty()}. Deletion is deferred to the inbox commit transaction.
+   * Finds an originated post record from ticket matching the hash and org so the originating ticket
+   * can be excluded from fan-out. Returns the record to be consumed, or {@code Optional.empty()}.
    */
   private Optional<OriginatedPost> findConsumedOriginatedPost(
-      String textHash, Set<String> organizationExtIds, Set<String> ticketIds, boolean isPublic) {
+      String textHash, LinkedHashMap<String, String> ticketToOrgExtId, boolean isPublic) {
     if (isPublic) {
       return Optional.empty();
     }
-    return originatedPostRepository
-        .findFirstByTextHashAndOrganizationExtIdInAndTicketIdInOrderByCreatedAtAsc(
-            textHash, organizationExtIds, ticketIds);
+    String[] ticketIds = ticketToOrgExtId.keySet().toArray(String[]::new);
+    String[] orgExtIds = ticketToOrgExtId.values().toArray(String[]::new);
+    return originatedPostRepository.findFirstByTextHashAndValidTicketOrgPairs(
+        textHash, ticketIds, orgExtIds);
   }
 
   /** Produces one ADD_COMMENT intent per target ticket. */
