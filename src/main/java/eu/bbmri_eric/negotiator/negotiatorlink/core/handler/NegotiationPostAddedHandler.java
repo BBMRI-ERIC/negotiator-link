@@ -2,7 +2,6 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
 import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.HashUtil.sha256Hex;
 import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PayloadUtil.serialize;
-import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil.signPost;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -13,6 +12,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigReg
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedPost;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.SenderRoles;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationCache;
@@ -21,6 +21,8 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.NegotiationPostAddedWebhookEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.UserResponseModel;
@@ -132,8 +134,20 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
     UserResponseModel createdBy = post.getCreatedBy();
     Sender sender =
         createdBy != null ? new Sender(createdBy.getName(), createdBy.getEmail()) : null;
-    String postText = signPost(post.getText(), sender);
+    String authorId =
+        createdBy == null ? null : fetchNegotiationAuthorId(event.getNegotiationId(), fetchConfig);
+    SenderRoles roles = PostUtil.resolveSenderRoles(createdBy, authorId);
+    String postText = PostUtil.signPostWithRoles(post.getText(), sender, roles);
     return new PostContent(postText, isPublic, sha256Hex(post.getText()));
+  }
+
+  private String fetchNegotiationAuthorId(String negotiationId, OrganizationConfig fetchConfig) {
+    EntityModelNegotiationDTO negotiation =
+        negotiatorClient.getNegotiation(negotiationId, fetchConfig);
+    if (negotiation == null || negotiation.getAuthor() == null) {
+      return null;
+    }
+    return negotiation.getAuthor().getId();
   }
 
   private OrganizationConfig resolveFetchConfig(String negotiationId, Long organizationId) {
