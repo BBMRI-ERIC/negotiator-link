@@ -57,7 +57,12 @@ class NegotiationTicketBodyFormatterTest {
 
     assertThat(sectionHeaders(doc))
         .containsExactly(
-            "PROJECT", "REQUEST", "ETHICS VOTE", "SEARCH PARAMETERS", "REQUESTED RESOURCE");
+            "PROJECT",
+            "REQUEST",
+            "ETHICS VOTE",
+            "SEARCH PARAMETERS",
+            "REQUESTED RESOURCE",
+            "INVOLVED ORGANIZATIONS");
   }
 
   @Test
@@ -128,7 +133,7 @@ class NegotiationTicketBodyFormatterTest {
     Document doc =
         Jsoup.parse(
             NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(
-                negotiation, List.of(r1, r2)));
+                negotiation, List.of(r1, r2), List.of()));
 
     Element resourcesHeader = findSectionHeader(doc, "REQUESTED RESOURCES");
     Element list = resourcesHeader.nextElementSibling();
@@ -150,9 +155,61 @@ class NegotiationTicketBodyFormatterTest {
     Document doc =
         Jsoup.parse(
             NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(
-                negotiation, List.of(r1, r2)));
+                negotiation, List.of(r1, r2), List.of()));
 
     assertThat(fieldValue(doc, "Status (all resources)")).isEqualTo("Submitted");
+  }
+
+  @Test
+  void getTicketBody_rendersInvolvedOrganizationsAsBulletsAtBottom() {
+    Document doc =
+        Jsoup.parse(
+            NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
+                createNegotiation(true),
+                submittedResource(),
+                List.of("Biobank Graz", "Biobank Prague")));
+
+    List<String> headers = sectionHeaders(doc);
+    assertThat(headers).last().isEqualTo("INVOLVED ORGANIZATIONS");
+
+    Element orgsHeader = findSectionHeader(doc, "INVOLVED ORGANIZATIONS");
+    Elements items = orgsHeader.nextElementSibling().select("> li");
+    assertThat(items.eachText()).containsExactly("Biobank Graz", "Biobank Prague");
+  }
+
+  @Test
+  void getTicketBody_deduplicatesAndSkipsBlankOrganizationNames() {
+    Document doc =
+        Jsoup.parse(
+            NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
+                createNegotiation(true),
+                submittedResource(),
+                java.util.Arrays.asList("Biobank Graz", "  ", null, "Biobank Graz")));
+
+    Element orgsHeader = findSectionHeader(doc, "INVOLVED ORGANIZATIONS");
+    Elements items = orgsHeader.nextElementSibling().select("> li");
+    assertThat(items.eachText()).containsExactly("Biobank Graz");
+  }
+
+  @Test
+  void getTicketBody_rendersDashWhenNoOrganizations() {
+    Document doc =
+        Jsoup.parse(
+            NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
+                createNegotiation(true), submittedResource(), List.of()));
+
+    Element orgsHeader = findSectionHeader(doc, "INVOLVED ORGANIZATIONS");
+    assertThat(orgsHeader.nextElementSibling().text()).isEqualTo("—");
+  }
+
+  @Test
+  void getTicketBody_escapesHtmlInOrganizationNames() {
+    String rawHtml =
+        NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
+            createNegotiation(true), submittedResource(), List.of("<script>alert('xss')</script>"));
+
+    assertThat(rawHtml).doesNotContain("<script>");
+    assertThat(rawHtml).contains("&lt;script&gt;");
   }
 
   @Test
@@ -165,7 +222,7 @@ class NegotiationTicketBodyFormatterTest {
 
     String rawHtml =
         NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
-            negotiation, submittedResource());
+            negotiation, submittedResource(), List.of());
 
     // The dangerous markup must NOT appear as a live tag ...
     assertThat(rawHtml).doesNotContain("<script>");
@@ -184,7 +241,8 @@ class NegotiationTicketBodyFormatterTest {
     var resource = createResource("<b>Evil</b>", "id-x");
 
     String rawHtml =
-        NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(negotiation, resource);
+        NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
+            negotiation, resource, List.of());
 
     assertThat(rawHtml).doesNotContain("<b>Evil</b>");
     assertThat(Jsoup.parse(rawHtml).getElementsContainingOwnText("<b>Evil</b>")).isNotEmpty();
@@ -194,7 +252,7 @@ class NegotiationTicketBodyFormatterTest {
   void getTicketBodyWithSingleResource_usesInlineStylesAndNoStyleBlock() {
     String rawHtml =
         NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
-            createNegotiation(true), submittedResource());
+            createNegotiation(true), submittedResource(), List.of());
     Document doc = Jsoup.parse(rawHtml);
 
     assertThat(doc.select("style")).isEmpty();
@@ -206,7 +264,7 @@ class NegotiationTicketBodyFormatterTest {
   void getUpdatedTicketBodyWithSingleResource_prependsUpdateNote() {
     String html =
         NegotiationTicketBodyFormatter.getUpdatedTicketBodyWithSingleResource(
-            createNegotiation(true), submittedResource());
+            createNegotiation(true), submittedResource(), List.of());
 
     assertThat(html).startsWith("<p><strong>");
     assertThat(html).contains("updated");
@@ -220,7 +278,7 @@ class NegotiationTicketBodyFormatterTest {
 
     String html =
         NegotiationTicketBodyFormatter.getUpdatedTicketBodyWithMultipleResources(
-            createNegotiation(true), List.of(r1, r2));
+            createNegotiation(true), List.of(r1, r2), List.of());
 
     assertThat(html).startsWith("<p><strong>");
     assertThat(html).contains("updated");
@@ -234,7 +292,8 @@ class NegotiationTicketBodyFormatterTest {
   private static Document renderSingle(
       EntityModelNegotiationDTO negotiation, EntityModelResourceWithStatusDTO resource) {
     return Jsoup.parse(
-        NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(negotiation, resource));
+        NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
+            negotiation, resource, List.of()));
   }
 
   /** Returns the value-cell text for the first row whose label matches. */

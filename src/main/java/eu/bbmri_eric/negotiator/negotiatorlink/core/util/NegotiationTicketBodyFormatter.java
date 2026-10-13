@@ -58,32 +58,43 @@ public final class NegotiationTicketBodyFormatter {
   // ------------
 
   public static String getTicketBodyWithSingleResource(
-      EntityModelNegotiationDTO negotiation, EntityModelResourceWithStatusDTO resource) {
+      EntityModelNegotiationDTO negotiation,
+      EntityModelResourceWithStatusDTO resource,
+      List<String> organizationNames) {
     return wrapper(
             commonSections(negotiation),
             sectionHeader("REQUESTED RESOURCE"),
-            singleResourceTable(resource))
+            singleResourceTable(resource),
+            involvedOrganizationsSection(organizationNames))
         .render();
   }
 
   public static String getTicketBodyWithMultipleResources(
-      EntityModelNegotiationDTO negotiation, List<EntityModelResourceWithStatusDTO> resources) {
+      EntityModelNegotiationDTO negotiation,
+      List<EntityModelResourceWithStatusDTO> resources,
+      List<String> organizationNames) {
     return wrapper(
             commonSections(negotiation),
             sectionHeader("REQUESTED RESOURCES"),
             resourcesList(resources),
-            fieldsTable(List.of(Field.scalar("Status (all resources)", sharedState(resources)))))
+            fieldsTable(List.of(Field.scalar("Status (all resources)", sharedState(resources)))),
+            involvedOrganizationsSection(organizationNames))
         .render();
   }
 
   public static String getUpdatedTicketBodyWithSingleResource(
-      EntityModelNegotiationDTO negotiation, EntityModelResourceWithStatusDTO resource) {
-    return updateNote() + getTicketBodyWithSingleResource(negotiation, resource);
+      EntityModelNegotiationDTO negotiation,
+      EntityModelResourceWithStatusDTO resource,
+      List<String> organizationNames) {
+    return updateNote() + getTicketBodyWithSingleResource(negotiation, resource, organizationNames);
   }
 
   public static String getUpdatedTicketBodyWithMultipleResources(
-      EntityModelNegotiationDTO negotiation, List<EntityModelResourceWithStatusDTO> resources) {
-    return updateNote() + getTicketBodyWithMultipleResources(negotiation, resources);
+      EntityModelNegotiationDTO negotiation,
+      List<EntityModelResourceWithStatusDTO> resources,
+      List<String> organizationNames) {
+    return updateNote()
+        + getTicketBodyWithMultipleResources(negotiation, resources, organizationNames);
   }
 
   public static String buildTitle(EntityModelNegotiationDTO negotiation, String resourceName) {
@@ -147,6 +158,24 @@ public final class NegotiationTicketBodyFormatter {
       fields.add(Field.of(toTitle(f.getKey()), f.getValue()));
     }
     return fieldsTable(fields);
+  }
+
+  private static DomContent involvedOrganizationsSection(List<String> organizationNames) {
+    List<String> names =
+        organizationNames == null
+            ? List.of()
+            : organizationNames.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(name -> !name.isEmpty())
+                .distinct()
+                .toList();
+    DomContent body =
+        names.isEmpty()
+            ? p(span(EMPTY_VALUE).withStyle(MUTED_STYLE)).withStyle("margin:0;")
+            : ul().withStyle("margin:0;padding-left:20px;")
+                .with(names.stream().map(name -> li(text(name)))); // text() = escaped
+    return each(sectionHeader("INVOLVED ORGANIZATIONS"), body);
   }
 
   private static DomContent singleResourceTable(EntityModelResourceWithStatusDTO resource) {
