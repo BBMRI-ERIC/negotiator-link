@@ -1,0 +1,68 @@
+name: negotiator-link
+
+# Production deployment for negotiator-link. Whole deployment process is described in the @docs/deployment.md file.
+#
+# Runs ONLY negotiator-link + its own PostgreSQL.
+#
+# External access:
+#   Internet --HTTPS--> upstream reverse proxy (TLS) --HTTP--> VM:80 --> container:8080
+#   https://negotiator-link.demo.bbmri-eric.eu/  ->  VM port 80
+#
+# Configuration is supplied via a `.env` file in this directory (see
+# .env.prod.example) and an `organizations.yml` bind-mounted next to
+# this file (see organizations.prod.yml). Neither must ever be committed.
+
+services:
+
+  negotiator-link:
+    container_name: negotiator-link
+    build:
+      context: .
+      args:
+        ARTIFACT_VERSION: prod
+    restart: unless-stopped
+    ports:
+      - "80:8080"            # host 80 (reachable externally via proxy) -> container 8080
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
+    depends_on:
+      negotiator-link-postgresql:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # --- Organizations config file (bind-mounted below) ---
+      ORGANIZATIONS_CONFIG_PATH: /config/organizations.yml
+    volumes:
+      - ./organizations.yml:/config/organizations.yml:ro
+    networks:
+      - negotiator-link-network
+
+  negotiator-link-postgresql:
+    container_name: negotiator-link-db
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: negotiator_link
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: negotiator_link
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U negotiator_link -d negotiator_link"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - negotiator-link-db-data:/var/lib/postgresql/data
+    networks:
+      - negotiator-link-network
+
+networks:
+  negotiator-link-network:
+    driver: bridge
+
+volumes:
+  negotiator-link-db-data:

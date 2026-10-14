@@ -43,11 +43,15 @@ public class OrganizationConfigRegistry {
       NegotiatorLinkProperties.OrgEntry entry, NegotiatorLinkProperties properties) {
     var nc = entry.getNegotiatorCredentials();
     NegotiatorLinkProperties.HelpdeskDefaults typeDefaults =
-        properties.getDefaults().get(entry.getType());
+        properties.getHelpdeskDefaults().get(entry.getType());
+    TicketStrategy ticketStrategy =
+        entry.getTicketStrategy() != null
+            ? entry.getTicketStrategy()
+            : properties.getOrganizationDefaults().getTicketStrategy();
     return new OrganizationConfig(
         entry.getOrganizationExternalId(),
         entry.getType(),
-        entry.getTicketStrategy(),
+        ticketStrategy,
         entry.getBaseUrl(),
         entry.getCredentials(),
         entry.getCallbackSecret(),

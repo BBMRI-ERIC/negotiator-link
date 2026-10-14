@@ -56,7 +56,7 @@
       "client_credentials"
     ],
     "AllowedScopes": [
-      "negotiator_helpdesk"
+      "negotiator_api"
     ],
     "ClientClaimsPrefix": "",
     "Claims": [],
@@ -72,7 +72,7 @@
       "client_credentials"
     ],
     "AllowedScopes": [
-      "negotiator_helpdesk"
+      "negotiator_api"
     ],
     "ClientClaimsPrefix": "",
     "Claims": [],
