@@ -2,7 +2,7 @@
 
 ## 1. Prerequisites
 
-Only Docker is required for building and running the image.
+Only Docker Engine and Docker Compose are required for building and running the image.
 
 ```bash
 docker --version           # Docker Engine
