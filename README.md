@@ -39,7 +39,7 @@ The included `compose.yml` starts a complete local environment for end-to-end ma
 ### Step 1 — Configure environment variables
 
 ```bash
-cp .env.example .env
+cp .env.dev.example .env
 ```
 
 Open `.env` and fill in the values:

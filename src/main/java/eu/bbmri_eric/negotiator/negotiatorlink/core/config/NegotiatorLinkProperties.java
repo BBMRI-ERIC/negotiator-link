@@ -13,7 +13,13 @@ public class NegotiatorLinkProperties {
 
   private List<OrgEntry> organizations = new ArrayList<>();
   private Map<String, String> resourceEvents = new HashMap<>();
-  private Map<HelpdeskType, HelpdeskDefaults> defaults = new HashMap<>();
+  private Map<HelpdeskType, HelpdeskDefaults> helpdeskDefaults = new HashMap<>();
+  private OrganizationDefaults organizationDefaults = new OrganizationDefaults();
+
+  @Data
+  public static class OrganizationDefaults {
+    private TicketStrategy ticketStrategy;
+  }
 
   @Data
   public static class OrgEntry {

@@ -79,7 +79,7 @@ negotiator-link:
       negotiatorCredentials:
         clientId: "test-client-id-fimm"
         clientSecret: "test-client-secret-fimm"
-  defaults:
+  helpdesk-defaults:
     ZAMMAD:
       negotiationStateToTicketState:
         ABANDONED: "closed"
