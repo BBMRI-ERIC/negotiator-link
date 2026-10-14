@@ -4,8 +4,8 @@ spring:
   config:
     import: "optional:file:${ORGANIZATIONS_CONFIG_PATH:}"
   datasource:
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
+    url: ${DB_URL:jdbc:postgresql://negotiator-link-postgresql:5432/negotiator_link}
+    username: ${DB_USERNAME:negotiator_link}
     password: ${DB_PASSWORD}
   jpa:
     hibernate:
@@ -27,7 +27,9 @@ negotiator-link:
     connect-timeout: PT5S
     read-timeout: PT10S
   organizations: []
-  defaults:
+  organization-defaults:
+    ticketStrategy: PER_RESOURCE
+  helpdesk-defaults:
     ZAMMAD:
       negotiationStateToTicketState:
         ABANDONED: "closed"
