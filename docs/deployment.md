@@ -22,8 +22,8 @@ docker compose version     # Compose v2.x
 
 ```bash
 # 1. Get the code onto the VM (clone once; later updates use `git pull`)
-git clone <repo-url> ~/negotiator-link
-cd ~/negotiator-link
+git clone <repo-url> ~/opt/negotiator-link
+cd ~/opt/negotiator-link
 
 # 2. Create the production config from the templates
 cp .env.prod.example .env
@@ -79,7 +79,7 @@ curl -I https://<your-domain>/actuator/health
 ## 5. Updating deployed negotiator-link
 
 ```bash
-cd ~/negotiator-link
+cd ~/opt/negotiator-link
 git pull                                               # fetch updated source / compose / templates
 sudo docker compose -f compose.prod.yml up -d --build  # rebuild image and restart changed services
 ```
@@ -97,7 +97,7 @@ needed — only configuration.
    secret, and the help-desk API token / callback secret referenced by the placeholders above.
 3. **Apply the change:**
    ```bash
-   cd ~/negotiator-link
+   cd ~/opt/negotiator-link
    sudo docker compose -f compose.prod.yml up -d --force-recreate negotiator-link
    ```
    > No `--build` is required. The database container and its data are untouched.
