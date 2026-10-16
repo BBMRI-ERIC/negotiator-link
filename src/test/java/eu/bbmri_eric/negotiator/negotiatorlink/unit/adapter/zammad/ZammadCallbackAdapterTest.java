@@ -6,6 +6,7 @@ import static org.assertj.core.api.InstanceOfAssertFactories.type;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.zammad.ZammadCallbackAdapter;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskAttachmentRef;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.PostMessageEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionWithPostMessageEvent;
@@ -14,6 +15,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketStateChangedEven
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
@@ -89,7 +91,7 @@ class ZammadCallbackAdapterTest {
 
     var expected =
         new PostMessageEvent(
-            "2", "Hello from help desk", new Sender("John Rep", "john.rep@example.com"));
+            "2", "Hello from help desk", new Sender("John Rep", "john.rep@example.com"), List.of());
     assertThat(adapter.parseCallback(payload)).contains(expected);
   }
 
@@ -111,7 +113,8 @@ class ZammadCallbackAdapterTest {
             "IN_PROGRESS",
             "MARK_AS_AVAILABLE",
             "Granting access",
-            new Sender("Jane Rep", "jane.rep@example.com"));
+            new Sender("Jane Rep", "jane.rep@example.com"),
+            List.of());
     assertThat(adapter.parseCallback(payload)).contains(expected);
   }
 
@@ -205,6 +208,75 @@ class ZammadCallbackAdapterTest {
         .asInstanceOf(type(PostMessageEvent.class))
         .extracting(PostMessageEvent::sender)
         .isNull();
+  }
+
+  @Test
+  void parseCallback_publicArticleWithAttachments_mapsRelativeDownloadPaths() {
+    Map<String, Object> payload =
+        zammadCallbackPayload(
+            "391", "", "IN_PROGRESS", "Body with files", "John", "Rep", "john.rep@example.com");
+    @SuppressWarnings("unchecked")
+    Map<String, Object> article = (Map<String, Object>) payload.get("article");
+    article.put("id", "2875");
+    article.put(
+        "attachments",
+        java.util.List.of(
+            attachment("668", "data (3).csv", "text/csv"),
+            attachment("669", "data (4).csv", "text/csv")));
+
+    assertThat(adapter.parseCallback(payload))
+        .isPresent()
+        .get()
+        .asInstanceOf(type(PostMessageEvent.class))
+        .extracting(PostMessageEvent::attachments)
+        .isEqualTo(
+            java.util.List.of(
+                new HelpdeskAttachmentRef(
+                    "/api/v1/ticket_attachment/391/2875/668", "data (3).csv", "text/csv"),
+                new HelpdeskAttachmentRef(
+                    "/api/v1/ticket_attachment/391/2875/669", "data (4).csv", "text/csv")));
+  }
+
+  @Test
+  void parseCallback_transitionWithArticleAndAttachments_carriesAttachmentsOnCombinedEvent() {
+    Map<String, Object> payload =
+        zammadCallbackPayload(
+            "391", "MARK_AS_AVAILABLE", "IN_PROGRESS", "Body", "Jane", "Rep", "jane@example.com");
+    @SuppressWarnings("unchecked")
+    Map<String, Object> article = (Map<String, Object>) payload.get("article");
+    article.put("id", "2875");
+    article.put("attachments", java.util.List.of(attachment("668", "data (3).csv", "text/csv")));
+
+    assertThat(adapter.parseCallback(payload))
+        .isPresent()
+        .get()
+        .asInstanceOf(type(ResourceTransitionWithPostMessageEvent.class))
+        .extracting(ResourceTransitionWithPostMessageEvent::attachments)
+        .isEqualTo(
+            java.util.List.of(
+                new HelpdeskAttachmentRef(
+                    "/api/v1/ticket_attachment/391/2875/668", "data (3).csv", "text/csv")));
+  }
+
+  @Test
+  void parseCallback_articleWithoutAttachments_hasEmptyAttachments() {
+    var payload =
+        zammadCallbackPayload("2", "", "IN_PROGRESS", "Hello", "John", "Rep", "john@example.com");
+
+    assertThat(adapter.parseCallback(payload))
+        .isPresent()
+        .get()
+        .asInstanceOf(type(PostMessageEvent.class))
+        .extracting(PostMessageEvent::attachments)
+        .isEqualTo(java.util.List.of());
+  }
+
+  private static Map<String, Object> attachment(String id, String filename, String contentType) {
+    Map<String, Object> att = new HashMap<>();
+    att.put("id", id);
+    att.put("filename", filename);
+    att.put("preferences", Map.of("Content-Type", contentType));
+    return att;
   }
 
   @Test

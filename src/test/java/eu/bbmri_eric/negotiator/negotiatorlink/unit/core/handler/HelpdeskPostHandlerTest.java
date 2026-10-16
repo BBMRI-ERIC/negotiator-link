@@ -159,6 +159,6 @@ class HelpdeskPostHandlerTest {
   }
 
   private PostMessageEvent callbackEvent() {
-    return new PostMessageEvent(TICKET_ID, POST_TEXT, SENDER);
+    return new PostMessageEvent(TICKET_ID, POST_TEXT, SENDER, List.of());
   }
 }
