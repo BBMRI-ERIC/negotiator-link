@@ -46,7 +46,7 @@ Open `.env` and fill in the values:
 
 - **`NEGOTIATOR_WEBHOOK_SECRET`** — shared secret between Negotiator and negotiator-link for webhook signature
   verification. You can keep there example for local testing: `whsec_bG9jYWwtZGV2LXdlYmhvb2stc2VjcmV0`
-- **`ZAMMAD_MHH_API_TOKEN`** — Zammad API token (obtain in Step 5 after Zammad starts)
+- **`ZAMMAD_MHH_API_TOKEN`** — Zammad API token (obtain in Step 7)
 - **`ZAMMAD_MHH_CALLBACK_SECRET`** — shared secret for verifying inbound Zammad callbacks. Can be any string for local
   testing, e.g. `local-dev-callback-secret`
 
