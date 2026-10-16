@@ -121,6 +121,16 @@ public class ZammadClient implements HelpdeskClient {
     }
   }
 
+  @Override
+  public byte[] downloadAttachment(String relativePath, OrganizationConfig config) {
+    return buildClient(config)
+        .get()
+        .uri(relativePath)
+        .accept(MediaType.APPLICATION_OCTET_STREAM)
+        .retrieve()
+        .body(byte[].class);
+  }
+
   private String getTicketNumber(RestClient client, String ticketId) {
     TicketResponse response =
         client.get().uri(TICKET_BY_ID_PATH, ticketId).retrieve().body(TicketResponse.class);
