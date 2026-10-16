@@ -6,6 +6,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HandlerResult;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationEventHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.NegotiatorEventRouter;
 import java.nio.charset.StandardCharsets;
@@ -33,6 +34,7 @@ class NegotiatorEventRouterTest {
 
   @Test
   void route_dispatchesToMatchingHandler() {
+    when(handlerA.handle(any())).thenReturn(HandlerResult.empty());
     byte[] body =
         "{\"type\":\"negotiation.state.updated\",\"data\":{\"negotiationId\":\"n1\"}}"
             .getBytes(StandardCharsets.UTF_8);

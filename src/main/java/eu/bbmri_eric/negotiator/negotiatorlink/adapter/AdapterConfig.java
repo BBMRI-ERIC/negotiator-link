@@ -11,14 +11,14 @@ import org.springframework.context.annotation.Configuration;
 class AdapterConfig {
 
   @Bean
-  Map<HelpdeskType, HelpdeskCallbackAdapter> callbackAdapters(
+  Map<HelpdeskType, HelpdeskCallbackAdapter> helpdeskCallbackAdapters(
       List<HelpdeskCallbackAdapter> callbackAdapters) {
     return callbackAdapters.stream()
         .collect(Collectors.toMap(HelpdeskCallbackAdapter::getType, adapter -> adapter));
   }
 
   @Bean
-  Map<HelpdeskType, HelpdeskClient> helpDeskClients(List<HelpdeskClient> clients) {
+  Map<HelpdeskType, HelpdeskClient> helpdeskClients(List<HelpdeskClient> clients) {
     return clients.stream().collect(Collectors.toMap(HelpdeskClient::getType, client -> client));
   }
 }

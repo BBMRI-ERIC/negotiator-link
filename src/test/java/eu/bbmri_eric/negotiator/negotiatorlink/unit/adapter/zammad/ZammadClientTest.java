@@ -3,6 +3,8 @@ package eu.bbmri_eric.negotiator.negotiatorlink.unit.adapter.zammad;
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalToJson;
+import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.notMatching;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
@@ -22,7 +24,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreatedTicket;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +42,7 @@ class ZammadClientTest {
   private static final String TICKETS_URL = "/api/v1/tickets";
   private static final String TICKET_ARTICLES_URL = "/api/v1/ticket_articles";
   private static final String LINKS_ADD_URL = "/api/v1/links/add";
+  private static final String GET_TICKET_URL = "/api/v1/tickets/{id}";
 
   private static final String API_TOKEN = "test-api-token";
   private static final String CALLBACK_SECRET = "test-callback-secret";
@@ -99,10 +101,9 @@ class ZammadClientTest {
             "Ticket body",
             List.of());
 
-    CreatedTicket result = client.createTicket(request, config);
+    String result = client.createTicket(request, config);
 
-    assertThat(result.ticketId()).isEqualTo("42");
-    assertThat(result.ticketNumber()).isEqualTo("22042");
+    assertThat(result).isEqualTo("42");
 
     wireMock.verify(
         postRequestedFor(urlEqualTo(TICKETS_URL))
@@ -148,9 +149,9 @@ class ZammadClientTest {
             "Body text",
             List.of());
 
-    CreatedTicket result = client.createTicket(request, config);
+    String result = client.createTicket(request, config);
 
-    assertThat(result.ticketId()).isEqualTo("99");
+    assertThat(result).isEqualTo("99");
 
     wireMock.verify(
         postRequestedFor(urlEqualTo(TICKETS_URL))
@@ -198,8 +199,7 @@ class ZammadClientTest {
   static Stream<Arguments> invalidCreateTicketResponses() {
     return Stream.of(
         Arguments.of("empty response body", 201, null),
-        Arguments.of("missing id", 201, "{\"number\":\"22042\"}"),
-        Arguments.of("missing number", 201, "{\"id\":42}"));
+        Arguments.of("missing id", 201, "{\"number\":\"22042\"}"));
   }
 
   @Test
@@ -434,6 +434,7 @@ class ZammadClientTest {
 
   @Test
   void linkRelatedTickets_threeTickets_callsUpperTrianglePairs() {
+    var ticketIds = List.of("1", "2", "3");
     wireMock.stubFor(
         post(urlEqualTo(LINKS_ADD_URL))
             .willReturn(
@@ -441,17 +442,27 @@ class ZammadClientTest {
                     .withStatus(201)
                     .withHeader("Content-Type", "application/json")
                     .withBody("{}")));
+    wireMock.stubFor(
+        get(urlEqualTo(GET_TICKET_URL.replace("{id}", "1")))
+            .willReturn(
+                aResponse()
+                    .withStatus(200)
+                    .withHeader("Content-Type", "application/json")
+                    .withBody("{\"id\":1,\"number\":\"10001\"}")));
+    wireMock.stubFor(
+        get(urlEqualTo(GET_TICKET_URL.replace("{id}", "2")))
+            .willReturn(
+                aResponse()
+                    .withStatus(200)
+                    .withHeader("Content-Type", "application/json")
+                    .withBody("{\"id\":2,\"number\":\"10002\"}")));
 
-    var tickets =
-        List.of(
-            new CreatedTicket("1", "10001"),
-            new CreatedTicket("2", "10002"),
-            new CreatedTicket("3", "10003"));
-
-    client.linkRelatedTickets(tickets, config);
+    client.linkRelatedTickets(ticketIds, config);
 
     // N*(N-1)/2 = 3 calls — one per unique pair; Zammad creates a bidirectional link per call
     wireMock.verify(3, postRequestedFor(urlEqualTo(LINKS_ADD_URL)));
+    wireMock.verify(1, getRequestedFor(urlEqualTo(GET_TICKET_URL.replace("{id}", "1"))));
+    wireMock.verify(1, getRequestedFor(urlEqualTo(GET_TICKET_URL.replace("{id}", "2"))));
 
     wireMock.verify(
         postRequestedFor(urlEqualTo(LINKS_ADD_URL))
@@ -472,7 +483,7 @@ class ZammadClientTest {
 
   @Test
   void linkRelatedTickets_singleTicket_makesNoCalls() {
-    client.linkRelatedTickets(List.of(new CreatedTicket("1", "10001")), config);
+    client.linkRelatedTickets(List.of("1"), config);
     wireMock.verify(0, postRequestedFor(urlEqualTo(LINKS_ADD_URL)));
   }
 }

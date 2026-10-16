@@ -9,6 +9,7 @@ import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.resource;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.resourceStateUpdatedPayload;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.signedWebhookPayload;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.utf8;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -23,12 +24,18 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.EventSource;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.InboxStatus;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxStatus;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.InboxEventRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.AttachmentMetadataDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorNegotiationEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorResourceEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,6 +68,8 @@ class NegotiatorToZammadE2ETest {
 
   @Autowired private MockMvc mockMvc;
   @Autowired private TicketMappingRepository ticketMappingRepository;
+  @Autowired private InboxEventRepository inboxEventRepository;
+  @Autowired private OutboxIntentRepository outboxIntentRepository;
   @Autowired private RestClient.Builder restClientBuilder;
 
   @Value("${negotiator-link.webhook.secret}")
@@ -350,5 +359,20 @@ class NegotiatorToZammadE2ETest {
                     "Webhook-Signature", signedWebhookPayload(secret, webhookId, timestamp, body))
                 .content(utf8(body)))
         .andExpect(status().isOk());
+    await()
+        .atMost(Duration.ofSeconds(10))
+        .until(
+            () ->
+                inboxEventRepository
+                    .findBySourceAndDeliveryId(EventSource.NEGOTIATOR.name(), webhookId)
+                    .map(e -> e.getStatus() != InboxStatus.RECEIVED)
+                    .orElse(false));
+    await()
+        .atMost(Duration.ofSeconds(10))
+        .until(
+            () ->
+                outboxIntentRepository.countByStatusIn(
+                        List.of(OutboxStatus.PENDING, OutboxStatus.IN_PROGRESS))
+                    == 0);
   }
 }

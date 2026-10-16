@@ -1,35 +1,32 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.handler;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.contains;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HandlerResult;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationUpdatedHandler;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationCache;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationException;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddNegotiationAttachmentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService.ResolvedAttachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -50,9 +47,9 @@ class NegotiationUpdatedHandlerTest {
 
   @Mock private NegotiatorClient negotiatorClient;
   @Mock private OrganizationConfigRegistry registry;
-  @Mock private HelpdeskClient helpdeskClient;
   @Mock private TicketMappingRepository ticketMappingRepository;
   @Mock private AttachmentForwardingService attachmentForwardingService;
+  @Mock private PendingTicketCreationCache pendingTicketCreationCache;
 
   private final ObjectMapper objectMapper = new ObjectMapper();
   private NegotiationUpdatedHandler handler;
@@ -63,31 +60,37 @@ class NegotiationUpdatedHandlerTest {
         new NegotiationUpdatedHandler(
             negotiatorClient,
             registry,
-            Map.of(HelpdeskType.ZAMMAD, helpdeskClient),
             ticketMappingRepository,
             attachmentForwardingService,
+            pendingTicketCreationCache,
             objectMapper);
   }
 
   @Test
-  void handle_noMappedTickets_doesNotAddComment() throws Exception {
+  void handle_noMappedTickets_cacheAbsent_returnsNoIntents() throws Exception {
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(List.of());
+    when(pendingTicketCreationCache.isTracked(NEGOTIATION_ID)).thenReturn(false);
 
-    handler.handle(updatedEventNode(NEGOTIATION_ID));
-
-    verify(helpdeskClient, never()).addComment(anyString(), anyString(), any(), anyList(), any());
+    assertThat(handler.handle(updatedEventNode(NEGOTIATION_ID)).intents()).isEmpty();
   }
 
   @Test
-  void handle_nullNegotiationId_doesNotAddComment() throws Exception {
-    handler.handle(updatedEventNode(null));
+  void handle_noMappedTickets_cachePresent_throwsPendingTicketCreationException() {
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(List.of());
+    when(pendingTicketCreationCache.isTracked(NEGOTIATION_ID)).thenReturn(true);
 
-    verify(helpdeskClient, never()).addComment(anyString(), anyString(), any(), anyList(), any());
+    assertThatThrownBy(() -> handler.handle(updatedEventNode(NEGOTIATION_ID)))
+        .isInstanceOf(PendingTicketCreationException.class);
+  }
+
+  @Test
+  void handle_nullNegotiationId_returnsNoIntents() throws Exception {
+    assertThat(handler.handle(updatedEventNode(null)).intents()).isEmpty();
     verify(ticketMappingRepository, never()).findByIdNegotiationId(anyString());
   }
 
   @Test
-  void handle_singlePerResourceTicket_addsCommentWithUpdateNote() throws Exception {
+  void handle_singlePerResourceTicket_emitsHtmlCommentIntentWithUpdateNote() throws Exception {
     var config = TestUtil.organizationConfig(ORG_EXT_ID, TicketStrategy.PER_RESOURCE);
     var negotiation = TestUtil.negotiation(NEGOTIATION_ID, DISPLAY_ID, "IN_PROGRESS");
     var resource =
@@ -100,14 +103,23 @@ class NegotiationUpdatedHandlerTest {
     when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config)).thenReturn(negotiation);
     when(negotiatorClient.getResources(NEGOTIATION_ID, config)).thenReturn(List.of(resource));
 
-    handler.handle(updatedEventNode(NEGOTIATION_ID));
+    HandlerResult result = handler.handle(updatedEventNode(NEGOTIATION_ID));
+    assertThat(result.originatedPost()).isEmpty();
 
-    verify(helpdeskClient, times(1))
-        .addComment(eq(TICKET_ID), contains("updated"), eq(CommentType.HTML), eq(config));
+    List<PendingIntent> intents = result.intents();
+
+    assertThat(intents).hasSize(1);
+    PendingIntent intent = intents.getFirst();
+    assertThat(intent.outboxIntentType()).isEqualTo(OutboxIntentType.ADD_COMMENT);
+    assertThat(intent.targetId()).isEqualTo(TICKET_ID);
+    assertThat(intent.organizationExtId()).isEqualTo(ORG_EXT_ID);
+    AddCommentPayload payload = readComment(intent);
+    assertThat(payload.text()).contains("updated");
+    assertThat(payload.commentType()).isEqualTo(CommentType.HTML);
   }
 
   @Test
-  void handle_twoPerResourceTicketsDifferentOrgs_addsCommentToEach() throws Exception {
+  void handle_twoPerResourceTicketsDifferentOrgs_emitsCommentIntentForEach() throws Exception {
     var orgExtId2 = "bbmri:NL:AMC";
     var ticketId2 = "ticket-99";
     var config1 = TestUtil.organizationConfig(ORG_EXT_ID, TicketStrategy.PER_RESOURCE);
@@ -127,107 +139,52 @@ class NegotiationUpdatedHandlerTest {
     when(negotiatorClient.getResources(NEGOTIATION_ID, config1))
         .thenReturn(List.of(resource1, resource2));
 
-    handler.handle(updatedEventNode(NEGOTIATION_ID));
+    List<PendingIntent> intents = handler.handle(updatedEventNode(NEGOTIATION_ID)).intents();
 
-    verify(helpdeskClient, times(1))
-        .addComment(eq(TICKET_ID), contains("updated"), eq(CommentType.HTML), eq(config1));
-    verify(helpdeskClient, times(1))
-        .addComment(eq(ticketId2), contains("updated"), eq(CommentType.HTML), eq(config2));
-    verify(attachmentForwardingService, never())
-        .recordForwardedAttachments(any(), any(), any(), any());
+    assertThat(intents).hasSize(2);
+    assertThat(intents)
+        .allSatisfy(i -> assertThat(i.outboxIntentType()).isEqualTo(OutboxIntentType.ADD_COMMENT));
+    assertThat(intents)
+        .extracting(PendingIntent::targetId)
+        .containsExactlyInAnyOrder(TICKET_ID, ticketId2);
+    assertThat(intents)
+        .extracting(PendingIntent::organizationExtId)
+        .containsExactlyInAnyOrder(ORG_EXT_ID, orgExtId2);
   }
 
   @Test
-  void handle_newAttachments_forwardsThemInSeparateCommentAndRecordsForTicket() throws Exception {
+  void handle_newAttachments_emitsHtmlCommentAndAttachmentCommentIntents() throws Exception {
     var config = TestUtil.organizationConfig(ORG_EXT_ID, TicketStrategy.PER_RESOURCE);
     var negotiation = TestUtil.negotiation(NEGOTIATION_ID, DISPLAY_ID, "IN_PROGRESS");
     var resource =
         TestUtil.resource(1L, RESOURCE_SOURCE_ID, "My Collection", ORG_EXT_ID, ORG_INTERNAL_ID);
     var mapping = mapping(NEGOTIATION_ID, TICKET_ID, RESOURCE_ID, RESOURCE_SOURCE_ID);
-    var attachment =
-        new ResolvedAttachment(
-            "a-1", new Attachment("public.txt", "text/plain", "bytes".getBytes()));
 
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID))
         .thenReturn(List.of(mapping));
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
     when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config)).thenReturn(negotiation);
     when(negotiatorClient.getResources(NEGOTIATION_ID, config)).thenReturn(List.of(resource));
-    when(attachmentForwardingService.resolveForwardablePayloadAttachments(NEGOTIATION_ID, config))
-        .thenReturn(List.of(attachment));
-    when(attachmentForwardingService.notYetForwardedToTicket(
-            ORG_EXT_ID, TICKET_ID, List.of(attachment)))
-        .thenReturn(List.of(attachment));
+    when(attachmentForwardingService.getNegotiationPayloadAttachmentsIds(NEGOTIATION_ID, config))
+        .thenReturn(List.of("a-1"));
+    when(attachmentForwardingService.notYetForwardedToTicketIds(
+            ORG_EXT_ID, TICKET_ID, List.of("a-1")))
+        .thenReturn(List.of("a-1"));
 
-    handler.handle(updatedEventNode(NEGOTIATION_ID));
+    List<PendingIntent> intents = handler.handle(updatedEventNode(NEGOTIATION_ID)).intents();
 
-    verify(helpdeskClient, times(1))
-        .addComment(
-            eq(TICKET_ID),
-            contains("negotiation has been updated"),
-            eq(CommentType.HTML),
-            eq(config));
-    verify(helpdeskClient, times(1))
-        .addComment(
-            eq(TICKET_ID),
-            contains("negotiation-level attachments"),
-            eq(CommentType.PLAIN_TEXT),
-            argThat(files -> files.size() == 1),
-            eq(config));
-    verify(attachmentForwardingService)
-        .recordForwardedAttachments(NEGOTIATION_ID, ORG_EXT_ID, TICKET_ID, List.of("a-1"));
+    assertThat(intents).hasSize(2);
+    assertThat(intents)
+        .allSatisfy(i -> assertThat(i.outboxIntentType()).isEqualTo(OutboxIntentType.ADD_COMMENT));
+    AddNegotiationAttachmentPayload attachmentPayload =
+        objectMapper.readValue(intents.get(1).payloadJson(), AddNegotiationAttachmentPayload.class);
+    assertThat(attachmentPayload.negotiationAttachmentIds()).containsExactly("a-1");
+    assertThat(attachmentPayload.negotiationId()).isEqualTo(NEGOTIATION_ID);
+    assertThat(attachmentPayload.text()).contains("negotiation-level attachments");
   }
 
   @Test
-  void handle_attachmentForwardFailsForOneTicket_recordsOnlyTheSucceededTicket() throws Exception {
-    var orgExtId2 = "bbmri:NL:AMC";
-    var ticketId2 = "ticket-99";
-    var config1 = TestUtil.organizationConfig(ORG_EXT_ID, TicketStrategy.PER_RESOURCE);
-    var config2 = TestUtil.organizationConfig(orgExtId2, TicketStrategy.PER_RESOURCE);
-    var negotiation = TestUtil.negotiation(NEGOTIATION_ID, DISPLAY_ID, "IN_PROGRESS");
-    var resource1 =
-        TestUtil.resource(1L, RESOURCE_SOURCE_ID, "Collection 1", ORG_EXT_ID, ORG_INTERNAL_ID);
-    var resource2 = TestUtil.resource(2L, "src-2", "Collection 2", orgExtId2, 20L);
-    var mapping1 = mapping(NEGOTIATION_ID, TICKET_ID, "1", RESOURCE_SOURCE_ID);
-    var mapping2 = mapping(NEGOTIATION_ID, ticketId2, "2", "src-2", orgExtId2);
-    var attachment =
-        new ResolvedAttachment(
-            "a-1", new Attachment("public.txt", "text/plain", "bytes".getBytes()));
-
-    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID))
-        .thenReturn(List.of(mapping1, mapping2));
-    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config1));
-    when(registry.findByExternalId(orgExtId2)).thenReturn(Optional.of(config2));
-    when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config1)).thenReturn(negotiation);
-    when(negotiatorClient.getResources(NEGOTIATION_ID, config1))
-        .thenReturn(List.of(resource1, resource2));
-    when(attachmentForwardingService.resolveForwardablePayloadAttachments(NEGOTIATION_ID, config1))
-        .thenReturn(List.of(attachment));
-    when(attachmentForwardingService.notYetForwardedToTicket(
-            ORG_EXT_ID, TICKET_ID, List.of(attachment)))
-        .thenReturn(List.of(attachment));
-    when(attachmentForwardingService.notYetForwardedToTicket(
-            orgExtId2, ticketId2, List.of(attachment)))
-        .thenReturn(List.of(attachment));
-    doThrow(new RuntimeException("helpdesk down"))
-        .when(helpdeskClient)
-        .addComment(
-            eq(TICKET_ID),
-            contains("negotiation-level attachments"),
-            eq(CommentType.PLAIN_TEXT),
-            anyList(),
-            eq(config1));
-
-    handler.handle(updatedEventNode(NEGOTIATION_ID));
-
-    verify(attachmentForwardingService, never())
-        .recordForwardedAttachments(NEGOTIATION_ID, ORG_EXT_ID, TICKET_ID, List.of("a-1"));
-    verify(attachmentForwardingService)
-        .recordForwardedAttachments(NEGOTIATION_ID, orgExtId2, ticketId2, List.of("a-1"));
-  }
-
-  @Test
-  void handle_perNegotiationTicket_addsOneCommentWithAllResources() throws Exception {
+  void handle_perNegotiationTicket_emitsOneCommentIntentWithAllResources() throws Exception {
     var config = TestUtil.organizationConfig(ORG_EXT_ID, TicketStrategy.PER_NEGOTIATION);
     var negotiation = TestUtil.negotiation(NEGOTIATION_ID, DISPLAY_ID, "IN_PROGRESS");
     var resource1 =
@@ -243,41 +200,19 @@ class NegotiationUpdatedHandlerTest {
     when(negotiatorClient.getResources(NEGOTIATION_ID, config))
         .thenReturn(List.of(resource1, resource2));
 
-    handler.handle(updatedEventNode(NEGOTIATION_ID));
+    List<PendingIntent> intents = handler.handle(updatedEventNode(NEGOTIATION_ID)).intents();
 
-    verify(helpdeskClient, times(1))
-        .addComment(eq(TICKET_ID), contains("updated"), eq(CommentType.HTML), eq(config));
+    assertThat(intents).hasSize(1);
+    assertThat(intents.getFirst().targetId()).isEqualTo(TICKET_ID);
+    assertThat(readComment(intents.getFirst()).text()).contains("updated");
   }
 
-  @Test
-  void handle_addCommentThrows_exceptionSwallowedAndOtherTicketsStillProcessed() throws Exception {
-    var orgExtId2 = "bbmri:NL:AMC";
-    var ticketId2 = "ticket-99";
-    var config1 = TestUtil.organizationConfig(ORG_EXT_ID, TicketStrategy.PER_RESOURCE);
-    var config2 = TestUtil.organizationConfig(orgExtId2, TicketStrategy.PER_RESOURCE);
-    var negotiation = TestUtil.negotiation(NEGOTIATION_ID, DISPLAY_ID, "IN_PROGRESS");
-    var resource1 =
-        TestUtil.resource(1L, RESOURCE_SOURCE_ID, "Collection 1", ORG_EXT_ID, ORG_INTERNAL_ID);
-    var resource2 = TestUtil.resource(2L, "src-2", "Collection 2", orgExtId2, 20L);
-    var mapping1 = mapping(NEGOTIATION_ID, TICKET_ID, "1", RESOURCE_SOURCE_ID);
-    var mapping2 = mapping(NEGOTIATION_ID, ticketId2, "2", "src-2", orgExtId2);
-
-    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID))
-        .thenReturn(List.of(mapping1, mapping2));
-    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config1));
-    when(registry.findByExternalId(orgExtId2)).thenReturn(Optional.of(config2));
-    when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config1)).thenReturn(negotiation);
-    when(negotiatorClient.getResources(NEGOTIATION_ID, config1))
-        .thenReturn(List.of(resource1, resource2));
-    doThrow(new RuntimeException("helpdesk down"))
-        .when(helpdeskClient)
-        .addComment(eq(TICKET_ID), anyString(), any(), eq(config1));
-
-    handler.handle(updatedEventNode(NEGOTIATION_ID));
-
-    // First ticket failed but second must still be attempted.
-    verify(helpdeskClient, times(1))
-        .addComment(eq(ticketId2), contains("updated"), eq(CommentType.HTML), eq(config2));
+  private AddCommentPayload readComment(PendingIntent intent) {
+    try {
+      return objectMapper.readValue(intent.payloadJson(), AddCommentPayload.class);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   private JsonNode updatedEventNode(String negotiationId) throws Exception {

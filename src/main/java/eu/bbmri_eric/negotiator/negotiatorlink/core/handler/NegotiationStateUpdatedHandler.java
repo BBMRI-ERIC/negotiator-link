@@ -1,25 +1,30 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
+import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PayloadUtil.serialize;
 import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil.enumToText;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreatedTicket;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationCache;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationException;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.CreateTicketPayload;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.CreateTicketPayload.ResourceMappingRef;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.LinkTicketsPayload;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SetStatePayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService.ResolvedAttachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFormatter;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
@@ -50,9 +55,9 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
 
   private final NegotiatorClient negotiatorClient;
   private final OrganizationConfigRegistry registry;
-  private final Map<HelpdeskType, HelpdeskClient> clients;
   private final TicketMappingRepository ticketMappingRepository;
   private final AttachmentForwardingService attachmentForwardingService;
+  private final PendingTicketCreationCache pendingTicketCreationCache;
   private final ObjectMapper objectMapper;
 
   private record NegotiationWithConfig(
@@ -64,7 +69,8 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
   private record CreateNegotiationContext(
       EntityModelNegotiationDTO negotiation,
       List<EntityModelResourceWithStatusDTO> negotiationResources,
-      List<ResolvedAttachment> resolvedAttachments) {}
+      List<String> attachmentIds,
+      List<EntityModelPostDTO> posts) {}
 
   @Override
   public String getSupportedEventType() {
@@ -72,29 +78,30 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
   }
 
   @Override
-  public void handle(JsonNode data) {
-    NegotiationStateUpdatedWebhookEvent event =
-        objectMapper.convertValue(data, NegotiationStateUpdatedWebhookEvent.class);
-
-    if (event.getEvent() == null) {
-      log.warn("negotiation.state.updated has no 'event' field — discarding");
-      return;
+  public HandlerResult handle(JsonNode data) {
+    NegotiationStateUpdatedWebhookEvent event = parseEvent(data);
+    if (event == null) {
+      return HandlerResult.empty();
     }
 
     if (APPROVE_EVENT.equals(event.getEvent().getValue())) {
-      handleApprove(event);
-    } else {
-      handleStateChange(event);
+      return HandlerResult.of(handleApprove(event)); // create tickets
     }
+    return HandlerResult.of(handleStateChange(event));
   }
 
-  private void handleApprove(NegotiationStateUpdatedWebhookEvent event) {
-    buildCreateNegotiationContext(event)
-        .ifPresent(
-            context ->
-                groupByOrg(context.negotiationResources())
-                    .forEach(
-                        (orgExtId, orgResources) -> ticketOrg(orgExtId, orgResources, context)));
+  private List<PendingIntent> handleApprove(NegotiationStateUpdatedWebhookEvent event) {
+    Optional<CreateNegotiationContext> contextOpt = buildCreateNegotiationContext(event);
+    if (contextOpt.isEmpty()) {
+      return List.of();
+    }
+    CreateNegotiationContext context = contextOpt.get();
+    List<PendingIntent> intents = new ArrayList<>();
+    groupByOrg(context.negotiationResources())
+        .forEach(
+            (orgExtId, orgResources) -> intents.addAll(ticketOrg(orgExtId, orgResources, context)));
+    pendingTicketCreationCache.track(event.getNegotiationId());
+    return intents;
   }
 
   private Optional<CreateNegotiationContext> buildCreateNegotiationContext(
@@ -111,160 +118,128 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     EntityModelNegotiationDTO negotiation = result.negotiation();
     List<EntityModelResourceWithStatusDTO> resources =
         negotiatorClient.getResources(negotiationId, result.config());
-    List<ResolvedAttachment> resolvedAttachments =
-        attachmentForwardingService.resolveForwardablePayloadAttachments(
+    List<String> attachmentIds =
+        attachmentForwardingService.getNegotiationPayloadAttachmentsIds(
             negotiationId, result.config());
-    return Optional.of(new CreateNegotiationContext(negotiation, resources, resolvedAttachments));
+    List<EntityModelPostDTO> posts = negotiatorClient.getPosts(negotiationId, result.config());
+    return Optional.of(new CreateNegotiationContext(negotiation, resources, attachmentIds, posts));
   }
 
-  /** Creates tickets for a single organization's resources, skipping/logging on any failure. */
-  private void ticketOrg(
+  /** Builds the CREATE_TICKET (+ LINK_TICKETS) intents for a single organization's resources. */
+  private List<PendingIntent> ticketOrg(
       String orgExtId,
       List<EntityModelResourceWithStatusDTO> orgResources,
       CreateNegotiationContext context) {
     OrganizationConfig config = registry.findByExternalId(orgExtId).orElse(null);
     if (config == null) {
       log.debug("Organization '{}' not in config — skipping", orgExtId);
-      return;
+      return List.of();
     }
-    HelpdeskClient client = clients.get(config.type());
-
-    try {
-      if (config.ticketStrategy() == TicketStrategy.PER_NEGOTIATION) {
-        handlePerNegotiation(orgExtId, orgResources, config, client, context);
-      } else {
-        handlePerResource(orgExtId, orgResources, config, client, context);
-      }
-    } catch (Exception e) {
-      log.error(
-          "Failed to create ticket(s) for org '{}' in negotiation '{}'",
-          orgExtId,
-          context.negotiation().getId(),
-          e);
+    if (config.ticketStrategy() == TicketStrategy.PER_NEGOTIATION) {
+      return handlePerNegotiation(orgExtId, orgResources, context);
     }
+    return handlePerResource(orgExtId, orgResources, context);
   }
 
-  private void handlePerNegotiation(
+  private List<PendingIntent> handlePerNegotiation(
       String orgExtId,
       List<EntityModelResourceWithStatusDTO> resources,
-      OrganizationConfig config,
-      HelpdeskClient client,
       CreateNegotiationContext context) {
     EntityModelNegotiationDTO negotiation = context.negotiation();
-
     String body =
         NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(negotiation, resources);
     String title = NegotiationTicketBodyFormatter.buildTitle(negotiation, null);
 
-    CreateTicketRequest request =
-        new CreateTicketRequest(
+    CreateTicketPayload payload =
+        new CreateTicketPayload(
+            negotiation.getId(),
             title,
             negotiation.getStatus(),
             resolveInitialState(resources.getFirst()),
             body,
-            payloadAttachments(context));
-
-    CreatedTicket created = client.createTicket(request, config);
-    log.info(
-        "Created PER_NEGOTIATION ticket '{}' for org '{}' in negotiation '{}'",
-        created.ticketId(),
-        orgExtId,
-        negotiation.getId());
-    List<EntityModelPostDTO> posts = negotiatorClient.getPosts(negotiation.getId(), config);
-    afterTicketCreated(created, resources, posts, orgExtId, config, client, context);
+            context.attachmentIds(),
+            resourceRefs(resources),
+            orderAndSignNegotiationPosts(context.posts()));
+    return List.of(createTicketIntent(negotiation.getId(), orgExtId, payload));
   }
 
-  private void handlePerResource(
+  private List<PendingIntent> handlePerResource(
       String orgExtId,
       List<EntityModelResourceWithStatusDTO> resources,
-      OrganizationConfig config,
-      HelpdeskClient client,
       CreateNegotiationContext context) {
     EntityModelNegotiationDTO negotiation = context.negotiation();
-    List<EntityModelPostDTO> posts = negotiatorClient.getPosts(negotiation.getId(), config);
+    List<PendingIntent> intents = new ArrayList<>();
 
-    List<CreatedTicket> createdTickets = new ArrayList<>();
     for (EntityModelResourceWithStatusDTO resource : resources) {
       String body =
           NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(negotiation, resource);
       String title = NegotiationTicketBodyFormatter.buildTitle(negotiation, resource.getName());
-
-      CreateTicketRequest request =
-          new CreateTicketRequest(
+      CreateTicketPayload payload =
+          new CreateTicketPayload(
+              negotiation.getId(),
               title,
               negotiation.getStatus(),
               resolveInitialState(resource),
               body,
-              payloadAttachments(context));
-
-      CreatedTicket created = client.createTicket(request, config);
-      log.info(
-          "Created PER_RESOURCE ticket '{}' for resource '{}' in negotiation '{}'",
-          created.ticketId(),
-          resource.getId(),
-          negotiation.getId());
-      afterTicketCreated(created, List.of(resource), posts, orgExtId, config, client, context);
-      createdTickets.add(created);
+              context.attachmentIds(),
+              resourceRefs(List.of(resource)),
+              orderAndSignNegotiationPosts(context.posts()));
+      intents.add(createTicketIntent(negotiation.getId(), orgExtId, payload));
     }
 
-    if (createdTickets.size() > 1) {
-      client.linkRelatedTickets(createdTickets, config);
+    if (resources.size() > 1) {
+      List<String> resourceSourceIds =
+          resources.stream().map(EntityModelResourceWithStatusDTO::getSourceId).toList();
+      intents.add(
+          new PendingIntent(
+              OutboxIntentType.LINK_TICKETS,
+              TargetKind.TICKET,
+              null,
+              negotiation.getId(),
+              orgExtId,
+              serialize(new LinkTicketsPayload(negotiation.getId(), resourceSourceIds))));
     }
+    return intents;
   }
 
-  private void afterTicketCreated(
-      CreatedTicket createdTicket,
-      List<EntityModelResourceWithStatusDTO> ticketResources,
-      List<EntityModelPostDTO> posts,
-      String orgExtId,
-      OrganizationConfig config,
-      HelpdeskClient client,
-      CreateNegotiationContext context) {
-    String negotiationId = context.negotiation().getId();
-    attachmentForwardingService.recordForwardedAttachments(
+  private PendingIntent createTicketIntent(
+      String negotiationId, String orgExtId, CreateTicketPayload payload) {
+    return new PendingIntent(
+        OutboxIntentType.CREATE_TICKET,
+        TargetKind.TICKET,
+        null,
         negotiationId,
         orgExtId,
-        createdTicket.ticketId(),
-        context.resolvedAttachments().stream().map(ResolvedAttachment::attachmentId).toList());
-    ticketResources.forEach(
-        resource -> saveMapping(createdTicket, resource, negotiationId, orgExtId));
-    postCommentsToTicket(createdTicket.ticketId(), posts, config, client);
+        serialize(payload));
   }
 
-  private void postCommentsToTicket(
-      String ticketId,
-      List<EntityModelPostDTO> posts,
-      OrganizationConfig config,
-      HelpdeskClient client) {
-    if (posts.isEmpty()) {
-      return;
-    }
-    posts.stream()
+  private List<ResourceMappingRef> resourceRefs(List<EntityModelResourceWithStatusDTO> resources) {
+    return resources.stream()
+        .map(
+            dto ->
+                new ResourceMappingRef(
+                    String.valueOf(dto.getId()),
+                    dto.getSourceId(),
+                    String.valueOf(dto.getOrganization().getId())))
+        .toList();
+  }
+
+  private List<String> orderAndSignNegotiationPosts(List<EntityModelPostDTO> posts) {
+    return posts.stream()
         .filter(post -> post.getText() != null)
         .sorted(
             Comparator.comparing(
                 EntityModelPostDTO::getCreationDate,
                 Comparator.nullsLast(Comparator.naturalOrder())))
-        .forEach(post -> addPostAsComment(ticketId, post, config, client));
+        .map(this::signPostText)
+        .toList();
   }
 
-  private void saveMapping(
-      CreatedTicket ticket,
-      EntityModelResourceWithStatusDTO resource,
-      String negotiationId,
-      String orgExtId) {
-    TicketMappingId id =
-        new TicketMappingId(negotiationId, ticket.ticketId(), String.valueOf(resource.getId()));
-    ticketMappingRepository.save(
-        new TicketMapping(
-            id,
-            resource.getSourceId(),
-            String.valueOf(resource.getOrganization().getId()),
-            orgExtId));
-  }
-
-  private List<Attachment> payloadAttachments(CreateNegotiationContext context) {
-    return context.resolvedAttachments().stream().map(ResolvedAttachment::attachment).toList();
+  private String signPostText(EntityModelPostDTO post) {
+    UserResponseModel createdBy = post.getCreatedBy();
+    Sender sender =
+        createdBy != null ? new Sender(createdBy.getName(), createdBy.getEmail()) : null;
+    return PostUtil.signPost(post.getText(), sender);
   }
 
   private String resolveInitialState(EntityModelResourceWithStatusDTO resource) {
@@ -316,25 +291,82 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     return null;
   }
 
-  private void handleStateChange(NegotiationStateUpdatedWebhookEvent event) {
+  private List<PendingIntent> handleStateChange(NegotiationStateUpdatedWebhookEvent event) {
     String negotiationId = event.getNegotiationId();
-    String toState = event.getToState() != null ? event.getToState().getValue() : null;
-
-    if (negotiationId == null || toState == null) {
-      log.warn("negotiation.state.updated missing negotiationId or toState — discarding");
-      return;
-    }
+    String toState = event.getToState().getValue();
 
     Map<String, String> ticketToOrgExtId = getDistinctTicketIdToOrgExtId(negotiationId);
     if (ticketToOrgExtId.isEmpty()) {
+      if (pendingTicketCreationCache.isTracked(negotiationId)) {
+        throw new PendingTicketCreationException(negotiationId);
+      }
       log.debug("No mapped tickets for negotiation '{}' — skipping state update", negotiationId);
-      return;
+      return List.of();
     }
 
-    EntityModelPostDTO post = fetchPost(negotiationId, event.getPostId(), ticketToOrgExtId);
+    String signedPost = fetchSignedPost(negotiationId, event.getPostId(), ticketToOrgExtId);
 
+    List<PendingIntent> intents = new ArrayList<>();
     ticketToOrgExtId.forEach(
-        (ticketId, orgExtId) -> updateNegotiationStateInTicket(ticketId, orgExtId, toState, post));
+        (ticketId, orgExtId) ->
+            intents.addAll(
+                stateChangeIntents(negotiationId, ticketId, orgExtId, toState, signedPost)));
+    return intents;
+  }
+
+  private List<PendingIntent> stateChangeIntents(
+      String negotiationId, String ticketId, String orgExtId, String toState, String signedPost) {
+    OrganizationConfig config = registry.findByExternalId(orgExtId).orElse(null);
+    if (config == null) {
+      log.debug("Organization '{}' not in config — skipping", orgExtId);
+      return List.of();
+    }
+    List<PendingIntent> intents = new ArrayList<>();
+    intents.add(
+        ticketIntent(
+            OutboxIntentType.SET_NEGOTIATION_STATE,
+            negotiationId,
+            ticketId,
+            orgExtId,
+            serialize(new SetStatePayload(SetStatePayload.FIELD_NEGOTIATION_STATE, toState))));
+    intents.add(
+        ticketIntent(
+            OutboxIntentType.ADD_SYSTEM_COMMENT,
+            negotiationId,
+            ticketId,
+            orgExtId,
+            serialize(
+                new AddSystemCommentPayload(
+                    "Negotiation status changed to '%s'".formatted(enumToText(toState))))));
+    if (signedPost != null) {
+      intents.add(
+          ticketIntent(
+              OutboxIntentType.ADD_COMMENT,
+              negotiationId,
+              ticketId,
+              orgExtId,
+              serialize(new AddCommentPayload(signedPost, CommentType.PLAIN_TEXT))));
+    }
+    String ticketState = config.negotiationStateToTicketState().get(toState);
+    if (ticketState != null) {
+      intents.add(
+          ticketIntent(
+              OutboxIntentType.SET_TICKET_STATE,
+              negotiationId,
+              ticketId,
+              orgExtId,
+              serialize(new SetStatePayload(SetStatePayload.FIELD_TICKET_STATE, ticketState))));
+    }
+    return intents;
+  }
+
+  private PendingIntent ticketIntent(
+      OutboxIntentType type,
+      String negotiationId,
+      String ticketId,
+      String orgExtId,
+      String payload) {
+    return new PendingIntent(type, TargetKind.TICKET, ticketId, negotiationId, orgExtId, payload);
   }
 
   private Map<String, String> getDistinctTicketIdToOrgExtId(String negotiationId) {
@@ -345,31 +377,11 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     return ticketToOrgExtId;
   }
 
-  private void updateNegotiationStateInTicket(
-      String ticketId, String orgExtId, String toState, EntityModelPostDTO post) {
-    OrganizationConfig config = registry.findByExternalId(orgExtId).orElse(null);
-    if (config == null) {
-      log.debug("Organization '{}' not in config — skipping", orgExtId);
-      return;
-    }
-    HelpdeskClient client = clients.get(config.type());
-    try {
-      log.info("Updating negotiation state on ticket '{}' to state '{}'", ticketId, toState);
-      client.updateNegotiationState(ticketId, toState, config);
-      client.addSystemComment(
-          ticketId, "Negotiation status changed to '%s'".formatted(enumToText(toState)), config);
-      addPostAsComment(ticketId, post, config, client);
-
-      String ticketState = config.negotiationStateToTicketState().get(toState);
-      if (ticketState != null) {
-        client.updateTicketState(ticketId, ticketState, config);
-      }
-    } catch (Exception e) {
-      log.error("Fail in updating negotiation state on ticket '{}'", ticketId, e);
-    }
-  }
-
-  private EntityModelPostDTO fetchPost(
+  /**
+   * Fetches the post (if any) send along with state transition and returns its signed text, or
+   * {@code null}.
+   */
+  private String fetchSignedPost(
       String negotiationId, String postId, Map<String, String> ticketToOrgExtId) {
     if (postId == null) {
       return null;
@@ -380,30 +392,26 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       log.debug("Organization '{}' not in config — skipping", orgExtId);
       return null;
     }
-    try {
-      return negotiatorClient.getPost(negotiationId, postId, config);
-    } catch (Exception e) {
-      log.error(
-          "Failed to fetch post '{}' while updating the state of negotiation '{}'",
-          postId,
-          negotiationId,
-          e);
+    EntityModelPostDTO post = negotiatorClient.getPost(negotiationId, postId, config);
+    if (post == null || post.getText() == null) {
       return null;
     }
+    return signPostText(post);
   }
 
-  /** Posts the given post as a comment on the ticket, if present. */
-  private void addPostAsComment(
-      String ticketId, EntityModelPostDTO post, OrganizationConfig config, HelpdeskClient client) {
-    if (post == null || post.getText() == null) {
-      return;
+  /** Parses and validates the webhook event, or returns {@code null} if it is incomplete. */
+  private NegotiationStateUpdatedWebhookEvent parseEvent(JsonNode data) {
+    NegotiationStateUpdatedWebhookEvent event =
+        objectMapper.convertValue(data, NegotiationStateUpdatedWebhookEvent.class);
+
+    String negotiationId = event.getNegotiationId();
+    String toState = event.getToState() != null ? event.getToState().getValue() : null;
+    String transitionEvent = event.getEvent() != null ? event.getEvent().getValue() : null;
+
+    if (negotiationId == null || toState == null || transitionEvent == null) {
+      log.warn("Incomplete state updated event — skipping");
+      return null;
     }
-    UserResponseModel createdBy = post.getCreatedBy();
-    String postText = post.getText();
-    Sender sender =
-        createdBy != null ? new Sender(createdBy.getName(), createdBy.getEmail()) : null;
-    String signedText = PostUtil.signPost(postText, sender);
-    client.addComment(ticketId, signedText, CommentType.PLAIN_TEXT, config);
-    log.info("Posted comment '{}' to ticket '{}'", post.getId(), ticketId);
+    return event;
   }
 }

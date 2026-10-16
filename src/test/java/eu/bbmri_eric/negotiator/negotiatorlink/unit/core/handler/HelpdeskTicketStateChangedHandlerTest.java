@@ -2,9 +2,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.handler;
 
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.organizationConfig;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -13,13 +11,18 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HandlerResult;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HelpdeskTicketStateChangedHandler;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketStateChangedEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.ResourceTransitionService;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.ResourceTransitionService.InvalidResource;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.ResourceTransitionService.Rejection;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.service.ResourceTransitionService.TransitionResult;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -65,51 +68,60 @@ class HelpdeskTicketStateChangedHandlerTest {
   }
 
   @Test
-  void handle_mappedStateWithMappings_appliesTransition() {
+  void handle_mappedStateWithMappings_returnsTransitionIntents() {
     List<TicketMapping> mappings = List.of(mapping(RESOURCE_SOURCE_ID));
+    PendingIntent transitionIntent =
+        new PendingIntent(
+            OutboxIntentType.SEND_RESOURCE_EVENT,
+            TargetKind.NEGOTIATION,
+            NEGOTIATION_ID,
+            NEGOTIATION_ID,
+            ORG_EXT_ID,
+            "{}");
     when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
             TICKET_ID, ORG_EXT_ID))
         .thenReturn(mappings);
     when(resourceTransitionService.apply(mappings, MAPPED_EVENT, config))
-        .thenReturn(Optional.empty());
+        .thenReturn(new TransitionResult(List.of(transitionIntent), Optional.empty()));
 
-    handler.handle(new TicketStateChangedEvent(TICKET_ID, MAPPED_STATE), config);
+    HandlerResult result =
+        handler.handle(new TicketStateChangedEvent(TICKET_ID, MAPPED_STATE), config);
+    assertThat(result.originatedPost()).isEmpty();
 
+    List<PendingIntent> intents = result.intents();
+
+    assertThat(intents).containsExactly(transitionIntent);
     verify(resourceTransitionService).apply(eq(mappings), eq(MAPPED_EVENT), eq(config));
   }
 
   @Test
-  void handle_unmappedTicketState_doesNothing() {
-    handler.handle(new TicketStateChangedEvent(TICKET_ID, "closed"), config);
+  void handle_unmappedTicketState_returnsNoIntents() {
+    List<PendingIntent> intents =
+        handler.handle(new TicketStateChangedEvent(TICKET_ID, "closed"), config).intents();
 
+    assertThat(intents).isEmpty();
     verifyNoInteractions(ticketMappingRepository, resourceTransitionService);
   }
 
   @Test
-  void handle_noMappings_doesNotApplyTransition() {
-    when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
-            TICKET_ID, ORG_EXT_ID))
-        .thenReturn(List.of());
-
-    handler.handle(new TicketStateChangedEvent(TICKET_ID, MAPPED_STATE), config);
-
-    verify(resourceTransitionService, never()).apply(any(), any(), any());
-  }
-
-  @Test
-  void handle_rejectedTransition_dropsSilently() {
+  void handle_rejectedTransition_dropsSilentlyWithNoIntents() {
     List<TicketMapping> mappings = List.of(mapping(RESOURCE_SOURCE_ID));
     when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
             TICKET_ID, ORG_EXT_ID))
         .thenReturn(mappings);
     when(resourceTransitionService.apply(mappings, MAPPED_EVENT, config))
         .thenReturn(
-            Optional.of(
-                new Rejection(
-                    List.of(new InvalidResource(RESOURCE_SOURCE_ID, Set.of("STEP_AWAY"))), true)));
+            new TransitionResult(
+                List.of(),
+                Optional.of(
+                    new Rejection(
+                        List.of(new InvalidResource(RESOURCE_SOURCE_ID, Set.of("STEP_AWAY"))),
+                        true))));
 
-    handler.handle(new TicketStateChangedEvent(TICKET_ID, MAPPED_STATE), config);
+    List<PendingIntent> intents =
+        handler.handle(new TicketStateChangedEvent(TICKET_ID, MAPPED_STATE), config).intents();
 
+    assertThat(intents).isEmpty();
     verify(resourceTransitionService).apply(eq(mappings), eq(MAPPED_EVENT), eq(config));
   }
 

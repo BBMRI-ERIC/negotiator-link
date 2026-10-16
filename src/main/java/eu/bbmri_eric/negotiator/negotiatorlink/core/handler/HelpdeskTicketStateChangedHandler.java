@@ -6,9 +6,8 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.TicketStateChangedEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.ResourceTransitionService;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.service.ResourceTransitionService.Rejection;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.service.ResourceTransitionService.TransitionResult;
 import java.util.List;
-import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,7 +23,7 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class HelpdeskTicketStateChangedHandler
-    implements HelpdeskCallbackHandler<TicketStateChangedEvent> {
+    implements HelpdeskEventHandler<TicketStateChangedEvent> {
 
   private final TicketMappingRepository ticketMappingRepository;
   private final ResourceTransitionService resourceTransitionService;
@@ -35,7 +34,7 @@ public class HelpdeskTicketStateChangedHandler
   }
 
   @Override
-  public void handle(TicketStateChangedEvent event, OrganizationConfig config) {
+  public HandlerResult handle(TicketStateChangedEvent event, OrganizationConfig config) {
     String ticketId = event.ticketId();
     String newTicketState = event.newTicketState();
 
@@ -45,27 +44,21 @@ public class HelpdeskTicketStateChangedHandler
           "Ticket state '{}' on ticket '{}' has no configured resource event — discarding",
           newTicketState,
           ticketId);
-      return;
+      return HandlerResult.empty();
     }
 
     List<TicketMapping> mappings =
         ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
             ticketId, config.organizationExternalId());
-    if (mappings.isEmpty()) {
-      log.warn(
-          "No ticket mappings found for ticket '{}' org '{}' — skipping",
-          ticketId,
-          config.organizationExternalId());
-      return;
-    }
 
-    Optional<Rejection> rejection = resourceTransitionService.apply(mappings, mappedEvent, config);
+    TransitionResult result = resourceTransitionService.apply(mappings, mappedEvent, config);
 
     String logMsg =
-        rejection.isPresent()
+        result.rejection().isPresent()
             ? "Ticket state '{}' mapped to event '{}' but the transition is not allowed for ticket"
                 + " '{}' — discarding"
             : "Ticket state '{}' applied event '{}' to resources of ticket '{}'";
     log.info(logMsg, newTicketState, mappedEvent, ticketId);
+    return HandlerResult.of(result.intents());
   }
 }

@@ -1,26 +1,33 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
 import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.HashUtil.sha256Hex;
+import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PayloadUtil.serialize;
 import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil.signPost;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedPost;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationCache;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationException;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.NegotiationPostAddedWebhookEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.UserResponseModel;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -34,9 +41,9 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
 
   private final NegotiatorClient negotiatorClient;
   private final OrganizationConfigRegistry registry;
-  private final Map<HelpdeskType, HelpdeskClient> clients;
   private final TicketMappingRepository ticketMappingRepository;
   private final OriginatedPostRepository originatedPostRepository;
+  private final PendingTicketCreationCache pendingTicketCreationCache;
   private final ObjectMapper objectMapper;
 
   private record PostContent(String text, boolean isPublic, String textHash) {}
@@ -47,29 +54,56 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
   }
 
   @Override
-  public void handle(JsonNode data) {
-    NegotiationPostAddedWebhookEvent event =
-        objectMapper.convertValue(data, NegotiationPostAddedWebhookEvent.class);
+  public HandlerResult handle(JsonNode data) {
+    NegotiationPostAddedWebhookEvent event = parseEvent(data);
+    if (event == null) {
+      return HandlerResult.empty();
+    }
 
     PostContent content = fetchPostContent(event);
     if (content == null) {
-      return;
+      return HandlerResult.empty();
     }
 
-    Map<String, String> ticketToOrgExtId = resolveTargetTickets(event, content.isPublic());
+    LinkedHashMap<String, String> ticketToOrgExtId =
+        resolveTargetTickets(event, content.isPublic());
     if (ticketToOrgExtId.isEmpty()) {
       log.debug(
           "No target tickets for post '{}' in negotiation '{}'",
           event.getPostId(),
           event.getNegotiationId());
-      return;
+      return HandlerResult.empty();
     }
 
-    String excludedTicketId =
-        resolveDeduplicatedTicketId(
-            content.textHash(), event.getOrganizationId(), event.getPostId(), content.isPublic());
+    Optional<OriginatedPost> consumed =
+        findConsumedOriginatedPost(content.textHash(), ticketToOrgExtId, content.isPublic());
+    return consumed
+        .map(
+            originatedPost -> {
+              log.debug(
+                  "Deduplication: excluding originating ticket '{}' from fan-out for post '{}'",
+                  originatedPost.getTicketId(),
+                  event.getPostId());
+              ticketToOrgExtId.remove(originatedPost.getTicketId());
+              return HandlerResult.of(
+                  fanOut(ticketToOrgExtId, content.text(), event), originatedPost);
+            })
+        .orElseGet(() -> HandlerResult.of(fanOut(ticketToOrgExtId, content.text(), event)));
+  }
 
-    fanOut(ticketToOrgExtId, content.text(), excludedTicketId, event.getPostId());
+  /** Parses and validates the webhook event, or returns {@code null} if it is incomplete. */
+  private NegotiationPostAddedWebhookEvent parseEvent(JsonNode data) {
+    NegotiationPostAddedWebhookEvent event =
+        objectMapper.convertValue(data, NegotiationPostAddedWebhookEvent.class);
+
+    String negotiationId = event.getNegotiationId();
+    String postId = event.getPostId();
+
+    if (negotiationId == null || postId == null) {
+      log.warn("Incomplete post added event — skipping");
+      return null;
+    }
+    return event;
   }
 
   /** Loads the post and returns its content, or {@code null} if it cannot be forwarded. */
@@ -120,73 +154,64 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
   }
 
   /** Resolves the distinct target tickets for the post based on its visibility. */
-  private Map<String, String> resolveTargetTickets(
+  private LinkedHashMap<String, String> resolveTargetTickets(
       NegotiationPostAddedWebhookEvent event, boolean isPublic) {
     List<TicketMapping> allMappings =
         ticketMappingRepository.findByIdNegotiationId(event.getNegotiationId());
     if (allMappings.isEmpty()) {
+      if (pendingTicketCreationCache.isTracked(event.getNegotiationId())) {
+        throw new PendingTicketCreationException(event.getNegotiationId());
+      }
       log.debug(
           "No ticket mappings for negotiation '{}' — nothing to fan out", event.getNegotiationId());
-      return Map.of();
+      return new LinkedHashMap<>();
     }
     return resolveTargets(allMappings, isPublic, event.getOrganizationId());
   }
 
   /**
-   * Deduplication: finds and consumes one originated-post record matching the hash and org, so the
-   * originating ticket is excluded from fan-out. Returns the excluded ticket id, or {@code null}.
+   * Finds an originated post record from ticket matching the hash and org so the originating ticket
+   * can be excluded from fan-out. Returns the record to be consumed, or {@code Optional.empty()}.
    */
-  private String resolveDeduplicatedTicketId(
-      String textHash, Long organizationId, String postId, boolean isPublic) {
+  private Optional<OriginatedPost> findConsumedOriginatedPost(
+      String textHash, LinkedHashMap<String, String> ticketToOrgExtId, boolean isPublic) {
     if (isPublic) {
-      // help desks does not produce public messages -> no deduplication needed
-      return null;
+      return Optional.empty();
     }
-    String orgIdStr = String.valueOf(organizationId);
-    return originatedPostRepository
-        .findFirstByTextHashAndOrganizationIdOrderByCreatedAtAsc(textHash, orgIdStr)
-        .map(
-            originated -> {
-              log.debug(
-                  "Deduplication: excluding originating ticket '{}' from fan-out for post '{}'",
-                  originated.getTicketId(),
-                  postId);
-              originatedPostRepository.deleteById(originated.getRowId());
-              return originated.getTicketId();
-            })
-        .orElse(null);
+    String[] ticketIds = ticketToOrgExtId.keySet().toArray(String[]::new);
+    String[] orgExtIds = ticketToOrgExtId.values().toArray(String[]::new);
+    return originatedPostRepository.findFirstByTextHashAndValidTicketOrgPairs(
+        textHash, ticketIds, orgExtIds);
   }
 
-  /** Forwards the post text to every target ticket, skipping the deduplicated one. */
-  private void fanOut(
-      Map<String, String> ticketToOrgExtId,
+  /** Produces one ADD_COMMENT intent per target ticket. */
+  private List<PendingIntent> fanOut(
+      LinkedHashMap<String, String> ticketToOrgExtId,
       String postText,
-      String excludedTicketId,
-      String postId) {
+      NegotiationPostAddedWebhookEvent event) {
+    List<PendingIntent> intents = new ArrayList<>();
     ticketToOrgExtId.forEach(
         (ticketId, orgExtId) -> {
-          if (ticketId.equals(excludedTicketId)) {
-            return;
-          }
-          forwardToTicket(ticketId, orgExtId, postText, postId);
+          intents.add(addCommentIntent(ticketId, orgExtId, postText, event));
         });
+    return intents;
   }
 
-  private void forwardToTicket(String ticketId, String orgExtId, String postText, String postId) {
-    OrganizationConfig config = registry.findByExternalId(orgExtId).orElseThrow();
-    HelpdeskClient client = clients.get(config.type());
-
-    try {
-      client.addComment(ticketId, postText, CommentType.PLAIN_TEXT, config);
-      log.info("Forwarded post '{}' to ticket '{}'", postId, ticketId);
-    } catch (Exception e) {
-      log.error("Failed to add comment to ticket '{}' for post '{}'", ticketId, postId, e);
-    }
+  private PendingIntent addCommentIntent(
+      String ticketId, String orgExtId, String postText, NegotiationPostAddedWebhookEvent event) {
+    String payload = serialize(new AddCommentPayload(postText, CommentType.PLAIN_TEXT));
+    return new PendingIntent(
+        OutboxIntentType.ADD_COMMENT,
+        TargetKind.TICKET,
+        ticketId,
+        event.getNegotiationId(),
+        orgExtId,
+        payload);
   }
 
-  private Map<String, String> resolveTargets(
+  private LinkedHashMap<String, String> resolveTargets(
       List<TicketMapping> allMappings, boolean isPublic, Long organizationId) {
-    Map<String, String> ticketToOrgExtId = new LinkedHashMap<>();
+    LinkedHashMap<String, String> ticketToOrgExtId = new LinkedHashMap<>();
 
     for (TicketMapping mapping : allMappings) {
       String ticketId = mapping.getId().getHelpdeskTicketId();

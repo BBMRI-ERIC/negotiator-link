@@ -1,21 +1,15 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.inbound;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskCallbackAdapter;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.HelpdeskEventRouter;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.webhook.ReplayGuard;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.InboxService;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.webhook.UnknownOrganizationException;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.webhook.WebhookAuthenticationException;
 import jakarta.servlet.http.HttpServletRequest;
-import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -32,9 +26,7 @@ public class HelpdeskCallbackController {
 
   private final OrganizationConfigRegistry registry;
   private final Map<HelpdeskType, HelpdeskCallbackAdapter> callbackAdapters;
-  private final ObjectMapper objectMapper;
-  private final HelpdeskEventRouter helpdeskEventRouter;
-  private final ReplayGuard replayGuard;
+  private final InboxService inboxService;
 
   @PostMapping("/webhooks/helpdesk/{organizationExternalId}")
   ResponseEntity<Void> receiveCallback(
@@ -55,40 +47,8 @@ public class HelpdeskCallbackController {
           "Callback signature verification failed for organization " + organizationExternalId);
     }
 
-    String webhookId = adapter.extractCallbackId(headers).orElse(null);
-    if (webhookId != null && replayGuard.alreadySeen(organizationExternalId + ":" + webhookId)) {
-      log.debug(
-          "Duplicate helpdesk webhook '{}' for organization '{}' — acknowledged and discarded",
-          webhookId,
-          organizationExternalId);
-      return ResponseEntity.ok().build();
-    }
-
-    log.debug(
-        "Received verified helpdesk callback for organization '{}' and with body: {}",
-        organizationExternalId,
-        new String(body));
-
-    Map<String, Object> payload;
-    try {
-      payload = objectMapper.readValue(body, new TypeReference<>() {});
-    } catch (IOException e) {
-      log.warn(
-          "Failed to parse helpdesk callback body for organization '{}'",
-          organizationExternalId,
-          e);
-      return ResponseEntity.ok().build();
-    }
-
-    Optional<HelpdeskCallbackEvent> eventOpt = adapter.parseCallback(payload);
-    if (eventOpt.isEmpty()) {
-      log.warn(
-          "Adapter could not parse callback for organization '{}' — discarding",
-          organizationExternalId);
-      return ResponseEntity.ok().build();
-    }
-
-    helpdeskEventRouter.route(eventOpt.get(), config);
+    String callbackId = adapter.extractCallbackId(headers).orElse(null);
+    inboxService.capture(organizationExternalId, callbackId, body);
     return ResponseEntity.ok().build();
   }
 

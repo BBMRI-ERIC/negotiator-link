@@ -11,12 +11,12 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.ForwardedNegotiationPayloadAttachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.ForwardedNegotiationPayloadAttachmentId;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.ForwardedNegotiationPayloadAttachmentRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService.ResolvedAttachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.AttachmentMetadataDTO;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,7 +45,7 @@ class AttachmentForwardingServiceTest {
   }
 
   @Test
-  void resolveForwardablePayloadAttachments_keepsOnlyNegotiationLevel() {
+  void getNegotiationPayloadAttachmentsToForward_keepsOnlyNegotiationLevel() {
     var negotiationLevel = metadata("a-1", null, "public.txt", "text/plain");
     var orgScoped = metadata("a-2", "org-9", "private.txt", "text/plain");
 
@@ -54,7 +54,8 @@ class AttachmentForwardingServiceTest {
     when(negotiatorClient.downloadAttachment("a-1", config)).thenReturn("bytes".getBytes());
 
     List<ResolvedAttachment> attachments =
-        service.resolveForwardablePayloadAttachments(NEGOTIATION_ID, config);
+        service.getNegotiationPayloadAttachmentsToForward(
+            NEGOTIATION_ID, List.of("a-1", "a-2"), config, Set.of());
 
     assertThat(attachments).hasSize(1);
     assertThat(attachments.getFirst().attachmentId()).isEqualTo("a-1");
@@ -64,31 +65,92 @@ class AttachmentForwardingServiceTest {
   }
 
   @Test
-  void notYetForwardedToTicket_subtractsRecordedForThatTicket_returnsDelta() {
-    ResolvedAttachment a1 = resolved("a-1", "one.txt");
-    ResolvedAttachment a2 = resolved("a-2", "two.txt");
+  void getNegotiationPayloadAttachmentsToForward_excludesAlreadyForwardedIds() {
+    var a1 = metadata("a-1", null, "one.txt", "text/plain");
+    var a2 = metadata("a-2", null, "two.txt", "text/plain");
+
+    when(negotiatorClient.getAttachments(NEGOTIATION_ID, config)).thenReturn(List.of(a1, a2));
+    when(negotiatorClient.downloadAttachment("a-2", config)).thenReturn("bytes".getBytes());
+
+    List<ResolvedAttachment> attachments =
+        service.getNegotiationPayloadAttachmentsToForward(
+            NEGOTIATION_ID, List.of("a-1", "a-2"), config, Set.of("a-1"));
+
+    assertThat(attachments).hasSize(1);
+    assertThat(attachments.getFirst().attachmentId()).isEqualTo("a-2");
+    verify(negotiatorClient, never()).downloadAttachment("a-1", config);
+    verifyNoInteractions(forwardedAttachmentRepository);
+  }
+
+  @Test
+  void getNegotiationPayloadAttachmentsToForward_onlyResolvesSnapshotIds() {
+    var a1 = metadata("a-1", null, "one.txt", "text/plain");
+    var a2 = metadata("a-2", null, "two.txt", "text/plain");
+
+    when(negotiatorClient.getAttachments(NEGOTIATION_ID, config)).thenReturn(List.of(a1, a2));
+    when(negotiatorClient.downloadAttachment("a-1", config)).thenReturn("bytes".getBytes());
+
+    List<ResolvedAttachment> attachments =
+        service.getNegotiationPayloadAttachmentsToForward(
+            NEGOTIATION_ID, List.of("a-1"), config, Set.of());
+
+    assertThat(attachments).hasSize(1);
+    assertThat(attachments.getFirst().attachmentId()).isEqualTo("a-1");
+    verify(negotiatorClient, never()).downloadAttachment("a-2", config);
+    verifyNoInteractions(forwardedAttachmentRepository);
+  }
+
+  @Test
+  void getNegotiationPayloadAttachmentsToForward_allExcluded_returnsEmptyAndDownloadsNothing() {
+    var a1 = metadata("a-1", null, "one.txt", "text/plain");
+
+    when(negotiatorClient.getAttachments(NEGOTIATION_ID, config)).thenReturn(List.of(a1));
+
+    List<ResolvedAttachment> attachments =
+        service.getNegotiationPayloadAttachmentsToForward(
+            NEGOTIATION_ID, List.of("a-1"), config, Set.of("a-1"));
+
+    assertThat(attachments).isEmpty();
+    verify(negotiatorClient, never()).downloadAttachment("a-1", config);
+    verifyNoInteractions(forwardedAttachmentRepository);
+  }
+
+  @Test
+  void getNegotiationPayloadAttachmentsIds_keepsOnlyNegotiationLevel_withoutDownloading() {
+    var negotiationLevel = metadata("a-1", null, "public.txt", "text/plain");
+    var orgScoped = metadata("a-2", "org-9", "private.txt", "text/plain");
+
+    when(negotiatorClient.getAttachments(NEGOTIATION_ID, config))
+        .thenReturn(List.of(negotiationLevel, orgScoped));
+
+    List<String> ids = service.getNegotiationPayloadAttachmentsIds(NEGOTIATION_ID, config);
+
+    assertThat(ids).containsExactly("a-1");
+    verify(negotiatorClient, never()).downloadAttachment("a-1", config);
+    verifyNoInteractions(forwardedAttachmentRepository);
+  }
+
+  @Test
+  void notYetForwardedToTicketIds_subtractsRecordedForThatTicket_returnsDelta() {
     when(forwardedAttachmentRepository.findByIdOrganizationExtIdAndIdTicketId(
             ORG_EXT_ID, TICKET_ID))
         .thenReturn(List.of(forwarded("a-1")));
 
-    List<ResolvedAttachment> delta =
-        service.notYetForwardedToTicket(ORG_EXT_ID, TICKET_ID, List.of(a1, a2));
+    List<String> delta =
+        service.notYetForwardedToTicketIds(ORG_EXT_ID, TICKET_ID, List.of("a-1", "a-2"));
 
-    assertThat(delta).containsExactly(a2);
+    assertThat(delta).containsExactly("a-2");
     verifyNoInteractions(negotiatorClient);
   }
 
   @Test
-  void notYetForwardedToTicket_allRecorded_returnsEmpty() {
-    ResolvedAttachment a1 = resolved("a-1", "one.txt");
+  void alreadyForwardedIds_returnsRecordedAttachmentIdsForTicket() {
     when(forwardedAttachmentRepository.findByIdOrganizationExtIdAndIdTicketId(
             ORG_EXT_ID, TICKET_ID))
-        .thenReturn(List.of(forwarded("a-1")));
+        .thenReturn(List.of(forwarded("a-1"), forwarded("a-2")));
 
-    List<ResolvedAttachment> delta =
-        service.notYetForwardedToTicket(ORG_EXT_ID, TICKET_ID, List.of(a1));
-
-    assertThat(delta).isEmpty();
+    assertThat(service.alreadyForwardedIds(ORG_EXT_ID, TICKET_ID))
+        .containsExactlyInAnyOrder("a-1", "a-2");
     verifyNoInteractions(negotiatorClient);
   }
 
@@ -121,11 +183,6 @@ class AttachmentForwardingServiceTest {
         .organizationId(organizationId)
         .name(name)
         .contentType(contentType);
-  }
-
-  private ResolvedAttachment resolved(String attachmentId, String filename) {
-    return new ResolvedAttachment(
-        attachmentId, new Attachment(filename, "text/plain", "bytes".getBytes()));
   }
 
   private ForwardedNegotiationPayloadAttachment forwarded(String attachmentId) {

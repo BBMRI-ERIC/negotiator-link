@@ -1,5 +1,8 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.handler;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.AdditionalMatchers.aryEq;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -8,17 +11,20 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedPost;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HandlerResult;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.NegotiationPostAddedHandler;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationCache;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationException;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
@@ -29,6 +35,9 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -48,9 +57,9 @@ class NegotiationPostAddedHandlerTest {
 
   @Mock private NegotiatorClient negotiatorClient;
   @Mock private OrganizationConfigRegistry registry;
-  @Mock private HelpdeskClient helpdeskClient;
   @Mock private TicketMappingRepository ticketMappingRepository;
   @Mock private OriginatedPostRepository originatedPostRepository;
+  @Mock private PendingTicketCreationCache pendingTicketCreationCache;
 
   private final ObjectMapper objectMapper = new ObjectMapper();
   private NegotiationPostAddedHandler handler;
@@ -61,9 +70,9 @@ class NegotiationPostAddedHandlerTest {
         new NegotiationPostAddedHandler(
             negotiatorClient,
             registry,
-            Map.of(HelpdeskType.ZAMMAD, helpdeskClient),
             ticketMappingRepository,
             originatedPostRepository,
+            pendingTicketCreationCache,
             objectMapper);
   }
 
@@ -71,21 +80,23 @@ class NegotiationPostAddedHandlerTest {
   void handle_publicPost_fansOutToAllDistinctTickets() {
     var orgExtIdAmc = "bbmri:NL:AMC";
     var configMhh = createConfig(ORG_EXT_ID);
-    var configAmc = createConfig(orgExtIdAmc);
     var mappings = List.of(mapping(TICKET_A, "1", ORG_EXT_ID), mapping(TICKET_B, "2", orgExtIdAmc));
-    // resolveFetchConfig for PUBLIC: looks up ticket_mapping by negotiationId, uses first mapping
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(configMhh));
-    when(registry.findByExternalId(orgExtIdAmc)).thenReturn(Optional.of(configAmc));
     when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), any(OrganizationConfig.class)))
         .thenReturn(createPost(EntityModelPostDTO.TypeEnum.PUBLIC));
 
-    handler.handle(postEventData(null));
+    List<PendingIntent> intents = handler.handle(postEventData(null)).intents();
 
-    verify(helpdeskClient)
-        .addComment(eq(TICKET_A), eq(POST_TEXT), eq(CommentType.PLAIN_TEXT), eq(configMhh));
-    verify(helpdeskClient)
-        .addComment(eq(TICKET_B), eq(POST_TEXT), eq(CommentType.PLAIN_TEXT), eq(configAmc));
+    assertThat(intents).hasSize(2);
+    assertThat(intents)
+        .allSatisfy(i -> assertThat(i.outboxIntentType()).isEqualTo(OutboxIntentType.ADD_COMMENT));
+    assertThat(intents).extracting(PendingIntent::targetId).containsExactly(TICKET_A, TICKET_B);
+    assertThat(intents)
+        .extracting(PendingIntent::organizationExtId)
+        .containsExactly(ORG_EXT_ID, orgExtIdAmc);
+    assertThat(readText(intents.getFirst())).isEqualTo(POST_TEXT);
+    assertThat(readText(intents.getLast())).isEqualTo(POST_TEXT);
   }
 
   @Test
@@ -93,47 +104,48 @@ class NegotiationPostAddedHandlerTest {
     var config = createConfig(ORG_EXT_ID);
     var mappings =
         List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID), mapping(TICKET_B, "99", "bbmri:NL:AMC"));
-    // resolveFetchConfig: finds mapping for ORG_ID, resolves config via findByExternalId
     when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
         .thenReturn(List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID)));
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
     when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config)))
         .thenReturn(createPost(EntityModelPostDTO.TypeEnum.PRIVATE));
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
-    when(originatedPostRepository.findFirstByTextHashAndOrganizationIdOrderByCreatedAtAsc(
-            eq(POST_TEXT_HASH), eq(ORG_ID_STR)))
+    when(originatedPostRepository.findFirstByTextHashAndValidTicketOrgPairs(
+            eq(POST_TEXT_HASH), aryEq(new String[] {TICKET_A}), aryEq(new String[] {ORG_EXT_ID})))
         .thenReturn(Optional.empty());
 
-    handler.handle(postEventData(ORG_ID));
+    List<PendingIntent> intents = handler.handle(postEventData(ORG_ID)).intents();
 
-    verify(helpdeskClient)
-        .addComment(eq(TICKET_A), eq(POST_TEXT), eq(CommentType.PLAIN_TEXT), eq(config));
-    verify(helpdeskClient, never()).addComment(eq(TICKET_B), any(), any(), any());
+    assertThat(intents).hasSize(1);
+    assertThat(intents.getFirst().targetId()).isEqualTo(TICKET_A);
+    assertThat(intents.getFirst().outboxIntentType()).isEqualTo(OutboxIntentType.ADD_COMMENT);
   }
 
   @Test
   void handle_originatedPost_excludesOriginatingTicket() {
     var config = createConfig(ORG_EXT_ID);
     var mappings = List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID));
-    var originated = new OriginatedPost(POST_TEXT_HASH, ORG_ID_STR, TICKET_A);
+    var originated = new OriginatedPost(POST_TEXT_HASH, ORG_EXT_ID, TICKET_A);
     when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
         .thenReturn(mappings);
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
     when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config)))
         .thenReturn(createPost(EntityModelPostDTO.TypeEnum.PRIVATE));
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
-    when(originatedPostRepository.findFirstByTextHashAndOrganizationIdOrderByCreatedAtAsc(
-            eq(POST_TEXT_HASH), eq(ORG_ID_STR)))
+    when(originatedPostRepository.findFirstByTextHashAndValidTicketOrgPairs(
+            eq(POST_TEXT_HASH), aryEq(new String[] {TICKET_A}), aryEq(new String[] {ORG_EXT_ID})))
         .thenReturn(Optional.of(originated));
 
-    handler.handle(postEventData(ORG_ID));
+    HandlerResult result = handler.handle(postEventData(ORG_ID));
 
-    verify(helpdeskClient, never()).addComment(eq(TICKET_A), any(), any(), any());
-    verify(originatedPostRepository).deleteById(any());
+    assertThat(result.intents()).isEmpty();
+    assertThat(result.originatedPost()).isPresent();
+    assertThat(result.originatedPost().get().getTicketId()).isEqualTo(TICKET_A);
+    assertThat(result.originatedPost().get().getTextHash()).isEqualTo(POST_TEXT_HASH);
   }
 
   @Test
-  void handle_noMappings_doesNothing() {
+  void handle_noMappings_cacheAbsent_returnsNoIntents() {
     var config = createConfig(ORG_EXT_ID);
     var mappings = List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID));
     when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
@@ -142,35 +154,62 @@ class NegotiationPostAddedHandlerTest {
     when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config)))
         .thenReturn(createPost(EntityModelPostDTO.TypeEnum.PRIVATE));
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(List.of());
+    when(pendingTicketCreationCache.isTracked(NEGOTIATION_ID)).thenReturn(false);
 
-    handler.handle(postEventData(ORG_ID));
-
-    verify(helpdeskClient, never()).addComment(any(), any(), any(), any());
+    assertThat(handler.handle(postEventData(ORG_ID)).intents()).isEmpty();
   }
 
   @Test
-  void handle_noConfigForPrivatePost_doesNothing() {
+  void handle_noMappings_cachePresent_throwsPendingTicketCreationException() {
+    var config = createConfig(ORG_EXT_ID);
+    var mappings = List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID));
+    when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
+        .thenReturn(mappings);
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+    when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config)))
+        .thenReturn(createPost(EntityModelPostDTO.TypeEnum.PRIVATE));
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(List.of());
+    when(pendingTicketCreationCache.isTracked(NEGOTIATION_ID)).thenReturn(true);
+
+    assertThatThrownBy(() -> handler.handle(postEventData(ORG_ID)))
+        .isInstanceOf(PendingTicketCreationException.class);
+  }
+
+  @Test
+  void handle_noConfigForPrivatePost_returnsNoIntents() {
     when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
         .thenReturn(List.of());
 
-    handler.handle(postEventData(ORG_ID));
-
+    assertThat(handler.handle(postEventData(ORG_ID)).intents()).isEmpty();
     verify(negotiatorClient, never()).getPost(any(), any(), any());
-    verify(helpdeskClient, never()).addComment(any(), any(), any(), any());
   }
 
   @Test
-  void handle_noConfigForPublicPost_doesNothing() {
+  void handle_noConfigForPublicPost_returnsNoIntents() {
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(List.of());
 
-    handler.handle(postEventData(null));
-
+    assertThat(handler.handle(postEventData(null)).intents()).isEmpty();
     verify(negotiatorClient, never()).getPost(any(), any(), any());
-    verify(helpdeskClient, never()).addComment(any(), any(), any(), any());
+  }
+
+  static java.util.stream.Stream<Arguments> incompleteEventData() {
+    return java.util.stream.Stream.of(
+        Arguments.of("missing postId", null, NEGOTIATION_ID),
+        Arguments.of("missing negotiationId", POST_ID, null),
+        Arguments.of("missing both", null, null));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("incompleteEventData")
+  void handle_incompleteEvent_returnsNoIntents(String label, String postId, String negotiationId) {
+    var incompleteData = buildEventData(postId, negotiationId, null);
+
+    assertThat(handler.handle(incompleteData).intents()).isEmpty();
+    verify(negotiatorClient, never()).getPost(any(), any(), any());
   }
 
   @Test
-  void handle_postNotFound_doesNothing() {
+  void handle_postNotFound_returnsNoIntents() {
     var config = createConfig(ORG_EXT_ID);
     var mappings = List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID));
     when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
@@ -178,85 +217,39 @@ class NegotiationPostAddedHandlerTest {
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
     when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config))).thenReturn(null);
 
-    handler.handle(postEventData(ORG_ID));
-
+    assertThat(handler.handle(postEventData(ORG_ID)).intents()).isEmpty();
     verify(ticketMappingRepository, never()).findByIdNegotiationId(any());
-    verify(helpdeskClient, never()).addComment(any(), any(), any(), any());
-  }
-
-  private JsonNode postEventData(Long orgId) {
-    Map<String, Object> map = new java.util.HashMap<>();
-    map.put("postId", POST_ID);
-    map.put("negotiationId", NEGOTIATION_ID);
-    map.put("userId", 1L);
-    if (orgId != null) map.put("organizationId", orgId);
-    return objectMapper.valueToTree(map);
   }
 
   @Test
   void handle_privatePost_withCreatedByNameAndEmail_prependsSenderHeader() {
-    var config = createConfig(ORG_EXT_ID);
-    var mappings = List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID));
-    when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
-        .thenReturn(mappings);
-    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
-    when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config)))
-        .thenReturn(
-            TestUtil.post(
-                POST_ID,
-                POST_TEXT,
-                EntityModelPostDTO.TypeEnum.PRIVATE,
-                ORG_ID_STR,
-                "Jane Doe",
-                "jane@example.com"));
-    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
-    when(originatedPostRepository.findFirstByTextHashAndOrganizationIdOrderByCreatedAtAsc(
-            eq(POST_TEXT_HASH), eq(ORG_ID_STR)))
-        .thenReturn(Optional.empty());
+    stubPrivatePost("Jane Doe", "jane@example.com");
 
-    handler.handle(postEventData(ORG_ID));
+    List<PendingIntent> intents = handler.handle(postEventData(ORG_ID)).intents();
 
-    verify(helpdeskClient)
-        .addComment(
-            eq(TICKET_A),
-            eq("From: Jane Doe <jane@example.com>\n\n" + POST_TEXT),
-            eq(CommentType.PLAIN_TEXT),
-            eq(config));
+    assertThat(readText(intents.getFirst()))
+        .isEqualTo("From: Jane Doe <jane@example.com>\n\n" + POST_TEXT);
   }
 
   @Test
   void handle_privatePost_withCreatedByNameOnly_prependsNameHeader() {
-    var config = createConfig(ORG_EXT_ID);
-    var mappings = List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID));
-    when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
-        .thenReturn(mappings);
-    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
-    when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config)))
-        .thenReturn(
-            TestUtil.post(
-                POST_ID,
-                POST_TEXT,
-                EntityModelPostDTO.TypeEnum.PRIVATE,
-                ORG_ID_STR,
-                "Jane Doe",
-                null));
-    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
-    when(originatedPostRepository.findFirstByTextHashAndOrganizationIdOrderByCreatedAtAsc(
-            eq(POST_TEXT_HASH), eq(ORG_ID_STR)))
-        .thenReturn(Optional.empty());
+    stubPrivatePost("Jane Doe", null);
 
-    handler.handle(postEventData(ORG_ID));
+    List<PendingIntent> intents = handler.handle(postEventData(ORG_ID)).intents();
 
-    verify(helpdeskClient)
-        .addComment(
-            eq(TICKET_A),
-            eq("From: Jane Doe\n\n" + POST_TEXT),
-            eq(CommentType.PLAIN_TEXT),
-            eq(config));
+    assertThat(readText(intents.getFirst())).isEqualTo("From: Jane Doe\n\n" + POST_TEXT);
   }
 
   @Test
   void handle_privatePost_withCreatedByEmailOnly_prependsEmailHeader() {
+    stubPrivatePost(null, "jane@example.com");
+
+    List<PendingIntent> intents = handler.handle(postEventData(ORG_ID)).intents();
+
+    assertThat(readText(intents.getFirst())).isEqualTo("From: jane@example.com\n\n" + POST_TEXT);
+  }
+
+  private void stubPrivatePost(String name, String email) {
     var config = createConfig(ORG_EXT_ID);
     var mappings = List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID));
     when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
@@ -265,25 +258,32 @@ class NegotiationPostAddedHandlerTest {
     when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config)))
         .thenReturn(
             TestUtil.post(
-                POST_ID,
-                POST_TEXT,
-                EntityModelPostDTO.TypeEnum.PRIVATE,
-                ORG_ID_STR,
-                null,
-                "jane@example.com"));
+                POST_ID, POST_TEXT, EntityModelPostDTO.TypeEnum.PRIVATE, ORG_ID_STR, name, email));
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
-    when(originatedPostRepository.findFirstByTextHashAndOrganizationIdOrderByCreatedAtAsc(
-            eq(POST_TEXT_HASH), eq(ORG_ID_STR)))
+    when(originatedPostRepository.findFirstByTextHashAndValidTicketOrgPairs(
+            eq(POST_TEXT_HASH), aryEq(new String[] {TICKET_A}), aryEq(new String[] {ORG_EXT_ID})))
         .thenReturn(Optional.empty());
+  }
 
-    handler.handle(postEventData(ORG_ID));
+  private String readText(PendingIntent intent) {
+    try {
+      return objectMapper.readValue(intent.payloadJson(), AddCommentPayload.class).text();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
 
-    verify(helpdeskClient)
-        .addComment(
-            eq(TICKET_A),
-            eq("From: jane@example.com\n\n" + POST_TEXT),
-            eq(CommentType.PLAIN_TEXT),
-            eq(config));
+  private JsonNode postEventData(Long orgId) {
+    return buildEventData(POST_ID, NEGOTIATION_ID, orgId);
+  }
+
+  private JsonNode buildEventData(String postId, String negotiationId, Long orgId) {
+    Map<String, Object> map = new java.util.HashMap<>();
+    if (postId != null) map.put("postId", postId);
+    if (negotiationId != null) map.put("negotiationId", negotiationId);
+    map.put("userId", 1L);
+    if (orgId != null) map.put("organizationId", orgId);
+    return objectMapper.valueToTree(map);
   }
 
   private EntityModelPostDTO createPost(EntityModelPostDTO.TypeEnum type) {

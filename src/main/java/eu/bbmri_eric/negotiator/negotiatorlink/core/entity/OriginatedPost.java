@@ -32,8 +32,8 @@ public class OriginatedPost {
   @Column(name = "text_hash", nullable = false)
   private String textHash;
 
-  @Column(name = "organization_id", nullable = false)
-  private String organizationId;
+  @Column(name = "organization_ext_id", nullable = false)
+  private String organizationExtId;
 
   @Column(name = "ticket_id", nullable = false)
   private String ticketId;
@@ -42,9 +42,9 @@ public class OriginatedPost {
   @Column(name = "created_at", nullable = false, updatable = false)
   private Instant createdAt;
 
-  public OriginatedPost(String textHash, String organizationId, String ticketId) {
+  public OriginatedPost(String textHash, String organizationExtId, String ticketId) {
     this.textHash = textHash;
-    this.organizationId = organizationId;
+    this.organizationExtId = organizationExtId;
     this.ticketId = ticketId;
   }
 }

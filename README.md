@@ -217,7 +217,8 @@ In Zammad: **Admin → System → Core Workflows → New Workflow**
 
 **Lock the resource transition state field as read-only via Core Workflow:**
 In Zammad: **Admin → System → Core Workflows → New Workflow**
-Set for each of the following resource states: SUBMITTED, REPRESENTATIVE_UNREACHABLE, ACCESS_CONDITIONS_INDICATED
+Set for each of the following resource states: SUBMITTED, REPRESENTATIVE_UNREACHABLE, ACCESS_CONDITIONS_INDICATED, 
+RESOURCE_MADE_AVAILABLE, RESOURCE_NOT_MADE_AVAILABLE, RESOURCE_UNAVAILABLE
 
 - **Name**: `negotiator-link: lock resource transition when state is <state>`
 - **Object**: Ticket

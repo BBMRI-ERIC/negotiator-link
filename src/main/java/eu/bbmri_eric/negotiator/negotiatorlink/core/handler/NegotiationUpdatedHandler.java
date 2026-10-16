@@ -1,26 +1,34 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
+import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PayloadUtil.serialize;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationCache;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationException;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddNegotiationAttachmentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService.ResolvedAttachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFormatter;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.NegotiationUpdatedWebhookEvent;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -33,12 +41,14 @@ import org.springframework.stereotype.Component;
 public class NegotiationUpdatedHandler implements NegotiationEventHandler {
 
   private static final String EVENT_TYPE = "negotiation.updated";
+  private static final String ATTACHMENT_COMMENT_TEXT =
+      "New negotiation-level attachments added by requestor. See the files below.";
 
   private final NegotiatorClient negotiatorClient;
   private final OrganizationConfigRegistry registry;
-  private final Map<HelpdeskType, HelpdeskClient> clients;
   private final TicketMappingRepository ticketMappingRepository;
   private final AttachmentForwardingService attachmentForwardingService;
+  private final PendingTicketCreationCache pendingTicketCreationCache;
   private final ObjectMapper objectMapper;
 
   /** Negotiation-wide data shared by every updated ticket, resolved once per event. */
@@ -47,7 +57,7 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
       EntityModelNegotiationDTO negotiation,
       Map<String, EntityModelResourceWithStatusDTO> resourceById,
       List<TicketMapping> allMappings,
-      List<ResolvedAttachment> candidateAttachments) {}
+      List<String> candidateAttachmentIds) {}
 
   @Override
   public String getSupportedEventType() {
@@ -55,20 +65,20 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
   }
 
   @Override
-  public void handle(JsonNode data) {
-    NegotiationUpdatedWebhookEvent event =
-        objectMapper.convertValue(data, NegotiationUpdatedWebhookEvent.class);
-
-    String negotiationId = event.getNegotiationId();
-    if (negotiationId == null) {
-      log.warn("negotiation.updated has no 'negotiationId' field — discarding");
-      return;
+  public HandlerResult handle(JsonNode data) {
+    NegotiationUpdatedWebhookEvent event = parseEvent(data);
+    if (event == null) {
+      return HandlerResult.empty();
     }
 
+    String negotiationId = event.getNegotiationId();
     List<TicketMapping> mappings = ticketMappingRepository.findByIdNegotiationId(negotiationId);
     if (mappings.isEmpty()) {
+      if (pendingTicketCreationCache.isTracked(negotiationId)) {
+        throw new PendingTicketCreationException(negotiationId);
+      }
       log.debug("No mapped tickets for negotiation '{}' — skipping update comment", negotiationId);
-      return;
+      return HandlerResult.empty();
     }
 
     OrganizationConfig fetchConfig =
@@ -76,8 +86,25 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
 
     NegotiationContext context = buildContext(negotiationId, mappings, fetchConfig);
 
+    List<PendingIntent> intents = new ArrayList<>();
     getDistinctTicketIdToOrgExtId(mappings)
-        .forEach((ticketId, orgExtId) -> processTicket(ticketId, orgExtId, context));
+        .forEach(
+            (ticketId, orgExtId) -> intents.addAll(processTicket(ticketId, orgExtId, context)));
+    return HandlerResult.of(intents);
+  }
+
+  /** Parses and validates the webhook event, or returns {@code null} if it is incomplete. */
+  private NegotiationUpdatedWebhookEvent parseEvent(JsonNode data) {
+    NegotiationUpdatedWebhookEvent event =
+        objectMapper.convertValue(data, NegotiationUpdatedWebhookEvent.class);
+
+    String negotiationId = event.getNegotiationId();
+
+    if (negotiationId == null) {
+      log.warn("Incomplete negotiation updated event — skipping");
+      return null;
+    }
+    return event;
   }
 
   private NegotiationContext buildContext(
@@ -90,81 +117,58 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
                     resource -> String.valueOf(resource.getId()),
                     Function.identity(),
                     (existing, duplicate) -> existing));
-    List<ResolvedAttachment> candidateAttachments =
-        attachmentForwardingService.resolveForwardablePayloadAttachments(negotiationId, config);
+    List<String> candidateAttachmentIds =
+        attachmentForwardingService.getNegotiationPayloadAttachmentsIds(negotiationId, config);
     return new NegotiationContext(
-        negotiationId, negotiation, resourceById, mappings, candidateAttachments);
+        negotiationId, negotiation, resourceById, mappings, candidateAttachmentIds);
   }
 
-  private void processTicket(String ticketId, String orgExtId, NegotiationContext context) {
+  private List<PendingIntent> processTicket(
+      String ticketId, String orgExtId, NegotiationContext context) {
     OrganizationConfig config = registry.findByExternalId(orgExtId).orElse(null);
     if (config == null) {
       log.warn("Org '{}' not in config for ticket '{}' — skipping", orgExtId, ticketId);
-      return;
+      return List.of();
     }
-    HelpdeskClient client = clients.get(config.type());
-    postUpdateComment(ticketId, config, client, context);
-    forwardNewAttachments(ticketId, orgExtId, config, client, context);
+    List<PendingIntent> intents = new ArrayList<>();
+    intents.add(updateCommentIntent(ticketId, orgExtId, config, context));
+    attachmentIntent(ticketId, orgExtId, context).ifPresent(intents::add);
+    return intents;
   }
 
-  private void postUpdateComment(
-      String ticketId,
-      OrganizationConfig config,
-      HelpdeskClient client,
-      NegotiationContext context) {
+  private PendingIntent updateCommentIntent(
+      String ticketId, String orgExtId, OrganizationConfig config, NegotiationContext context) {
     String body = buildBody(ticketId, config.ticketStrategy(), context);
-    try {
-      client.addComment(ticketId, body, CommentType.HTML, config);
-      log.info(
-          "Posted negotiation update comment to ticket '{}' (negotiation '{}')",
-          ticketId,
-          context.negotiationId());
-    } catch (Exception e) {
-      log.error(
-          "Failed to post update comment to ticket '{}' for negotiation '{}'",
-          ticketId,
-          context.negotiationId(),
-          e);
-    }
+    String payload = serialize(new AddCommentPayload(body, CommentType.HTML));
+    return new PendingIntent(
+        OutboxIntentType.ADD_COMMENT,
+        TargetKind.TICKET,
+        ticketId,
+        context.negotiationId(),
+        orgExtId,
+        payload);
   }
 
-  private void forwardNewAttachments(
-      String ticketId,
-      String orgExtId,
-      OrganizationConfig config,
-      HelpdeskClient client,
-      NegotiationContext context) {
-    String negotiationId = context.negotiationId();
-    List<ResolvedAttachment> toForward =
-        attachmentForwardingService.notYetForwardedToTicket(
-            orgExtId, ticketId, context.candidateAttachments());
-    if (toForward.isEmpty()) {
-      return;
+  private Optional<PendingIntent> attachmentIntent(
+      String ticketId, String orgExtId, NegotiationContext context) {
+    List<String> attachmentIds =
+        attachmentForwardingService.notYetForwardedToTicketIds(
+            orgExtId, ticketId, context.candidateAttachmentIds());
+    if (attachmentIds.isEmpty()) {
+      return Optional.empty();
     }
-    try {
-      client.addComment(
-          ticketId,
-          "New negotiation-level attachments added by requestor. See the files below.",
-          CommentType.PLAIN_TEXT,
-          toForward.stream().map(ResolvedAttachment::attachment).toList(),
-          config);
-      attachmentForwardingService.recordForwardedAttachments(
-          negotiationId,
-          orgExtId,
-          ticketId,
-          toForward.stream().map(ResolvedAttachment::attachmentId).toList());
-      log.info(
-          "Forwarded {} file(s) to ticket '{}' (negotiation '{}')",
-          toForward.size(),
-          ticketId,
-          negotiationId);
-    } catch (Exception e) {
-      log.error(
-          "Failed to forward attachments to ticket '{}' for negotiation '{}'",
-          ticketId,
-          negotiationId,
-          e);
-    }
+    String payload =
+        serialize(
+            new AddNegotiationAttachmentPayload(
+                ATTACHMENT_COMMENT_TEXT, context.negotiationId(), attachmentIds));
+    return Optional.of(
+        new PendingIntent(
+            OutboxIntentType.ADD_COMMENT,
+            TargetKind.TICKET,
+            ticketId,
+            context.negotiationId(),
+            orgExtId,
+            payload));
   }
 
   private String buildBody(String ticketId, TicketStrategy strategy, NegotiationContext context) {

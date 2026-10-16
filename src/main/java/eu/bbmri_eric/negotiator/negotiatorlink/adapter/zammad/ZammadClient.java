@@ -7,7 +7,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreatedTicket;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
@@ -46,25 +45,21 @@ public class ZammadClient implements HelpdeskClient {
   }
 
   @Override
-  public CreatedTicket createTicket(CreateTicketRequest request, OrganizationConfig config) {
+  public String createTicket(CreateTicketRequest request, OrganizationConfig config) {
     Map<String, Object> body = buildCreateTicketBody(request, config);
 
-    CreatedTicketResponse response =
+    TicketResponse response =
         buildClient(config)
             .post()
             .uri(TICKETS_PATH)
             .contentType(MediaType.APPLICATION_JSON)
             .body(body)
             .retrieve()
-            .body(CreatedTicketResponse.class);
+            .body(TicketResponse.class);
 
-    CreatedTicket ticket = parseCreatedTicket(response);
-    log.info(
-        "Created Zammad ticket id={} number={} title='{}'",
-        ticket.ticketId(),
-        ticket.ticketNumber(),
-        request.title());
-    return ticket;
+    Long ticketId = parseCreatedTicket(response);
+    log.info("Created Zammad ticket id={} title='{}'", ticketId, request.title());
+    return String.valueOf(ticketId);
   }
 
   @Override
@@ -113,16 +108,27 @@ public class ZammadClient implements HelpdeskClient {
   }
 
   @Override
-  public void linkRelatedTickets(List<CreatedTicket> tickets, OrganizationConfig config) {
-    if (tickets.size() < 2) {
+  public void linkRelatedTickets(List<String> ticketIds, OrganizationConfig config) {
+    if (ticketIds.size() < 2) {
       return;
     }
     RestClient client = buildClient(config);
-    for (int i = 0; i < tickets.size(); i++) {
-      for (int j = i + 1; j < tickets.size(); j++) {
-        post(client, LINKS_ADD_PATH, buildLinkBody(tickets.get(i), tickets.get(j)));
+    for (int i = 0; i < ticketIds.size() - 1; i++) {
+      String sourceTicketNumber = getTicketNumber(client, ticketIds.get(i));
+      for (int j = i + 1; j < ticketIds.size(); j++) {
+        post(client, LINKS_ADD_PATH, buildLinkBody(sourceTicketNumber, ticketIds.get(j)));
       }
     }
+  }
+
+  private String getTicketNumber(RestClient client, String ticketId) {
+    TicketResponse response =
+        client.get().uri(TICKET_BY_ID_PATH, ticketId).retrieve().body(TicketResponse.class);
+    if (response == null || response.number() == null) {
+      throw new IllegalStateException(
+          "Zammad getTicket returned no number for ticketId=" + ticketId);
+    }
+    return response.number();
   }
 
   private Map<String, Object> buildCreateTicketBody(
@@ -172,13 +178,13 @@ public class ZammadClient implements HelpdeskClient {
     return body;
   }
 
-  private Map<String, Object> buildLinkBody(CreatedTicket source, CreatedTicket target) {
+  private Map<String, Object> buildLinkBody(String sourceTicketNumber, String targetTicketId) {
     Map<String, Object> body = new HashMap<>();
     body.put("link_type", "normal");
     body.put("link_object_source", "Ticket");
-    body.put("link_object_source_number", source.ticketNumber());
+    body.put("link_object_source_number", sourceTicketNumber);
     body.put("link_object_target", "Ticket");
-    body.put("link_object_target_value", Long.parseLong(target.ticketId()));
+    body.put("link_object_target_value", Long.parseLong(targetTicketId));
     return body;
   }
 
@@ -244,17 +250,14 @@ public class ZammadClient implements HelpdeskClient {
                 .build());
   }
 
-  private CreatedTicket parseCreatedTicket(CreatedTicketResponse response) {
-    if (response == null) {
-      throw new IllegalStateException("Zammad createTicket returned an empty response body");
-    }
-    if (response.id() == null || response.number() == null) {
+  private Long parseCreatedTicket(TicketResponse response) {
+    if (response == null || response.id() == null) {
       throw new IllegalStateException(
-          "Zammad createTicket response missing 'id' or 'number' — response: " + response);
+          "Zammad createTicket did not return created ticket ID in response.");
     }
-    return new CreatedTicket(String.valueOf(response.id()), response.number());
+    return response.id();
   }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
-  private record CreatedTicketResponse(Long id, String number) {}
+  private record TicketResponse(Long id, String number) {}
 }

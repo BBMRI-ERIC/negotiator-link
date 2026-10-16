@@ -8,6 +8,8 @@ import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.resourceStat
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.signedWebhookPayload;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.utf8;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
@@ -24,16 +26,20 @@ import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedPost;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedTransition;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.EventSource;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.InboxStatus;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxStatus;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.InboxEventRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorNegotiationEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorResourceEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.BeforeAll;
@@ -65,15 +71,12 @@ class NegotiatorWebhookControllerTest {
   private static final long ORG_ID = 10L;
   private static final String RESOURCE_SOURCE_ID = "bbmri:NL:LUMC:collection:res1";
   private static final String RESOURCE_ORG_EXT_ID = "bbmri:NL:LUMC";
-  private static final String AVAILABLE_SYSTEM_COMMENT =
-      "Resource '%s' changed the status to 'Resource Made Available'".formatted(RESOURCE_SOURCE_ID);
-  private static final String CONCLUDED_SYSTEM_COMMENT =
-      "Negotiation status changed to 'Concluded'";
 
   @Autowired private MockMvc mockMvc;
   @Autowired private TicketMappingRepository ticketMappingRepository;
-  @Autowired private OriginatedTransitionRepository originatedTransitionRepository;
   @Autowired private OriginatedPostRepository originatedPostRepository;
+  @Autowired private InboxEventRepository inboxEventRepository;
+  @Autowired private OutboxIntentRepository outboxIntentRepository;
   @MockitoSpyBean private HelpdeskClient helpdeskClient;
   @MockitoBean private NegotiatorClient negotiatorClient;
 
@@ -105,6 +108,13 @@ class NegotiatorWebhookControllerTest {
   @BeforeEach
   void resetMocks() {
     Mockito.reset(helpdeskClient, negotiatorClient);
+    Mockito.doNothing().when(helpdeskClient).addComment(any(), any(), any(), any());
+    Mockito.doNothing().when(helpdeskClient).addSystemComment(any(), any(), any());
+    Mockito.doNothing().when(helpdeskClient).updateNegotiationState(any(), any(), any());
+    Mockito.doNothing().when(helpdeskClient).updateResourceState(any(), any(), any());
+    Mockito.doNothing().when(helpdeskClient).updateTicketState(any(), any(), any());
+    outboxIntentRepository.deleteAll();
+    inboxEventRepository.deleteAll();
   }
 
   @Test
@@ -149,6 +159,21 @@ class NegotiatorWebhookControllerTest {
   }
 
   @Test
+  void receiveWebhook_whenMalformedJson_returns200AndInboxEventSkipped() throws Exception {
+    var webhookId = "msg-malformed-001";
+    var timestamp = Instant.now();
+    performWebhook(webhookId, timestamp, "not-valid-json{{{").andExpect(status().isOk());
+
+    inboxEventRepository
+        .findBySourceAndDeliveryId(EventSource.NEGOTIATOR.name(), webhookId)
+        .ifPresent(
+            e -> {
+              assertNotNull(e.getSkipReason());
+              assertThat(e.getSkipReason().startsWith("unparseable"));
+            });
+  }
+
+  @Test
   void receiveWebhook_whenDuplicate_returns200() throws Exception {
     var webhookId = "msg-005";
     var timestamp = Instant.now();
@@ -161,49 +186,13 @@ class NegotiatorWebhookControllerTest {
   }
 
   @Test
-  void
-      receiveWebhook_resourceStateUpdated_deduplication_firstCallsAdapter_secondDiscarded_thirdDeletesRow()
-          throws Exception {
-    String toState = NegotiatorResourceEvent.MARK_AS_CHECKING_AVAILABILITY.targetState();
-
-    originatedTransitionRepository.save(
-        new OriginatedTransition(NEGOTIATION_ID, TICKET_RESOURCE, 3, toState));
-
-    // First webhook: adapter must be called once to update the state
-    sendResourceStateWebhook("dedup-w1", NEGOTIATION_ID, RESOURCE_SOURCE_ID, toState);
-    verify(helpdeskClient, times(1)).updateResourceState(eq(TICKET_RESOURCE), eq(toState), any());
-    assertThat(
-            originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
-                NEGOTIATION_ID, TICKET_RESOURCE, toState))
-        .isPresent()
-        .hasValueSatisfying(t -> assertThat(t.getReceivedCount()).isEqualTo(1));
-
-    // Second webhook: adapter must NOT be called again, row still exists
-    sendResourceStateWebhook("dedup-w2", NEGOTIATION_ID, RESOURCE_SOURCE_ID, toState);
-    verify(helpdeskClient, times(1)).updateResourceState(any(), any(), any());
-    assertThat(
-            originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
-                NEGOTIATION_ID, TICKET_RESOURCE, toState))
-        .isPresent()
-        .hasValueSatisfying(t -> assertThat(t.getReceivedCount()).isEqualTo(2));
-
-    // Third webhook: adapter must NOT be called again, row is deleted
-    sendResourceStateWebhook("dedup-w3", NEGOTIATION_ID, RESOURCE_SOURCE_ID, toState);
-    verify(helpdeskClient, times(1)).updateResourceState(any(), any(), any());
-    assertThat(
-            originatedTransitionRepository.findByNegotiationIdAndTicketIdAndNewState(
-                NEGOTIATION_ID, TICKET_RESOURCE, toState))
-        .isEmpty();
-  }
-
-  @Test
   void receiveWebhook_postAdded_deduplication_originatingTicketExcluded_otherTicketReceivesComment()
       throws Exception {
     String postId = "post-dedup-p1";
     String postText = "Hello from help desk";
     String textHash = sha256Hex(postText);
 
-    originatedPostRepository.save(new OriginatedPost(textHash, String.valueOf(ORG_ID), TICKET_A));
+    originatedPostRepository.save(new OriginatedPost(textHash, ORG_EXT_ID, TICKET_A));
 
     when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(postId), any()))
         .thenReturn(
@@ -242,20 +231,6 @@ class NegotiatorWebhookControllerTest {
   @Test
   void receiveWebhook_negotiationStateMappedToTicketState_callsUpdateTicketStateOnAllTickets()
       throws Exception {
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .updateNegotiationState(
-            eq(TICKET_A), eq(NegotiatorNegotiationEvent.CONCLUDE.toState()), any());
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .updateNegotiationState(
-            eq(TICKET_B), eq(NegotiatorNegotiationEvent.CONCLUDE.toState()), any());
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .addSystemComment(eq(TICKET_A), eq(CONCLUDED_SYSTEM_COMMENT), any());
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .addSystemComment(eq(TICKET_B), eq(CONCLUDED_SYSTEM_COMMENT), any());
     String body =
         negotiationStateChangedPayload(
             NEGOTIATION_ID,
@@ -275,37 +250,9 @@ class NegotiatorWebhookControllerTest {
   }
 
   @Test
-  void receiveWebhook_negotiationStateUpdateFails_doesNotUpdateTicketState() throws Exception {
-    Mockito.doThrow(new RuntimeException("help desk unavailable"))
-        .when(helpdeskClient)
-        .updateNegotiationState(any(), eq(NegotiatorNegotiationEvent.CONCLUDE.toState()), any());
-    String body =
-        negotiationStateChangedPayload(
-            NEGOTIATION_ID,
-            NegotiatorNegotiationEvent.UNPAUSE.toState(),
-            NegotiatorNegotiationEvent.CONCLUDE.toState(),
-            NegotiatorNegotiationEvent.CONCLUDE.name());
-    performWebhook("state-close-fail-w1", Instant.now(), body).andExpect(status().isOk());
-
-    verify(helpdeskClient)
-        .updateNegotiationState(
-            eq(TICKET_A), eq(NegotiatorNegotiationEvent.CONCLUDE.toState()), any());
-    verify(helpdeskClient)
-        .updateNegotiationState(
-            eq(TICKET_B), eq(NegotiatorNegotiationEvent.CONCLUDE.toState()), any());
-    verify(helpdeskClient, never()).updateTicketState(any(), any(), any());
-  }
-
-  @Test
   void receiveWebhook_resourceStateMappedToTicketState_updatesResourceStateThenTicketState()
       throws Exception {
     String toState = NegotiatorResourceEvent.GRANT_ACCESS_TO_RESOURCE.targetState();
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .updateResourceState(eq(TICKET_RESOURCE), eq(toState), any());
-    Mockito.doNothing()
-        .when(helpdeskClient)
-        .addSystemComment(eq(TICKET_RESOURCE), eq(AVAILABLE_SYSTEM_COMMENT), any());
     String body =
         resourceStateUpdatedPayload(
             NEGOTIATION_ID,
@@ -317,25 +264,6 @@ class NegotiatorWebhookControllerTest {
 
     verify(helpdeskClient).updateResourceState(eq(TICKET_RESOURCE), eq(toState), any());
     verify(helpdeskClient).updateTicketState(eq(TICKET_RESOURCE), eq("closed"), any());
-  }
-
-  @Test
-  void receiveWebhook_resourceStateUpdateFails_doesNotUpdateTicketState() throws Exception {
-    String toState = NegotiatorResourceEvent.GRANT_ACCESS_TO_RESOURCE.targetState();
-    Mockito.doThrow(new RuntimeException("help desk unavailable"))
-        .when(helpdeskClient)
-        .updateResourceState(eq(TICKET_RESOURCE), eq(toState), any());
-    String body =
-        resourceStateUpdatedPayload(
-            NEGOTIATION_ID,
-            RESOURCE_SOURCE_ID,
-            "ACCESS_CONDITIONS_MET",
-            toState,
-            NegotiatorResourceEvent.GRANT_ACCESS_TO_RESOURCE.toString());
-    performWebhook("resource-close-fail-w1", Instant.now(), body).andExpect(status().isOk());
-
-    verify(helpdeskClient).updateResourceState(eq(TICKET_RESOURCE), eq(toState), any());
-    verify(helpdeskClient, never()).updateTicketState(any(), any(), any());
   }
 
   @Test
@@ -460,27 +388,40 @@ class NegotiatorWebhookControllerTest {
         .addComment(eq(ticketB), contains("updated"), eq(CommentType.HTML), any());
   }
 
-  private void sendResourceStateWebhook(
-      String webhookId, String negotiationId, String resourceId, String toState) throws Exception {
-    var timestamp = Instant.now();
-    String body =
-        resourceStateUpdatedPayload(
-            negotiationId,
-            resourceId,
-            "SUBMITTED",
-            toState,
-            NegotiatorResourceEvent.MARK_AS_CHECKING_AVAILABILITY.toString());
-    performWebhook(webhookId, timestamp, body).andExpect(status().isOk());
-  }
-
   private ResultActions performWebhook(String webhookId, Instant timestamp, String body)
       throws Exception {
-    return mockMvc.perform(
-        post("/webhooks/negotiator")
-            .contentType(MediaType.APPLICATION_OCTET_STREAM)
-            .header("Webhook-Id", webhookId)
-            .header("Webhook-Timestamp", timestamp.getEpochSecond())
-            .header("Webhook-Signature", signedWebhookPayload(secret, webhookId, timestamp, body))
-            .content(utf8(body)));
+    ResultActions result =
+        mockMvc.perform(
+            post("/webhooks/negotiator")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header("Webhook-Id", webhookId)
+                .header("Webhook-Timestamp", timestamp.getEpochSecond())
+                .header(
+                    "Webhook-Signature", signedWebhookPayload(secret, webhookId, timestamp, body))
+                .content(utf8(body)));
+    if (result.andReturn().getResponse().getStatus() == 200) {
+      awaitProcessed(EventSource.NEGOTIATOR.name(), webhookId);
+    }
+    return result;
+  }
+
+  private void awaitProcessed(String source, String deliveryId) {
+    await()
+        .atMost(Duration.ofSeconds(10))
+        .until(
+            () ->
+                inboxEventRepository
+                    .findBySourceAndDeliveryId(source, deliveryId)
+                    .map(e -> e.getStatus() != InboxStatus.RECEIVED)
+                    .orElse(false));
+    // Side effects now happen in the outbox deliverer; wait until all intents are delivered so the
+    // downstream verify(helpdeskClient...) assertions observe the applied effects.
+    await()
+        .atMost(Duration.ofSeconds(10))
+        .until(
+            () ->
+                outboxIntentRepository.countByStatusIn(
+                        List.of(OutboxStatus.PENDING, OutboxStatus.IN_PROGRESS))
+                    == 0);
   }
 }

@@ -1,25 +1,29 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
+import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PayloadUtil.serialize;
 import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil.enumToText;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedTransition;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedTransitionRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationCache;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationException;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SetStatePayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.NegotiationResourceStateUpdatedWebhookEvent;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Component
@@ -29,13 +33,12 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
   private static final String EVENT_TYPE = "negotiation.resource.state.updated";
 
   private final TicketMappingRepository ticketMappingRepository;
-  private final OriginatedTransitionRepository originatedTransitionRepository;
   private final OrganizationConfigRegistry registry;
-  private final Map<HelpdeskType, HelpdeskClient> clients;
+  private final PendingTicketCreationCache pendingTicketCreationCache;
   private final ObjectMapper objectMapper;
 
   private record DispatchContext(
-      String ticketId, OrganizationConfig config, HelpdeskClient client) {}
+      String negotiationId, String ticketId, String orgExtId, OrganizationConfig config) {}
 
   @Override
   public String getSupportedEventType() {
@@ -43,19 +46,18 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
   }
 
   @Override
-  @Transactional
-  public void handle(JsonNode data) {
+  public HandlerResult handle(JsonNode data) {
     NegotiationResourceStateUpdatedWebhookEvent event = parseEvent(data);
     if (event == null) {
-      return;
+      return HandlerResult.empty();
     }
 
     DispatchContext context = resolveDispatchContext(event);
     if (context == null) {
-      return;
+      return HandlerResult.empty();
     }
 
-    dispatchStateUpdate(event, context);
+    return HandlerResult.of(dispatchStateUpdate(event, context));
   }
 
   /** Parses and validates the webhook event, or returns {@code null} if it is incomplete. */
@@ -74,16 +76,17 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
     return event;
   }
 
-  /**
-   * Resolves the ticket mapping, org config, and adapter for the update, or returns {@code null} if
-   * the resource is not managed here or is misconfigured.
-   */
   private DispatchContext resolveDispatchContext(
       NegotiationResourceStateUpdatedWebhookEvent event) {
     Optional<TicketMapping> mappingOpt =
         ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
             event.getNegotiationId(), event.getResourceId());
     if (mappingOpt.isEmpty()) {
+      boolean anyMappingExists =
+          !ticketMappingRepository.findByIdNegotiationId(event.getNegotiationId()).isEmpty();
+      if (!anyMappingExists && pendingTicketCreationCache.isTracked(event.getNegotiationId())) {
+        throw new PendingTicketCreationException(event.getNegotiationId());
+      }
       log.debug(
           "No ticket mapping for negotiation '{}' resource '{}' — not managed here",
           event.getNegotiationId(),
@@ -101,112 +104,58 @@ public class NegotiationResourceStateUpdatedHandler implements NegotiationEventH
       return null;
     }
 
-    HelpdeskClient client = clients.get(config.type());
-    return new DispatchContext(ticketId, config, client);
+    return new DispatchContext(event.getNegotiationId(), ticketId, orgExtId, config);
   }
 
-  /** Applies the state update, deduplicating it if it originated from the help desk. */
-  private void dispatchStateUpdate(
+  private List<PendingIntent> dispatchStateUpdate(
       NegotiationResourceStateUpdatedWebhookEvent event, DispatchContext context) {
-    String negotiationId = event.getNegotiationId();
     String resourceSourceId = event.getResourceId();
-    String toState = event.getToState().getValue();
-    OriginatedTransition originated =
-        originatedTransitionRepository
-            .findByNegotiationIdAndTicketIdAndNewState(negotiationId, context.ticketId(), toState)
-            .orElse(null);
-
-    try {
-      if (context.config.ticketStrategy() == TicketStrategy.PER_NEGOTIATION && originated != null) {
-        handleOriginatedTransition(originated, resourceSourceId, toState, context);
-      } else {
-        log.info(
-            "Updating resource state to '{}' on ticket '{}' (Negotiator-triggered or from helpdesk with PER_RESOURCE strategy)",
-            toState,
-            context.ticketId());
-        context.client().updateResourceState(context.ticketId(), toState, context.config());
-        postSystemCommentAboutTheChange(resourceSourceId, toState, context);
-        applyTicketStateMapping(toState, context);
-      }
-    } catch (Exception e) {
-      log.error(
-          "Fail in updating resource state to '{}' on ticket '{}' for negotiation '{}' resource '{}'",
-          toState,
-          context.ticketId(),
-          negotiationId,
-          resourceSourceId,
-          e);
-    }
+    String toState = Objects.requireNonNull(event.getToState()).getValue();
+    log.info("Updating resource state to '{}' on ticket '{}'", toState, context.ticketId());
+    return stateUpdateIntents(resourceSourceId, toState, context);
   }
 
-  private void handleOriginatedTransition(
-      OriginatedTransition originated,
-      String resourceSourceId,
-      String toState,
-      DispatchContext context) {
-    String ticketId = context.ticketId();
+  /** Builds the SET_RESOURCE_STATE (+ system comment, + optional SET_TICKET_STATE) intents. */
+  private List<PendingIntent> stateUpdateIntents(
+      String resourceSourceId, String toState, DispatchContext context) {
+    List<PendingIntent> intents = new ArrayList<>();
+    intents.add(
+        intent(
+            OutboxIntentType.SET_RESOURCE_STATE,
+            context,
+            serialize(new SetStatePayload(SetStatePayload.FIELD_RESOURCE_STATE, toState))));
 
-    // Lock the row for the duration of this transaction so concurrent webhooks for the same
-    // originated transition serialise here; exactly one thread observes the 0 -> 1 transition.
-    OriginatedTransition locked =
-        originatedTransitionRepository.findByIdForUpdate(originated.getRowId()).orElse(null);
-    if (locked == null) {
-      return;
+    intents.add(resourceChangedCommentIntent(resourceSourceId, toState, context));
+
+    String ticketState = context.config().resourceStateToTicketState().get(toState);
+    if (ticketState != null) {
+      intents.add(
+          intent(
+              OutboxIntentType.SET_TICKET_STATE,
+              context,
+              serialize(new SetStatePayload(SetStatePayload.FIELD_TICKET_STATE, ticketState))));
     }
-
-    locked.setReceivedCount(locked.getReceivedCount() + 1);
-    originatedTransitionRepository.save(locked);
-
-    int received = locked.getReceivedCount();
-    int expected = locked.getExpectedCount();
-
-    if (received == 1) {
-      log.info(
-          "First webhook for originated transition on ticket '{}' — updating state to '{}'",
-          ticketId,
-          toState);
-      try {
-        context.client().updateResourceState(ticketId, toState, context.config());
-        postSystemCommentAboutTheChange(resourceSourceId, toState, context);
-        applyTicketStateMapping(toState, context);
-      } catch (Exception e) {
-        log.error(
-            "Fail in updating resource state to '{}' on ticket '{}' for originated transition",
-            toState,
-            ticketId,
-            e);
-      }
-    } else {
-      log.debug(
-          "Discarding redundant resource state webhook {}/{} for ticket '{}'",
-          received,
-          expected,
-          ticketId);
-    }
-
-    if (received >= expected) {
-      originatedTransitionRepository.deleteById(locked.getRowId());
-      log.debug(
-          "Consumed all {} webhooks for ticket '{}' — removed originated_transition row",
-          expected,
-          ticketId);
-    }
+    return intents;
   }
 
-  private void postSystemCommentAboutTheChange(
+  private PendingIntent resourceChangedCommentIntent(
       String resourceSourceId, String toState, DispatchContext context) {
     String message =
         String.format(
             "Resource '%s' changed the status to '%s'", resourceSourceId, enumToText(toState));
-    context.client().addSystemComment(context.ticketId(), message, context.config());
+    return intent(
+        OutboxIntentType.ADD_SYSTEM_COMMENT,
+        context,
+        serialize(new AddSystemCommentPayload(message)));
   }
 
-  private void applyTicketStateMapping(String toState, DispatchContext context) {
-    String ticketState = context.config().resourceStateToTicketState().get(toState);
-    if (ticketState == null) {
-      return;
-    }
-    String ticketId = context.ticketId();
-    context.client().updateTicketState(ticketId, ticketState, context.config());
+  private PendingIntent intent(OutboxIntentType type, DispatchContext context, String payload) {
+    return new PendingIntent(
+        type,
+        TargetKind.TICKET,
+        context.ticketId(),
+        context.negotiationId(),
+        context.orgExtId(),
+        payload);
   }
 }
