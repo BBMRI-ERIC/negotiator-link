@@ -68,7 +68,9 @@ public class HelpdeskPostHandler implements HelpdeskEventHandler<PostMessageEven
             negotiationId,
             negotiationId,
             config.organizationExternalId(),
-            serialize(new CreatePostPayload(negotiationId, ticketId, signedText)));
+            serialize(
+                new CreatePostPayload(
+                    negotiationId, ticketId, signedText, postMessageEvent.attachments())));
     return HandlerResult.of(List.of(intent), originatedPost);
   }
 
