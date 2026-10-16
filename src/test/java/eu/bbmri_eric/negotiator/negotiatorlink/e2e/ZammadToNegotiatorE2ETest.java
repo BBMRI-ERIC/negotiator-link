@@ -8,6 +8,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -36,6 +38,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.servlet.MockMvc;
@@ -43,6 +46,7 @@ import org.springframework.web.client.RestClient;
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 class ZammadToNegotiatorE2ETest {
 
   private static final String TICKET_ID = "1";
@@ -86,6 +90,10 @@ class ZammadToNegotiatorE2ETest {
       "webhookPayloadWhenBothNewInternalArticleAndResourceStateTransition.json";
   private static final String PAYLOAD_NEW_INTERNAL_ARTICLE =
       "webhookPayloadWhenNewInternalArticle.json";
+  private static final String PAYLOAD_ARTICLE_WITH_ATTACHMENT =
+      "webhookPayloadArticleWithAttachment.json";
+  private static final String PAYLOAD_TWO_ATTACHMENTS_AND_TRANSITION =
+      "webhookPayloadArticleWithTwoAttachmentsAndResourceTransition.json";
 
   private static final String PER_RESOURCE_ORG = "bbmri:DE:MHH";
   private static final String PER_RESOURCE_SECRET = "test-callback-secret";
@@ -107,6 +115,8 @@ class ZammadToNegotiatorE2ETest {
   void setUp() {
     ticketMappingRepository.deleteAll();
     zammadServer = MockRestServiceServer.bindTo(restClientBuilder).build();
+    outboxIntentRepository.deleteAll();
+    inboxEventRepository.deleteAll();
     when(negotiatorClient.getNegotiation(eq(NEGOTIATION_ID), any(OrganizationConfig.class)))
         .thenReturn(new EntityModelNegotiationDTO().privatePostsEnabled(true));
   }
@@ -130,6 +140,128 @@ class ZammadToNegotiatorE2ETest {
                     SIGNED_POST_TEXT.equals(p.getText())
                         && PostCreateDTO.TypeEnum.PRIVATE.equals(p.getType())),
             any(OrganizationConfig.class));
+    zammadServer.verify();
+  }
+
+  @Test
+  void postWithAttachment_perResourceOrg_forwardsPostThenDownloadsAndUploadsAttachment()
+      throws Exception {
+    byte[] fileBytes = "col1,col2\n1,2\n".getBytes(StandardCharsets.UTF_8);
+
+    ticketMappingRepository.save(
+        new TicketMapping(
+            new TicketMappingId(NEGOTIATION_ID, TICKET_ID, RESOURCE_ID),
+            RESOURCE_SOURCE_ID,
+            ORGANIZATION_ID,
+            PER_RESOURCE_ORG));
+
+    zammadServer
+        .expect(requestTo(org.hamcrest.Matchers.endsWith("/api/v1/ticket_attachment/1/27/100")))
+        .andExpect(method(org.springframework.http.HttpMethod.GET))
+        .andRespond(
+            org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess(
+                fileBytes, MediaType.APPLICATION_OCTET_STREAM));
+
+    postCallback(PER_RESOURCE_ORG, PER_RESOURCE_SECRET, loadFile(PAYLOAD_ARTICLE_WITH_ATTACHMENT));
+
+    verify(negotiatorClient)
+        .createPost(
+            eq(NEGOTIATION_ID),
+            argThat(
+                p ->
+                    SIGNED_POST_TEXT.equals(p.getText())
+                        && PostCreateDTO.TypeEnum.PRIVATE.equals(p.getType())),
+            any(OrganizationConfig.class));
+    verify(negotiatorClient)
+        .uploadAttachment(
+            eq(NEGOTIATION_ID),
+            argThat(
+                a ->
+                    "report.csv".equals(a.filename())
+                        && "text/csv".equals(a.contentType())
+                        && new String(a.content(), StandardCharsets.UTF_8)
+                            .equals("col1,col2\n1,2\n")),
+            eq(PER_RESOURCE_ORG),
+            any(OrganizationConfig.class));
+    zammadServer.verify();
+  }
+
+  @Test
+  void
+      postWithTwoAttachmentsAndResourceTransition_perResourceOrg_forwardsPostAttachmentsAndResourceEvent()
+          throws Exception {
+    String ticketId = "391";
+    String articleId = "2875";
+    String resourceId = "100";
+    String event = NegotiatorResourceEvent.MARK_AS_CHECKING_AVAILABILITY.toString();
+    byte[] file1Bytes = "col1,col2\n1,2\n".getBytes(StandardCharsets.UTF_8);
+    byte[] file2Bytes = "a,b\n3,4\n".getBytes(StandardCharsets.UTF_8);
+
+    ticketMappingRepository.save(
+        new TicketMapping(
+            new TicketMappingId(NEGOTIATION_ID, ticketId, resourceId),
+            RESOURCE_SOURCE_ID,
+            ORGANIZATION_ID,
+            PER_RESOURCE_ORG));
+
+    when(negotiatorClient.getPossibleResourceEvents(
+            eq(NEGOTIATION_ID), eq(RESOURCE_SOURCE_ID), any(OrganizationConfig.class)))
+        .thenReturn(Set.of(event));
+
+    zammadServer
+        .expect(
+            requestTo(
+                org.hamcrest.Matchers.endsWith(
+                    "/api/v1/ticket_attachment/" + ticketId + "/" + articleId + "/668")))
+        .andExpect(method(org.springframework.http.HttpMethod.GET))
+        .andRespond(
+            org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess(
+                file1Bytes, MediaType.APPLICATION_OCTET_STREAM));
+    zammadServer
+        .expect(
+            requestTo(
+                org.hamcrest.Matchers.endsWith(
+                    "/api/v1/ticket_attachment/" + ticketId + "/" + articleId + "/669")))
+        .andExpect(method(org.springframework.http.HttpMethod.GET))
+        .andRespond(
+            org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess(
+                file2Bytes, MediaType.APPLICATION_OCTET_STREAM));
+
+    postCallback(
+        PER_RESOURCE_ORG, PER_RESOURCE_SECRET, loadFile(PAYLOAD_TWO_ATTACHMENTS_AND_TRANSITION));
+
+    verify(negotiatorClient)
+        .createPost(
+            eq(NEGOTIATION_ID),
+            argThat(
+                p ->
+                    SIGNED_POST_TEXT_WITH_TRANSITION.equals(p.getText())
+                        && PostCreateDTO.TypeEnum.PRIVATE.equals(p.getType())),
+            any(OrganizationConfig.class));
+    verify(negotiatorClient)
+        .uploadAttachment(
+            eq(NEGOTIATION_ID),
+            argThat(
+                a ->
+                    "data (3).csv".equals(a.filename())
+                        && "text/csv".equals(a.contentType())
+                        && new String(a.content(), StandardCharsets.UTF_8)
+                            .equals("col1,col2\n1,2\n")),
+            eq(PER_RESOURCE_ORG),
+            any(OrganizationConfig.class));
+    verify(negotiatorClient)
+        .uploadAttachment(
+            eq(NEGOTIATION_ID),
+            argThat(
+                a ->
+                    "data (4).csv".equals(a.filename())
+                        && "text/csv".equals(a.contentType())
+                        && new String(a.content(), StandardCharsets.UTF_8).equals("a,b\n3,4\n")),
+            eq(PER_RESOURCE_ORG),
+            any(OrganizationConfig.class));
+    verify(negotiatorClient)
+        .sendResourceEvent(
+            eq(NEGOTIATION_ID), eq(RESOURCE_SOURCE_ID), eq(event), any(OrganizationConfig.class));
     zammadServer.verify();
   }
 
