@@ -71,20 +71,20 @@ class NegotiatorLinkPropertiesTest {
     NegotiatorLinkProperties.InboxProperties inbox = properties.getInbox();
     assertThat(inbox.getBatchSize()).isEqualTo(25);
     assertThat(inbox.getPollDelayMs()).isEqualTo(500);
-    assertThat(inbox.getMaxAttempts()).isEqualTo(3);
-    assertThat(inbox.getBaseBackoff()).isEqualTo(Duration.parse("PT2S"));
-    assertThat(inbox.getMaxBackoff()).isEqualTo(Duration.parse("PT60S"));
+    assertThat(inbox.getMaxAttempts()).isEqualTo(2);
+    assertThat(inbox.getBaseBackoff()).isEqualTo(Duration.parse("PT1S"));
+    assertThat(inbox.getMaxBackoff()).isEqualTo(Duration.parse("PT2S"));
   }
 
   @Test
   void outboxProperties_whenConfigured_bindAllFields() {
     NegotiatorLinkProperties.OutboxProperties outbox = properties.getOutbox();
     assertThat(outbox.getPollDelayMs()).isEqualTo(200);
-    assertThat(outbox.getMaxAttempts()).isEqualTo(4);
-    assertThat(outbox.getBaseBackoff()).isEqualTo(Duration.parse("PT3S"));
-    assertThat(outbox.getMaxBackoff()).isEqualTo(Duration.parse("PT120S"));
-    assertThat(outbox.getClaimTimeout()).isEqualTo(Duration.parse("PT600S"));
-    assertThat(outbox.getClaimReapInterval()).isEqualTo(Duration.parse("PT60S"));
+    assertThat(outbox.getMaxAttempts()).isEqualTo(1);
+    assertThat(outbox.getBaseBackoff()).isEqualTo(Duration.parse("PT1S"));
+    assertThat(outbox.getMaxBackoff()).isEqualTo(Duration.parse("PT2S"));
+    assertThat(outbox.getClaimTimeout()).isEqualTo(Duration.parse("PT6000S"));
+    assertThat(outbox.getClaimReapInterval()).isEqualTo(Duration.parse("PT600S"));
     assertThat(outbox.getWorkerCount()).isEqualTo(3);
     assertThat(outbox.getQueueDepth()).isEqualTo(10);
   }

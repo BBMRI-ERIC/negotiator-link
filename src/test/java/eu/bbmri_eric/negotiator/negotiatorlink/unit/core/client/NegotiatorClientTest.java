@@ -2,6 +2,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.client;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -327,5 +328,41 @@ class NegotiatorClientTest {
 
     assertThatThrownBy(() -> client.downloadAttachment("a-err", config))
         .isInstanceOf(RestClientException.class);
+  }
+
+  @Test
+  void uploadAttachment_postsMultipartFileWithOrgScopeAndBearerAuth() {
+    server
+        .expect(
+            requestTo(
+                BASE_URL
+                    + "/v3/negotiations/neg-1/attachments?organizationId="
+                    + ORG_EXT_ID.replace(":", "%3A")))
+        .andExpect(method(HttpMethod.POST))
+        .andExpect(header("Authorization", "Bearer " + BEARER_TOKEN))
+        .andExpect(
+            header(
+                "Content-Type",
+                org.hamcrest.Matchers.startsWith(MediaType.MULTIPART_FORM_DATA_VALUE)))
+        .andExpect(
+            content()
+                .string(
+                    org.hamcrest.Matchers.allOf(
+                        org.hamcrest.Matchers.containsString("name=\"file\""),
+                        org.hamcrest.Matchers.containsString("filename=\"report.csv\""),
+                        org.hamcrest.Matchers.containsString("col1,col2"))))
+        .andRespond(
+            withSuccess(
+                "{\"id\":\"att-9\",\"name\":\"report.csv\",\"contentType\":\"text/csv\"}",
+                MediaType.APPLICATION_JSON));
+
+    var attachment =
+        new eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment(
+            "report.csv", "text/csv", "col1,col2\n1,2\n".getBytes());
+
+    AttachmentMetadataDTO result = client.uploadAttachment("neg-1", attachment, ORG_EXT_ID, config);
+
+    assertThat(result.getId()).isEqualTo("att-9");
+    server.verify();
   }
 }
