@@ -1,5 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.reliability;
 
+import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorFacade;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorLinkProperties;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepository;
 import jakarta.annotation.PreDestroy;
@@ -34,6 +35,9 @@ public class OutboxPoller {
 
   private final OutboxClaimer claimer;
   private final OutboxDeliverer deliverer;
+  private final OutboxService outboxService;
+  private final FailureClassifier failureClassifier;
+  private final NegotiatorFacade negotiatorFacade;
   private final OutboxIntentRepository outboxIntentRepository;
   private final Duration claimTimeout;
   private final ExecutorService[] workers;
@@ -42,10 +46,16 @@ public class OutboxPoller {
   public OutboxPoller(
       OutboxClaimer claimer,
       OutboxDeliverer deliverer,
+      OutboxService outboxService,
+      FailureClassifier failureClassifier,
+      NegotiatorFacade negotiatorFacade,
       OutboxIntentRepository outboxIntentRepository,
       NegotiatorLinkProperties properties) {
     this.claimer = claimer;
     this.deliverer = deliverer;
+    this.outboxService = outboxService;
+    this.failureClassifier = failureClassifier;
+    this.negotiatorFacade = negotiatorFacade;
     this.outboxIntentRepository = outboxIntentRepository;
     NegotiatorLinkProperties.OutboxProperties outboxProperties = properties.getOutbox();
     this.claimTimeout = outboxProperties.getClaimTimeout();
@@ -154,6 +164,10 @@ public class OutboxPoller {
     } catch (Exception e) {
       log.error("Outbox delivery failed for intent {} — recording failure", rowId, e);
       deliverer.recordFailure(rowId, claimToken, e);
+      if (failureClassifier.isRequiredFormNotSubmitted(e)) {
+        outboxService.enqueueRequiredFormComment(
+            rowId, negotiatorFacade.findNegotiationForRequiredFormComment(rowId).orElse(null));
+      }
     }
   }
 }

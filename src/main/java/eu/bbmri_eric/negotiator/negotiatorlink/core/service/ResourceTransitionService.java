@@ -12,6 +12,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SendBulkResourceEventPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SendResourceEventPayload;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationLinkUtil;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -35,9 +36,13 @@ public class ResourceTransitionService {
 
   /**
    * Describes why an {@link #apply} call cannot transition any resource: the resources that could
-   * not accept the requested event, and whether all resources covered by the ticket are invalid.
+   * not accept the requested event, whether all resources covered by the ticket are invalid, and
+   * the negotiation's UI link (when resolvable) for inclusion in the user-facing message.
    */
-  public record Rejection(List<InvalidResource> invalidResources, boolean allInvalid) {}
+  public record Rejection(
+      List<InvalidResource> invalidResources,
+      boolean allInvalid,
+      Optional<String> negotiationUiLink) {}
 
   public record TransitionResult(List<PendingIntent> intents, Optional<Rejection> rejection) {
 
@@ -88,7 +93,10 @@ public class ResourceTransitionService {
           negotiationId,
           allowedEvents);
       return TransitionResult.rejected(
-          new Rejection(List.of(new InvalidResource(resourceSourceId, allowedEvents)), true));
+          new Rejection(
+              List.of(new InvalidResource(resourceSourceId, allowedEvents)),
+              true,
+              fetchUiLink(negotiationId, config)));
     }
 
     log.info(
@@ -120,7 +128,10 @@ public class ResourceTransitionService {
           negotiationId,
           invalidResources.size());
       return TransitionResult.rejected(
-          new Rejection(invalidResources, mappings.size() == invalidResources.size()));
+          new Rejection(
+              invalidResources,
+              mappings.size() == invalidResources.size(),
+              fetchUiLink(negotiationId, config)));
     }
 
     List<Long> resourceIds =
@@ -159,5 +170,17 @@ public class ResourceTransitionService {
                         negotiationId, m.getResourceSourceId(), config)))
         .filter(r -> !r.allowedEvents().contains(requestedEvent))
         .toList();
+  }
+
+  private Optional<String> fetchUiLink(String negotiationId, OrganizationConfig config) {
+    try {
+      return NegotiationLinkUtil.uiLink(negotiatorClient.getNegotiation(negotiationId, config));
+    } catch (RuntimeException e) {
+      log.warn(
+          "Could not fetch UI link for negotiation '{}' — omitting from rejection message",
+          negotiationId,
+          e);
+      return Optional.empty();
+    }
   }
 }

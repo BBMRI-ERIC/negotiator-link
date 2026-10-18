@@ -116,7 +116,8 @@ class HelpdeskTicketStateChangedHandlerTest {
                 Optional.of(
                     new Rejection(
                         List.of(new InvalidResource(RESOURCE_SOURCE_ID, Set.of("STEP_AWAY"))),
-                        true))));
+                        true,
+                        Optional.empty()))));
 
     List<PendingIntent> intents =
         handler.handle(new TicketStateChangedEvent(TICKET_ID, MAPPED_STATE), config).intents();
