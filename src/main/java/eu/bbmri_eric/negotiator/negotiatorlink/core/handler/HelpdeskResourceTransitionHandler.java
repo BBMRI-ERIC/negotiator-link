@@ -17,6 +17,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.service.ResourceTransitionSe
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.ResourceTransitionService.TransitionResult;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -54,7 +55,11 @@ public class HelpdeskResourceTransitionHandler
     String negotiationId = mappings.getFirst().getId().getNegotiationId();
     var rejection = result.rejection().get();
     String systemComment =
-        buildRejectionMessage(requestedEvent, rejection.invalidResources(), rejection.allInvalid());
+        buildRejectionMessage(
+            requestedEvent,
+            rejection.invalidResources(),
+            rejection.allInvalid(),
+            rejection.negotiationUiLink());
     List<PendingIntent> intents = new ArrayList<>();
     intents.add(
         ticketIntent(
@@ -86,10 +91,18 @@ public class HelpdeskResourceTransitionHandler
   }
 
   private static String buildRejectionMessage(
-      String requested, List<InvalidResource> invalidResources, boolean allInvalid) {
+      String requested,
+      List<InvalidResource> invalidResources,
+      boolean allInvalid,
+      Optional<String> uiLink) {
     if (allInvalid && hasAllSameAllowedEvents(invalidResources)) {
       return buildSingleRejectionMessage(requested, invalidResources.getFirst().allowedEvents());
     }
+    return buildRejectionMessageForMultipleResources(requested, invalidResources, uiLink);
+  }
+
+  private static String buildRejectionMessageForMultipleResources(
+      String requested, List<InvalidResource> invalidResources, Optional<String> uiLink) {
     var sb = new StringBuilder();
     sb.append("Transition '")
         .append(toHumanReadable(requested))
@@ -102,7 +115,8 @@ public class HelpdeskResourceTransitionHandler
           .append(allowedEvents)
           .append("\n");
     }
-    sb.append("Please resolve the state discrepancy in the Negotiator UI.");
+    sb.append("Please resolve the state discrepancy in the Negotiator.\n");
+    uiLink.ifPresent(link -> sb.append("Link: ").append(link));
     return sb.toString();
   }
 

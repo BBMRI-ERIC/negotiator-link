@@ -26,4 +26,12 @@ public final class PayloadUtil {
       throw new IllegalStateException("Failed to serialize payload", e);
     }
   }
+
+  public static <T> T deserialize(String json, Class<T> clazz) {
+    try {
+      return OBJECT_MAPPER.readValue(json, clazz);
+    } catch (Exception e) {
+      throw new IllegalStateException("Failed to deserialize payload", e);
+    }
+  }
 }

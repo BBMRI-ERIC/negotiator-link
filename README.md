@@ -271,8 +271,8 @@ In Zammad: **Admin → Integrations → Webhooks → New Webhook**
     "state_updated": true,
     "id": "#{ticket.id}",
     "state": "#{ticket.state.name}"
+    }
   }
-}
   ```
 
 Then the trigger:
