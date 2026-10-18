@@ -1,6 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.util;
 
 import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil.enumToText;
+import static j2html.TagCreator.a;
 import static j2html.TagCreator.br;
 import static j2html.TagCreator.div;
 import static j2html.TagCreator.each;
@@ -52,6 +53,7 @@ public final class NegotiationTicketBodyFormatter {
           + "white-space:nowrap;width:1%;";
   private static final String VALUE_CELL_STYLE = "padding:4px 0;vertical-align:top;";
   private static final String MUTED_STYLE = "color:#9aa5b1;";
+  private static final String LINK_STYLE = "color:#0b5394;";
 
   // ------------
   // Public API
@@ -134,7 +136,15 @@ public final class NegotiationTicketBodyFormatter {
     fields.add(Field.scalar("Status", enumToText(negotiation.getStatus())));
     fields.add(Field.scalar("Negotiation ID", negotiation.getDisplayId()));
 
-    return each(h2("Negotiator Access Request").withStyle(TITLE_STYLE), fieldsTable(fields));
+    Optional<String> uiHref = NegotiationLinkUtil.uiLink(negotiation);
+    DomContent linkRow =
+        uiHref.isPresent()
+            ? p(a("View in Negotiator").withHref(uiHref.get()).withStyle(LINK_STYLE))
+                .withStyle("margin:8px 0 0;")
+            : each();
+
+    return each(
+        h2("Negotiator Access Request").withStyle(TITLE_STYLE), fieldsTable(fields), linkRow);
   }
 
   @SuppressWarnings("unchecked")
