@@ -23,8 +23,9 @@ services:
     restart: unless-stopped
     ports:
       - "80:8080"            # host 80 (reachable externally via proxy) -> container 8080
+      - "9090:9090"          # management port — Prometheus scrape endpoint (restrict via firewall)
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8080/actuator/health"]
+      test: ["CMD", "curl", "-sf", "http://localhost:9090/actuator/health"]
       interval: 15s
       timeout: 5s
       start_period: 40s
