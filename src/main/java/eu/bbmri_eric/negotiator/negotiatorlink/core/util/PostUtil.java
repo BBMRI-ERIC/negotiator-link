@@ -14,7 +14,8 @@ import lombok.NoArgsConstructor;
 public final class PostUtil {
 
   /**
-   * Decorates the given text with a sender header for a negotiation comment
+   * Decorates the given text with a sender header for a helpdesk comment relayed into the
+   * Negotiator.
    *
    * @param text the text to be signed
    * @param sender the sender information
@@ -29,30 +30,39 @@ public final class PostUtil {
   }
 
   /**
-   * Decorates the given text with a sender header for a help-desk ticket comment
+   * Decorates a post coming from Negotiator with a sender header for a help-desk ticket comment.
    *
    * @param text the text to be decorated
    * @param sender the sender information
    * @param roles the roles held by the sender
-   * @return the signed text with roles if not already signed, otherwise the original text
+   * @return the signed text, or the original text when there is no sender to attribute it to
    */
   public static String signPostWithRoles(String text, Sender sender, SenderRoles roles) {
-    String roleLine = formatRoles(roles).isEmpty() ? null : "Role: " + formatRoles(roles);
-
-    if (startsWithSignerHeader(text)) {
-      if (roleLine == null || hasRoleLine(text)) {
-        return text;
-      }
-      int firstNewline = text.indexOf('\n');
-      return text.substring(0, firstNewline) + "\n" + roleLine + text.substring(firstNewline);
-    }
-
     String fromLine = buildFromLine(sender);
     if (fromLine == null) {
       return text;
     }
+    String roleLine = formatRoles(roles).isEmpty() ? null : "Role: " + formatRoles(roles);
     String header = roleLine == null ? fromLine : fromLine + "\n" + roleLine;
     return header + "\n\n" + text;
+  }
+
+  /**
+   * Inserts a {@code Role:} line under the header the integration itself produced when relaying a
+   * help-desk comment into the Negotiator.
+   *
+   * @param text the already integration-signed text being relayed back
+   * @param roles the roles to add, if any
+   * @return the text with a {@code Role:} line inserted under the existing header, or the original
+   *     text when there is no role to add, the header already carries one, or no header is present
+   */
+  public static String insertRoleUnderRelayedHeader(String text, SenderRoles roles) {
+    String formatted = formatRoles(roles);
+    if (formatted.isEmpty() || !startsWithSignerHeader(text) || hasRoleLine(text)) {
+      return text;
+    }
+    int firstNewline = text.indexOf('\n');
+    return text.substring(0, firstNewline) + "\nRole: " + formatted + text.substring(firstNewline);
   }
 
   /**
