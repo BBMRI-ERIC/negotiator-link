@@ -22,6 +22,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.client.AuthorizedClientServiceOAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.InMemoryOAuth2AuthorizedClientService;
@@ -249,15 +251,6 @@ public class NegotiatorClient {
       Attachment attachment,
       String organizationExtId,
       OrganizationConfig config) {
-    ByteArrayResource filePart =
-        new ByteArrayResource(attachment.content()) {
-          @Override
-          public String getFilename() {
-            return attachment.filename();
-          }
-        };
-    MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-    body.add("file", filePart);
     return getOrCreateClient(config)
         .restClient()
         .post()
@@ -267,9 +260,27 @@ public class NegotiatorClient {
             negotiationId,
             organizationExtId)
         .contentType(MediaType.MULTIPART_FORM_DATA)
-        .body(body)
+        .body(buildMultipartBody(attachment))
         .retrieve()
         .body(AttachmentMetadataDTO.class);
+  }
+
+  private MultiValueMap<String, Object> buildMultipartBody(Attachment attachment) {
+    ByteArrayResource filePart =
+        new ByteArrayResource(attachment.content()) {
+          @Override
+          public String getFilename() {
+            return attachment.filename();
+          }
+        };
+    HttpHeaders partHeaders = new HttpHeaders();
+    if (attachment.contentType() != null) {
+      partHeaders.setContentType(MediaType.parseMediaType(attachment.contentType()));
+    }
+    HttpEntity<ByteArrayResource> fileEntity = new HttpEntity<>(filePart, partHeaders);
+    MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+    body.add("file", fileEntity);
+    return body;
   }
 
   private PerOrgClient getOrCreateClient(OrganizationConfig config) {
