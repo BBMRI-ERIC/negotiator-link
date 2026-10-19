@@ -45,6 +45,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepo
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.HashUtil;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostCreateDTO;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -79,10 +80,12 @@ class OutboxIntentDispatcherTest {
   private final ObjectMapper objectMapper = new ObjectMapper();
   private OrganizationConfig config;
   private OutboxIntentDispatcher dispatcher;
+  private SimpleMeterRegistry meterRegistry;
 
   @BeforeEach
   void setUp() {
     config = organizationConfig(ORG_EXT_ID, TicketStrategy.PER_RESOURCE);
+    meterRegistry = new SimpleMeterRegistry();
     dispatcher =
         new OutboxIntentDispatcher(
             registry,
@@ -92,8 +95,24 @@ class OutboxIntentDispatcherTest {
             originatedPostRepository,
             attachmentForwardingService,
             pendingTicketCreationCache,
-            objectMapper);
+            objectMapper,
+            meterRegistry);
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+  }
+
+  @Test
+  void dispatch_recordsDeliveryDurationTimerTaggedByIntentType() {
+    dispatcher.dispatch(
+        intent(
+            OutboxIntentType.SEND_RESOURCE_EVENT,
+            new SendResourceEventPayload(NEGOTIATION_ID, RESOURCE_SOURCE_ID, EVENT)));
+
+    var timer =
+        meterRegistry
+            .find("outbox_delivery_duration_seconds")
+            .tag("intent_type", "SEND_RESOURCE_EVENT")
+            .timer();
+    assertTrue(timer != null && timer.count() == 1L);
   }
 
   @Test
