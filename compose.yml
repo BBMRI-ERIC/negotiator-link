@@ -204,6 +204,21 @@ services:
     networks:
       - negotiator-network
 
+  # Prometheus scrapes negotiator-link's actuator endpoint (negotiator-link:9090)
+  prometheus:
+    container_name: negotiator-link-prometheus
+    image: prom/prometheus:v3.1.0
+    ports:
+      - "9091:9090"   # host 9091 -> Prometheus API on container 9090
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      negotiator-link:
+        condition: service_healthy
+    networks:
+      - negotiator-network
+
   # ---------------------------------------------------------------------------
   # Zammad stack
   # ---------------------------------------------------------------------------
@@ -312,6 +327,7 @@ volumes:
   negotiator-db-data:
   negotiator-link-db-data:
   negotiator-templates:
+  prometheus-data:
   elasticsearch-data:
   zammad-backup:
   zammad-storage:
