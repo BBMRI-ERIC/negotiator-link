@@ -344,10 +344,7 @@ class NegotiatorClientTest {
                     + ORG_EXT_ID.replace(":", "%3A")))
         .andExpect(method(HttpMethod.POST))
         .andExpect(header("Authorization", "Bearer " + BEARER_TOKEN))
-        .andExpect(
-            header(
-                "Content-Type",
-                startsWith(MediaType.MULTIPART_FORM_DATA_VALUE)))
+        .andExpect(header("Content-Type", startsWith(MediaType.MULTIPART_FORM_DATA_VALUE)))
         .andExpect(
             content()
                 .string(
@@ -386,9 +383,7 @@ class NegotiatorClientTest {
                 "{\"id\":\"att-10\",\"name\":\"report\",\"contentType\":\"application/pdf\"}",
                 MediaType.APPLICATION_JSON));
 
-    var attachment =
-        new Attachment(
-            "report", "application/pdf", "%PDF-1.4".getBytes());
+    var attachment = new Attachment("report", "application/pdf", "%PDF-1.4".getBytes());
 
     AttachmentMetadataDTO result = client.uploadAttachment("neg-1", attachment, ORG_EXT_ID, config);
 
