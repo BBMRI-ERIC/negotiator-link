@@ -1,6 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.repository;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.InboxEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.InboxStatus;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -12,6 +13,10 @@ import org.springframework.data.repository.query.Param;
 public interface InboxEventRepository extends JpaRepository<InboxEvent, Long> {
 
   Optional<InboxEvent> findBySourceAndDeliveryId(String source, String deliveryId);
+
+  long countByStatus(InboxStatus status);
+
+  long countByStatusAndAttemptCountGreaterThan(InboxStatus status, int attemptCount);
 
   @Query(
       value =
