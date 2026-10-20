@@ -119,14 +119,6 @@ public final class TestUtil {
     return n;
   }
 
-  public static EntityModelNegotiationDTO negotiationWithAuthorId(String authorId) {
-    var negotiation = new EntityModelNegotiationDTO();
-    var author = new UserResponseModel();
-    author.setId(authorId);
-    negotiation.setAuthor(author);
-    return negotiation;
-  }
-
   public static EntityModelResourceWithStatusDTO resource(
       Long id, String sourceId, String name, String orgExtId, Long orgId) {
     var r = new EntityModelResourceWithStatusDTO();
