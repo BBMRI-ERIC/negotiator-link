@@ -31,12 +31,14 @@ import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegoti
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.NegotiationStateUpdatedWebhookEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.OrganizationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.UserResponseModel;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -147,7 +149,8 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       CreateNegotiationContext context) {
     EntityModelNegotiationDTO negotiation = context.negotiation();
     String body =
-        NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(negotiation, resources);
+        NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(
+            negotiation, resources, organizationNames(context.negotiationResources()));
     String title = NegotiationTicketBodyFormatter.buildTitle(negotiation, null);
 
     CreateTicketPayload payload =
@@ -172,7 +175,8 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
 
     for (EntityModelResourceWithStatusDTO resource : resources) {
       String body =
-          NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(negotiation, resource);
+          NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
+              negotiation, resource, organizationNames(context.negotiationResources()));
       String title = NegotiationTicketBodyFormatter.buildTitle(negotiation, resource.getName());
       CreateTicketPayload payload =
           new CreateTicketPayload(
@@ -211,6 +215,14 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
         negotiationId,
         orgExtId,
         serialize(payload));
+  }
+
+  private List<String> organizationNames(List<EntityModelResourceWithStatusDTO> resources) {
+    return resources.stream()
+        .map(EntityModelResourceWithStatusDTO::getOrganization)
+        .filter(Objects::nonNull)
+        .map(OrganizationDTO::getName)
+        .toList();
   }
 
   private List<ResourceMappingRef> resourceRefs(List<EntityModelResourceWithStatusDTO> resources) {

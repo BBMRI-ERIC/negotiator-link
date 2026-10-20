@@ -23,7 +23,9 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFo
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.NegotiationUpdatedWebhookEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.OrganizationDTO;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -181,7 +183,9 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
               .filter(Objects::nonNull)
               .toList();
       return NegotiationTicketBodyFormatter.getUpdatedTicketBodyWithMultipleResources(
-          context.negotiation(), ticketResources);
+          context.negotiation(),
+          ticketResources,
+          organizationNames(context.resourceById().values()));
     }
 
     // PER_RESOURCE: find the single resource for this ticket.
@@ -192,7 +196,15 @@ public class NegotiationUpdatedHandler implements NegotiationEventHandler {
             .map(mapping -> context.resourceById().get(mapping.getId().getResourceId()))
             .orElseThrow();
     return NegotiationTicketBodyFormatter.getUpdatedTicketBodyWithSingleResource(
-        context.negotiation(), resource);
+        context.negotiation(), resource, organizationNames(context.resourceById().values()));
+  }
+
+  private List<String> organizationNames(Collection<EntityModelResourceWithStatusDTO> resources) {
+    return resources.stream()
+        .map(EntityModelResourceWithStatusDTO::getOrganization)
+        .filter(Objects::nonNull)
+        .map(OrganizationDTO::getName)
+        .toList();
   }
 
   private static Map<String, String> getDistinctTicketIdToOrgExtId(List<TicketMapping> mappings) {

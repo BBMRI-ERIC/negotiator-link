@@ -129,6 +129,7 @@ public final class TestUtil {
     var org = new OrganizationDTO();
     org.setId(orgId);
     org.setExternalId(orgExtId);
+    org.setName("Org " + orgExtId);
     r.setOrganization(org);
     return r;
   }
