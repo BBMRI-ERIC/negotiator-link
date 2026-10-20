@@ -16,8 +16,6 @@ public interface InboxEventRepository extends JpaRepository<InboxEvent, Long> {
 
   long countByStatus(InboxStatus status);
 
-  long countByStatusAndAttemptCountGreaterThan(InboxStatus status, int attemptCount);
-
   @Query(
       value =
           "SELECT * FROM inbox_event WHERE status = 'RECEIVED' "
