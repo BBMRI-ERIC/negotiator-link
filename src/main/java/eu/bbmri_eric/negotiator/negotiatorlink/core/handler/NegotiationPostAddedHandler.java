@@ -48,8 +48,7 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
   private final PendingTicketCreationCache pendingTicketCreationCache;
   private final ObjectMapper objectMapper;
 
-  private record PostContent(
-      String rawText, boolean isPublic, String textHash, Sender sender, SenderRoles roles) {}
+  private record PostContent(String text, boolean isPublic, String textHash) {}
 
   @Override
   public String getSupportedEventType() {
@@ -88,16 +87,10 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
                   originatedPost.getTicketId(),
                   event.getPostId());
               ticketToOrgExtId.remove(originatedPost.getTicketId());
-              String relayedText =
-                  PostUtil.insertRoleUnderRelayedHeader(content.rawText(), content.roles());
-              return HandlerResult.of(fanOut(ticketToOrgExtId, relayedText, event), originatedPost);
+              return HandlerResult.of(
+                  fanOut(ticketToOrgExtId, content.text(), event), originatedPost);
             })
-        .orElseGet(
-            () -> {
-              String signedText =
-                  PostUtil.signPostWithRoles(content.rawText(), content.sender(), content.roles());
-              return HandlerResult.of(fanOut(ticketToOrgExtId, signedText, event));
-            });
+        .orElseGet(() -> HandlerResult.of(fanOut(ticketToOrgExtId, content.text(), event)));
   }
 
   /** Parses and validates the webhook event, or returns {@code null} if it is incomplete. */
@@ -144,7 +137,8 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
     String authorId =
         createdBy == null ? null : fetchNegotiationAuthorId(event.getNegotiationId(), fetchConfig);
     SenderRoles roles = PostUtil.resolveSenderRoles(createdBy, authorId);
-    return new PostContent(post.getText(), isPublic, sha256Hex(post.getText()), sender, roles);
+    String postText = PostUtil.signPostWithRoles(post.getText(), sender, roles);
+    return new PostContent(postText, isPublic, sha256Hex(post.getText()));
   }
 
   private String fetchNegotiationAuthorId(String negotiationId, OrganizationConfig fetchConfig) {

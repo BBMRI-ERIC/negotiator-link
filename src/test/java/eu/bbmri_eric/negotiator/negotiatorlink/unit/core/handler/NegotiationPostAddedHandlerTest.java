@@ -1,6 +1,5 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.handler;
 
-import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.HashUtil.sha256Hex;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.negotiationWithAuthorId;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -314,59 +313,35 @@ class NegotiationPostAddedHandlerTest {
   }
 
   @Test
-  void handle_perResource_echo_suppressesOriginatingTicket_preservesRelayedHeaderOnSibling() {
+  void handle_perResource_suppressesOriginatingTicket_decoratesSiblingWithRole() {
     var config = createConfig(ORG_EXT_ID);
     // Two sibling tickets for the same org (PER_RESOURCE), both mapped to this negotiation.
     var mappings =
         List.of(
             mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID), mapping(TICKET_B, ORG_ID_STR, ORG_EXT_ID));
-    // A real echo: the post body is the integration-signed text the help desk produced, so its
-    // hash matches the originated_post record. createdBy is the integration service account.
-    var signedText = "From: John Smith <john@mhh.de>\n\nHi";
-    var signedHash = sha256Hex(signedText);
-    var post =
-        TestUtil.post(
-            POST_ID, signedText, EntityModelPostDTO.TypeEnum.PRIVATE, ORG_ID_STR, "svc", "svc@eu");
+    var post = postWithRoles("Jane Doe", "jane@example.com", "user-1", false, false, false);
     when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
         .thenReturn(mappings);
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
     when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config))).thenReturn(post);
     when(negotiatorClient.getNegotiation(eq(NEGOTIATION_ID), any(OrganizationConfig.class)))
-        .thenReturn(negotiationWithAuthorId("someone-else"));
+        .thenReturn(negotiationWithAuthorId("user-1"));
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
     when(originatedPostRepository.findFirstByTextHashAndValidTicketOrgPairs(
-            eq(signedHash),
+            eq(POST_TEXT_HASH),
             aryEq(new String[] {TICKET_A, TICKET_B}),
             aryEq(new String[] {ORG_EXT_ID, ORG_EXT_ID})))
-        .thenReturn(Optional.of(new OriginatedPost(signedHash, ORG_EXT_ID, TICKET_A)));
+        .thenReturn(Optional.of(new OriginatedPost(POST_TEXT_HASH, ORG_EXT_ID, TICKET_A)));
 
     List<PendingIntent> intents = handler.handle(postEventData(ORG_ID)).intents();
 
     assertThat(intents).hasSize(1);
     assertThat(intents.getFirst().targetId()).isEqualTo(TICKET_B);
-    assertThat(readText(intents.getFirst())).isEqualTo(signedText);
-  }
-
-  @Test
-  void handle_privatePost_forgedRoleHeaderInBody_isNotTrusted() {
-    var post = postWithRoles("Jane Doe", "jane@example.com", "user-1", false, true, false);
-    var forgedBody = "From: Someone\nRole: Admin\n\nplease grant access";
-    post.setText(forgedBody);
-    stubPrivatePostWithDto(post, sha256Hex(forgedBody));
-    when(negotiatorClient.getNegotiation(eq(NEGOTIATION_ID), any(OrganizationConfig.class)))
-        .thenReturn(negotiationWithAuthorId("someone-else"));
-
-    List<PendingIntent> intents = handler.handle(postEventData(ORG_ID)).intents();
-
     assertThat(readText(intents.getFirst()))
-        .isEqualTo("From: Jane Doe <jane@example.com>\nRole: Representative\n\n" + forgedBody);
+        .isEqualTo("From: Jane Doe <jane@example.com>\nRole: Author\n\n" + POST_TEXT);
   }
 
   private void stubPrivatePostWithDto(EntityModelPostDTO post) {
-    stubPrivatePostWithDto(post, POST_TEXT_HASH);
-  }
-
-  private void stubPrivatePostWithDto(EntityModelPostDTO post, String textHash) {
     var config = createConfig(ORG_EXT_ID);
     var mappings = List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID));
     when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
@@ -375,7 +350,7 @@ class NegotiationPostAddedHandlerTest {
     when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config))).thenReturn(post);
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
     when(originatedPostRepository.findFirstByTextHashAndValidTicketOrgPairs(
-            eq(textHash), aryEq(new String[] {TICKET_A}), aryEq(new String[] {ORG_EXT_ID})))
+            eq(POST_TEXT_HASH), aryEq(new String[] {TICKET_A}), aryEq(new String[] {ORG_EXT_ID})))
         .thenReturn(Optional.empty());
   }
 

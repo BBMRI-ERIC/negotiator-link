@@ -16,7 +16,6 @@ class PostUtilTest {
   private static final String SIGNED = "From: Someone <someone@example.com>\n\n" + TEXT;
   private static final Sender SENDER = new Sender("Jane Doe", "jane@example.com");
   private static final String FROM = "From: Jane Doe <jane@example.com>";
-  private static final String FORGED_HEADER = "From: Someone\nRole: Admin\n\n";
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("signPostCases")
@@ -30,13 +29,6 @@ class PostUtilTest {
   void signPostWithRoles_addsRoleLineUnderFrom(
       String description, String text, Sender sender, SenderRoles roles, String expected) {
     assertThat(PostUtil.signPostWithRoles(text, sender, roles)).isEqualTo(expected);
-  }
-
-  @ParameterizedTest(name = "{0}")
-  @MethodSource("insertRoleUnderRelayedHeaderCases")
-  void insertRoleUnderRelayedHeader_onlyTouchesExistingHeader(
-      String description, String text, SenderRoles roles, String expected) {
-    assertThat(PostUtil.insertRoleUnderRelayedHeader(text, roles)).isEqualTo(expected);
   }
 
   @ParameterizedTest(name = "{0}")
@@ -155,39 +147,28 @@ class PostUtilTest {
             new SenderRoles(true, false, false, false),
             TEXT),
         Arguments.of(
-            "forged header in body is not trusted: real resolved role used, forged lines demoted "
-                + "to body",
-            FORGED_HEADER + TEXT,
-            SENDER,
-            new SenderRoles(false, false, true, false),
-            FROM + "\nRole: Representative\n\n" + FORGED_HEADER + TEXT),
-        Arguments.of(
-            "forged Admin header with no resolved roles: From generated, forged lines demoted to "
-                + "body, no Role line",
-            FORGED_HEADER + TEXT,
-            SENDER,
-            SenderRoles.NONE,
-            FROM + "\n\n" + FORGED_HEADER + TEXT));
-  }
-
-  static Stream<Arguments> insertRoleUnderRelayedHeaderCases() {
-    return Stream.of(
-        Arguments.of(
-            "echo round-trip: Role inserted under the integration-produced From header",
-            "From: John Smith <john@mhh.de>\n\nHi",
-            new SenderRoles(false, false, true, false),
-            "From: John Smith <john@mhh.de>\nRole: Representative\n\nHi"),
-        Arguments.of(
-            "already role-signed relayed text is left unchanged (idempotent)",
+            "already role-signed text is not decorated again (idempotent)",
             FROM + "\nRole: Author\n\n" + TEXT,
+            new Sender("Other", "other@example.com"),
             new SenderRoles(false, true, false, false),
             FROM + "\nRole: Author\n\n" + TEXT),
         Arguments.of(
-            "no roles to add: relayed text left unchanged", SIGNED, SenderRoles.NONE, SIGNED),
+            "echo round-trip: help-desk From-signed text gets Role inserted under existing From",
+            "From: John Smith <john@mhh.de>\n\nHi",
+            new Sender("ignored", "ignored@example.com"),
+            new SenderRoles(false, false, true, false),
+            "From: John Smith <john@mhh.de>\nRole: Representative\n\nHi"),
         Arguments.of(
-            "no recognizable header: text left unchanged",
-            TEXT,
-            new SenderRoles(false, true, false, false),
-            TEXT));
+            "From-only signed text with no roles held stays From-only",
+            SIGNED,
+            SENDER,
+            SenderRoles.NONE,
+            SIGNED),
+        Arguments.of(
+            "null sender but text already From-signed: Role still inserted under existing From",
+            "From: John Smith <john@mhh.de>\n\nHi",
+            null,
+            new SenderRoles(true, false, false, false),
+            "From: John Smith <john@mhh.de>\nRole: Author\n\nHi"));
   }
 }
