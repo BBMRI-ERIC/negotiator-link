@@ -11,5 +11,5 @@ USER 1001
 WORKDIR /app
 COPY --from=build_image /app/target/negotiator-link-*.jar /app/negotiator-link.jar
 EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=10s CMD curl -f http://localhost:9090/actuator/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s CMD curl -f http://localhost:8080/actuator/health || exit 1
 ENTRYPOINT ["java", "-jar", "negotiator-link.jar"]

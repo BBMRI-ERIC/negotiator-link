@@ -12,7 +12,7 @@ scrape_configs:
       username: admin
       password: admin
     static_configs:
-      - targets: ["negotiator-link:9090"]
+      - targets: ["negotiator-link:8080"]
         labels:
           application: negotiator-link
           environment: local

@@ -148,9 +148,8 @@ services:
         ARTIFACT_VERSION: dev
     ports:
       - "8090:8080"
-      - "9090:9090"
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:9090/actuator/health"]
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/actuator/health"]
       interval: 15s
       timeout: 5s
       start_period: 30s
@@ -205,7 +204,7 @@ services:
     networks:
       - negotiator-network
 
-  # Prometheus scrapes negotiator-link's actuator endpoint (negotiator-link:9090)
+  # Prometheus scrapes negotiator-link's actuator endpoint (negotiator-link:8080)
   prometheus:
     container_name: negotiator-link-prometheus
     image: prom/prometheus:v3.1.0
