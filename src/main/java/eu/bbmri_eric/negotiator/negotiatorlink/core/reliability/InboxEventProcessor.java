@@ -135,22 +135,35 @@ public class InboxEventProcessor {
   private RouteOutcome dispatchHelpdesk(InboxEvent event) {
     Optional<OrganizationConfig> configOpt = registry.findByExternalId(event.getSource());
     if (configOpt.isEmpty()) {
+      log.warn("Unknown organization {} — discarding", event.getSource());
       return RouteOutcome.skipped("unknown-org");
     }
     OrganizationConfig config = configOpt.get();
     HelpdeskCallbackAdapter adapter = callbackAdapters.get(config.type());
     if (adapter == null) {
+      log.warn(
+          "No adapter found for org {} of type {} — discarding",
+          config.organizationExternalId(),
+          config.type());
       return RouteOutcome.skipped("no-adapter");
     }
     Map<String, Object> payload = parsePayload(event);
     Optional<HelpdeskCallbackEvent> parsed = adapter.parseCallback(payload);
     if (parsed.isEmpty()) {
+      log.warn(
+          "Helpdesk callback payload could not be parsed for org {} — discarding",
+          config.organizationExternalId());
       return RouteOutcome.skipped("unparseable");
     }
     HelpdeskCallbackEvent callbackEvent = parsed.get();
     String eventType = callbackEvent.type().name();
-    if (resolveNegotiationIdForHelpdeskCallback(callbackEvent.ticketId(), event.getSource())
+    if (resolveNegotiationIdForHelpdeskCallback(
+            callbackEvent.ticketId(), config.organizationExternalId())
         .isEmpty()) {
+      log.warn(
+          "No mapping found for helpdesk ticket {} in org {} — discarding",
+          callbackEvent.ticketId(),
+          config.organizationExternalId());
       return RouteOutcome.skipped("no-mapping", eventType);
     }
     HandlerResult handlerResult = helpdeskEventRouter.route(callbackEvent, config);
