@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /** Persists the outbound intents a handler created. */
 @Slf4j
@@ -43,10 +45,32 @@ public class OutboxService {
               intent.negotiationId(),
               intent.organizationExtId(),
               intent.payloadJson()));
-      meterRegistry
-          .counter("outbox_intents_enqueued_total", "intent_type", intent.outboxIntentType().name())
-          .increment();
     }
     outboxIntentRepository.saveAll(outboxIntents);
+    incrementMetricAfterCommit(intents);
+  }
+
+  private void incrementMetricAfterCommit(List<PendingIntent> intents) {
+    Runnable increment =
+        () ->
+            intents.forEach(
+                i ->
+                    meterRegistry
+                        .counter(
+                            "outbox_intents_enqueued_total",
+                            "intent_type",
+                            i.outboxIntentType().name())
+                        .increment());
+    if (TransactionSynchronizationManager.isSynchronizationActive()) {
+      TransactionSynchronizationManager.registerSynchronization(
+          new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+              increment.run();
+            }
+          });
+    } else {
+      increment.run();
+    }
   }
 }
