@@ -100,7 +100,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "How long each outbound call to an external system (Zammad, Negotiator) actually takes, by intent type. p50 is the typical call duration; p95 is the slow tail — 95% of calls complete within this time. A rising p95 on a specific intent type points to that operation being slow on the remote system.",
+      "description": "How long each outbound call to an external system actually takes, by intent type. p50 is the typical call duration; p95 is the slow tail — 95% of calls complete within this time. A rising p95 on a specific intent type points to that operation being slow on the remote system.",
       "fieldConfig": {
         "defaults": {
           "color": {
