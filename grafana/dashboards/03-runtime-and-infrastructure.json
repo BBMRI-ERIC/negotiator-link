@@ -910,7 +910,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(jvm_gc_pause_seconds_sum[5m]))\n/\nclamp_min(sum(rate(jvm_gc_pause_seconds_count[5m])), 1)",
+          "expr": "sum(rate(jvm_gc_pause_seconds_sum[5m]))\n/\n(sum(rate(jvm_gc_pause_seconds_count[5m])) > 0)",
           "legendFormat": "mean pause",
           "range": true,
           "refId": "C"
