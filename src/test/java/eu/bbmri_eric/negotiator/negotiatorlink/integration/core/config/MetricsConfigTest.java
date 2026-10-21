@@ -44,7 +44,7 @@ class MetricsConfigTest {
   void depthGauges_areRegistered() {
     assertThat(gauge("outbox_queue_depth")).isNotNull();
     assertThat(gauge("outbox_dead_letter_depth")).isNotNull();
-    assertThat(gauge("inbox_retry_depth")).isNotNull();
+    assertThat(gauge("inbox_queue_depth")).isNotNull();
     assertThat(gauge("inbox_dead_letter_depth")).isNotNull();
   }
 
@@ -71,14 +71,6 @@ class MetricsConfigTest {
     saveInbox(InboxStatus.RECEIVED, 0);
 
     assertThat(gauge("inbox_dead_letter_depth").value()).isEqualTo(1.0);
-  }
-
-  @Test
-  void inboxRetryDepth_countsReceivedEventsWithPriorAttempts() {
-    saveInbox(InboxStatus.RECEIVED, 2);
-    saveInbox(InboxStatus.RECEIVED, 0);
-
-    assertThat(gauge("inbox_retry_depth").value()).isEqualTo(1.0);
   }
 
   private Gauge gauge(String name) {

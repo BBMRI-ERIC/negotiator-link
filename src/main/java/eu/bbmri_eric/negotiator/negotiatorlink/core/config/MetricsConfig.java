@@ -37,8 +37,7 @@ public class MetricsConfig {
                 r.countByStatusIn(List.of(OutboxStatus.DEAD_LETTER, OutboxStatus.FAILED_PERMANENT)))
         .description("Outbound intents parked in a terminal failure state")
         .register(registry);
-    Gauge.builder(
-            "inbox_queue_depth", inboxRepo, r -> r.countByStatus(InboxStatus.RECEIVED))
+    Gauge.builder("inbox_queue_depth", inboxRepo, r -> r.countByStatus(InboxStatus.RECEIVED))
         .description("Inbox events waiting to be processed (RECEIVED)")
         .register(registry);
     Gauge.builder("inbox_dead_letter_depth", inboxRepo, r -> r.countByStatus(InboxStatus.FAILED))
