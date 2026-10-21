@@ -35,6 +35,9 @@ The included `compose.yml` starts a complete local environment for end-to-end ma
 | `http://localhost:4011` | OIDC server mock (identity provider) |
 | `http://localhost:8090` | negotiator-link API |
 | `http://localhost:8888` | Zammad UI |
+| `http://localhost:9091` | Prometheus |
+
+Prometheus is configured to scrape the negotiator-link metrics endpoint at `http://negotiator-link:9090/actuator/prometheus`. Pre-built Grafana dashboards are available in `grafana/dashboards/` — import them into any Grafana instance pointed at the local Prometheus.
 
 ### Step 1 — Configure environment variables
 

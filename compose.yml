@@ -1,11 +1,12 @@
 # Local development environment for end-to-end testing.
-# Starts: Negotiator (+ postgres + frontend + oidc-server-mock) + negotiator-link (+ postgres) + Zammad (+ postgresql + redis + memcached + elasticsearch)
+# Starts: Negotiator (+ postgres + frontend + oidc-server-mock) + negotiator-link (+ postgres + prometheus) + Zammad (+ postgresql + redis + memcached + elasticsearch)
 #
 # Port map:
 #   http://localhost:8080  — Negotiator UI + API (via nginx)
 #   http://localhost:4011  — OIDC server mock
 #   http://localhost:8090  — negotiator-link
 #   http://localhost:8888  — Zammad UI
+#   http://localhost:9091  — Prometheus
 
 name: negotiator-link-dev
 
