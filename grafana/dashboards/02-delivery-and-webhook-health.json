@@ -231,7 +231,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Fraction of outbound work failing per intent type: (dead_letter + failed_permanent) / delivered.",
+      "description": "Failure fraction of all terminal outbound outcomes per intent type: (dead_letter + failed_permanent) / (dead_letter + failed_permanent + delivered). Only shown for windows where at least one terminal outcome was recorded.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -241,7 +241,7 @@
             "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "ratio",
+            "axisLabel": "failure fraction",
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
@@ -317,7 +317,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum by (intent_type) (rate(outbox_intents_dead_letter_total{intent_type=~\"$intent_type\"}[15m]) + rate(outbox_intents_failed_permanent_total{intent_type=~\"$intent_type\"}[15m]))\n/\nclamp_min(sum by (intent_type) (rate(outbox_intents_delivered_total{intent_type=~\"$intent_type\"}[15m])), 1)",
+          "expr": "(\n  (sum by (intent_type) (rate(outbox_intents_dead_letter_total{intent_type=~\"$intent_type\"}[15m])) or sum by (intent_type) (rate(outbox_intents_failed_permanent_total{intent_type=~\"$intent_type\"}[15m]) * 0))\n  +\n  (sum by (intent_type) (rate(outbox_intents_failed_permanent_total{intent_type=~\"$intent_type\"}[15m])) or sum by (intent_type) (rate(outbox_intents_dead_letter_total{intent_type=~\"$intent_type\"}[15m]) * 0))\n)\n/\n(\n  (sum by (intent_type) (rate(outbox_intents_dead_letter_total{intent_type=~\"$intent_type\"}[15m])) or sum by (intent_type) (rate(outbox_intents_failed_permanent_total{intent_type=~\"$intent_type\"}[15m]) * 0))\n  +\n  (sum by (intent_type) (rate(outbox_intents_failed_permanent_total{intent_type=~\"$intent_type\"}[15m])) or sum by (intent_type) (rate(outbox_intents_dead_letter_total{intent_type=~\"$intent_type\"}[15m]) * 0))\n  +\n  (sum by (intent_type) (rate(outbox_intents_delivered_total{intent_type=~\"$intent_type\"}[15m])) or sum by (intent_type) (rate(outbox_intents_dead_letter_total{intent_type=~\"$intent_type\"}[15m]) * 0))\n)",
           "legendFormat": "error ratio — {{intent_type}}",
           "range": true,
           "refId": "A"
