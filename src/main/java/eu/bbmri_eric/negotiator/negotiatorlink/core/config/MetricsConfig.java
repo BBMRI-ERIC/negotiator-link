@@ -7,10 +7,12 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepos
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
+import org.springframework.context.annotation.Configuration;
+
 import java.util.List;
 
 /** Registers the pipeline depth gauges. */
-@org.springframework.context.annotation.Configuration
+@Configuration
 public class MetricsConfig {
 
   private final OutboxIntentRepository outboxRepo;
