@@ -5,13 +5,6 @@ on:
   schedule:
     # Weekly, Monday 05:17 UTC
     - cron: '17 5 * * 1'
-  # TEMPORARY — remove before merge. Lets the workflow run in PR checks so it can
-  # be tested end to end (workflow_dispatch/schedule only run from the default
-  # branch). On this event the "Open pull request" step is skipped, so the test
-  # run exercises download + validation + diff without opening a nested PR.
-  pull_request:
-    paths:
-      - '.github/workflows/refresh-negotiator-openapi.yml'
 
 permissions:
   contents: read
@@ -59,8 +52,7 @@ jobs:
           fi
 
       - name: Open pull request
-        # Skipped on the temporary pull_request test event (see the `on:` note).
-        if: steps.diff.outputs.changed == 'true' && github.event_name != 'pull_request'
+        if: steps.diff.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
