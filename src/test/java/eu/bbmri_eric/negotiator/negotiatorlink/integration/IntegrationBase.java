@@ -13,7 +13,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 @Slf4j
 @SpringBootTest
 @AutoConfigureMockMvc
-public abstract class IntegrationTest {
+public abstract class IntegrationBase {
 
   @ServiceConnection
   static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
