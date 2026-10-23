@@ -1,11 +1,12 @@
 # Local development environment for end-to-end testing.
-# Starts: Negotiator (+ postgres + frontend + oidc-server-mock) + negotiator-link (+ postgres) + Zammad (+ postgresql + redis + memcached + elasticsearch)
+# Starts: Negotiator (+ postgres + frontend + oidc-server-mock) + negotiator-link (+ postgres + prometheus) + Zammad (+ postgresql + redis + memcached + elasticsearch)
 #
 # Port map:
 #   http://localhost:8080  — Negotiator UI + API (via nginx)
 #   http://localhost:4011  — OIDC server mock
 #   http://localhost:8090  — negotiator-link
 #   http://localhost:8888  — Zammad UI
+#   http://localhost:9091  — Prometheus
 
 name: negotiator-link-dev
 
@@ -178,6 +179,9 @@ services:
       ZAMMAD_MHH_CALLBACK_SECRET: ${ZAMMAD_MHH_CALLBACK_SECRET}
       # Organization config
       ORGANIZATIONS_CONFIG_PATH: /config/organizations.yml
+      # Credentials for /actuator/prometheus endpoint
+      MANAGEMENT_USER: admin
+      MANAGEMENT_PASSWORD: admin
     volumes:
       - ./docker/organizations.yml:/config/organizations.yml:ro
     networks:
@@ -197,6 +201,21 @@ services:
       retries: 5
     volumes:
       - negotiator-link-db-data:/var/lib/postgresql/data
+    networks:
+      - negotiator-network
+
+  # Prometheus scrapes negotiator-link's actuator endpoint (negotiator-link:8080)
+  prometheus:
+    container_name: negotiator-link-prometheus
+    image: prom/prometheus:v3.1.0
+    ports:
+      - "9091:9090"   # host 9091 -> Prometheus API on container 9090
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      negotiator-link:
+        condition: service_healthy
     networks:
       - negotiator-network
 
@@ -308,6 +327,7 @@ volumes:
   negotiator-db-data:
   negotiator-link-db-data:
   negotiator-templates:
+  prometheus-data:
   elasticsearch-data:
   zammad-backup:
   zammad-storage:

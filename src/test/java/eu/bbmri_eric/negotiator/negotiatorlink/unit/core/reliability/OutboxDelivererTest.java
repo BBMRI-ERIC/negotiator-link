@@ -29,6 +29,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -60,6 +61,7 @@ class OutboxDelivererTest {
   @Mock private PendingTicketCreationCache pendingTicketCreationCache;
 
   private OutboxDeliverer deliverer;
+  private SimpleMeterRegistry meterRegistry;
 
   @BeforeEach
   void setUp() {
@@ -68,6 +70,7 @@ class OutboxDelivererTest {
     outbox.setMaxAttempts(MAX_ATTEMPTS);
     outbox.setBaseBackoff(Duration.ofSeconds(1));
     outbox.setMaxBackoff(Duration.ofSeconds(30));
+    meterRegistry = new SimpleMeterRegistry();
     deliverer =
         new OutboxDeliverer(
             outboxIntentRepository,
@@ -77,6 +80,7 @@ class OutboxDelivererTest {
             attachmentForwardingService,
             failureClassifier,
             pendingTicketCreationCache,
+            meterRegistry,
             properties);
   }
 
@@ -163,6 +167,7 @@ class OutboxDelivererTest {
     assertNull(intent.getClaimExpiresAt());
     assertNull(intent.getClaimToken());
     verify(outboxIntentRepository).save(intent);
+    assertThat(counter("outbox_intents_delivered_total", "CREATE_TICKET")).isEqualTo(1.0);
   }
 
   @Test
@@ -344,6 +349,7 @@ class OutboxDelivererTest {
     assertEquals(OutboxStatus.DEAD_LETTER, intent.getStatus());
     assertNull(intent.getClaimExpiresAt());
     assertNull(intent.getClaimToken());
+    assertThat(counter("outbox_intents_dead_letter_total", "ADD_COMMENT")).isEqualTo(1.0);
   }
 
   @Test
@@ -357,6 +363,7 @@ class OutboxDelivererTest {
     assertEquals(OutboxStatus.FAILED_PERMANENT, intent.getStatus());
     assertNull(intent.getClaimExpiresAt());
     assertNull(intent.getClaimToken());
+    assertThat(counter("outbox_intents_failed_permanent_total", "ADD_COMMENT")).isEqualTo(1.0);
   }
 
   @Test
@@ -370,6 +377,7 @@ class OutboxDelivererTest {
     assertEquals(OutboxStatus.DEAD_LETTER, intent.getStatus());
     assertNull(intent.getClaimExpiresAt());
     assertNull(intent.getClaimToken());
+    assertThat(counter("outbox_intents_dead_letter_total", "ADD_COMMENT")).isEqualTo(1.0);
   }
 
   private OutboxIntent intent(OutboxIntentType type, OutboxStatus status) {
@@ -385,5 +393,10 @@ class OutboxDelivererTest {
   private TicketMapping ticketMapping() {
     return new TicketMapping(
         new TicketMappingId(NEGOTIATION_ID, TICKET_ID, "101"), "src-1", "42", ORG_EXT_ID);
+  }
+
+  private double counter(String name, String intentType) {
+    var counter = meterRegistry.find(name).tag("intent_type", intentType).counter();
+    return counter == null ? 0.0 : counter.count();
   }
 }

@@ -2,6 +2,8 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.reliability;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorLinkProperties;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepository;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics;
 import jakarta.annotation.PreDestroy;
 import java.time.Duration;
 import java.util.HashMap;
@@ -10,8 +12,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -43,6 +46,7 @@ public class OutboxPoller {
       OutboxClaimer claimer,
       OutboxDeliverer deliverer,
       OutboxIntentRepository outboxIntentRepository,
+      MeterRegistry meterRegistry,
       NegotiatorLinkProperties properties) {
     this.claimer = claimer;
     this.deliverer = deliverer;
@@ -54,10 +58,15 @@ public class OutboxPoller {
     this.workers = new ExecutorService[workerCount];
     for (int i = 0; i < workerCount; i++) {
       final int idx = i;
-      @SuppressWarnings("resource") // lifecycle is managed by @PreDestroy
-      ExecutorService worker =
-          Executors.newSingleThreadExecutor(r -> new Thread(r, "outbox-worker-" + idx));
-      workers[i] = worker;
+      ExecutorService raw =
+          new ThreadPoolExecutor(
+              1,
+              1,
+              0L,
+              TimeUnit.MILLISECONDS,
+              new LinkedBlockingQueue<>(),
+              r -> new Thread(r, "outbox-worker-" + idx));
+      workers[i] = ExecutorServiceMetrics.monitor(meterRegistry, raw, "outbox-worker-" + idx);
     }
     this.inFlight = new Semaphore(workerCount * outboxProperties.getQueueDepth());
   }

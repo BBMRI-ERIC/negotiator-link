@@ -13,6 +13,17 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      access: read-only
+  security:
+    user: ${MANAGEMENT_USER}
+    password: ${MANAGEMENT_PASSWORD}
 
 logging:
   level:
@@ -52,10 +63,10 @@ negotiator-link:
     max-attempts: 6
     base-backoff: PT1S
     max-backoff: PT30S
-    claim-timeout: PT600S
-    claim-reap-interval: PT60S
+    claim-timeout: PT1800S
+    claim-reap-interval: PT120S
     worker-count: 4
-    queue-depth: 10
+    queue-depth: 100
   resource-events:
     MARK_AS_CHECKING_AVAILABILITY: CHECKING_AVAILABILITY
     STEP_AWAY: RESOURCE_UNAVAILABLE

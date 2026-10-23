@@ -30,6 +30,8 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepo
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService.ResolvedAttachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostCreateDTO;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -51,6 +53,7 @@ public class OutboxIntentDispatcher {
   private final AttachmentForwardingService attachmentForwardingService;
   private final PendingTicketCreationCache pendingTicketCreationCache;
   private final ObjectMapper objectMapper;
+  private final MeterRegistry meterRegistry;
 
   public OutboxIntentDispatcher(
       OrganizationConfigRegistry registry,
@@ -60,7 +63,8 @@ public class OutboxIntentDispatcher {
       OriginatedPostRepository originatedPostRepository,
       AttachmentForwardingService attachmentForwardingService,
       PendingTicketCreationCache pendingTicketCreationCache,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      MeterRegistry meterRegistry) {
     this.registry = registry;
     this.clients = clients;
     this.negotiatorClient = negotiatorClient;
@@ -69,9 +73,24 @@ public class OutboxIntentDispatcher {
     this.attachmentForwardingService = attachmentForwardingService;
     this.pendingTicketCreationCache = pendingTicketCreationCache;
     this.objectMapper = objectMapper;
+    this.meterRegistry = meterRegistry;
   }
 
   public DispatchResult dispatch(OutboxIntent intent) {
+    Timer.Sample sample = Timer.start(meterRegistry);
+    try {
+      return doDispatch(intent);
+    } finally {
+      sample.stop(
+          Timer.builder("outbox_delivery_duration_seconds")
+              .description("Latency of each outbound help-desk/Negotiator call, per intent type")
+              .tag("intent_type", intent.getIntentType().name())
+              .publishPercentileHistogram()
+              .register(meterRegistry));
+    }
+  }
+
+  private DispatchResult doDispatch(OutboxIntent intent) {
     OrganizationConfig config =
         registry
             .findByExternalId(intent.getOrganizationExtId())
