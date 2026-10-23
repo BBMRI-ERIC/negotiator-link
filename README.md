@@ -331,3 +331,8 @@ docker compose logs -f  negotiator-link
 
 - [Negotiator Repository](https://github.com/BBMRI-ERIC/negotiator)
 - [Negotiator Documentation](https://bbmri-eric.github.io/negotiator)
+
+## License
+
+This project is licensed under the GNU Affero General Public License v3.0.
+See the [LICENSE](LICENSE) file for details.
