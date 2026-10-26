@@ -7,6 +7,11 @@ spring:
     open-in-view: false
 
 negotiator-link:
+  scheduling:
+    # Disabled by default for integration tests: all ITs share one database, so a cached
+    # context's background pollers would race another context's manually-driven test. Tests that
+    # need the real scheduled pipeline re-enable this via @TestPropertySource.
+    enabled: false
   webhook:
     secret: "whsec_dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaA=="
   negotiator:

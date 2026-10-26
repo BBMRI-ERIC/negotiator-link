@@ -50,12 +50,16 @@ import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@TestPropertySource(properties = "negotiator-link.scheduling.enabled=true")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class NegotiatorWebhookControllerIT extends IntegrationBase {
 
   private static final String BODY = "{\"event\":\"test\"}";
