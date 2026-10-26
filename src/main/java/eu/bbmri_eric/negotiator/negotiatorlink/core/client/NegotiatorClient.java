@@ -39,7 +39,8 @@ import org.springframework.web.client.RestClient;
 @Slf4j
 public class NegotiatorClient {
 
-  public static final String UPLOAD_ATTACHMENT_URL = "/v3/negotiations/{negotiationId}/attachments?organizationId={organizationId}";
+  public static final String UPLOAD_ATTACHMENT_URL =
+      "/v3/negotiations/{negotiationId}/attachments?organizationId={organizationId}";
   public static final String DOWNLOAD_ATTACHMENT_URL = "/v3/attachments/{id}";
   private final String baseUrl;
   private final String issuerUri;
@@ -256,11 +257,7 @@ public class NegotiatorClient {
     return getOrCreateClient(config)
         .restClient()
         .post()
-        .uri(
-            baseUrl
-                + UPLOAD_ATTACHMENT_URL,
-            negotiationId,
-            organizationExtId)
+        .uri(baseUrl + UPLOAD_ATTACHMENT_URL, negotiationId, organizationExtId)
         .contentType(MediaType.MULTIPART_FORM_DATA)
         .body(buildMultipartBody(attachment))
         .retrieve()
