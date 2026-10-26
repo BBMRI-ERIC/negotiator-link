@@ -22,8 +22,8 @@ management:
     health:
       access: read-only
   security:
-    user: ${MANAGEMENT_USER}
-    password: ${MANAGEMENT_PASSWORD}
+    user: ${MANAGEMENT_USER:}
+    password: ${MANAGEMENT_PASSWORD:}
 
 logging:
   level:
