@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskCallbackAdapter;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskAttachmentRef;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.PostMessageEvent;
@@ -17,6 +18,7 @@ import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import javax.crypto.Mac;
@@ -40,6 +42,8 @@ public class ZammadCallbackAdapter implements HelpdeskCallbackAdapter {
   private static final String SIGNATURE_HEADER = "X-Hub-Signature";
   private static final String SIGNATURE_PREFIX = "sha1=";
   private static final String DELIVERY_HEADER = "X-Zammad-Delivery";
+  private static final String TICKET_ATTACHMENTS_DOWNLOAD_PATH =
+      "/api/v1/ticket_attachment/%s/%s/%s";
 
   private final ObjectMapper objectMapper;
 
@@ -108,15 +112,22 @@ public class ZammadCallbackAdapter implements HelpdeskCallbackAdapter {
     }
 
     Sender sender = parseSender(parsed.article() != null ? parsed.article().createdBy() : null);
+    List<HelpdeskAttachmentRef> attachments = parseAttachments(ticketId, parsed.article());
 
     return Optional.of(
         switch (callbackType) {
           case RESOURCE_TRANSITION ->
               new ResourceTransitionEvent(ticketId, resourceState, transitionEvent);
-          case POST_MESSAGE -> new PostMessageEvent(ticketId, parsed.article().body(), sender);
+          case POST_MESSAGE ->
+              new PostMessageEvent(ticketId, parsed.article().body(), sender, attachments);
           case RESOURCE_TRANSITION_WITH_POST_MESSAGE ->
               new ResourceTransitionWithPostMessageEvent(
-                  ticketId, resourceState, transitionEvent, parsed.article().body(), sender);
+                  ticketId,
+                  resourceState,
+                  transitionEvent,
+                  parsed.article().body(),
+                  sender,
+                  attachments);
           default ->
               throw new IllegalStateException(
                   "Unsupported callback type " + callbackType + " for ticket " + ticketId);
@@ -167,6 +178,26 @@ public class ZammadCallbackAdapter implements HelpdeskCallbackAdapter {
     return firstName + " " + lastName;
   }
 
+  private static List<HelpdeskAttachmentRef> parseAttachments(
+      String ticketId, ZammadCallbackPayload.Article article) {
+    if (article == null || article.attachments() == null || article.id() == null) {
+      return List.of();
+    }
+    return article.attachments().stream()
+        .filter(attachment -> attachment != null && attachment.id() != null)
+        .map(
+            attachment ->
+                new HelpdeskAttachmentRef(
+                    buildDownloadPath(ticketId, article.id(), attachment.id()),
+                    attachment.filename(),
+                    attachment.contentType()))
+        .toList();
+  }
+
+  private static String buildDownloadPath(String ticketId, String articleId, String attachmentId) {
+    return String.format(TICKET_ATTACHMENTS_DOWNLOAD_PATH, ticketId, articleId, attachmentId);
+  }
+
   @JsonIgnoreProperties(ignoreUnknown = true)
   private record ZammadCallbackPayload(Ticket ticket, Article article) {
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -179,7 +210,21 @@ public class ZammadCallbackAdapter implements HelpdeskCallbackAdapter {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record Article(
-        String body, boolean internal, @JsonProperty("created_by") ArticleUser createdBy) {}
+        String id,
+        String body,
+        boolean internal,
+        @JsonProperty("created_by") ArticleUser createdBy,
+        List<ArticleAttachment> attachments) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record ArticleAttachment(String id, String filename, Preferences preferences) {
+      String contentType() {
+        return preferences == null ? null : preferences.contentType();
+      }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Preferences(@JsonProperty("Content-Type") String contentType) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record ArticleUser(String firstname, String lastname, String email) {}

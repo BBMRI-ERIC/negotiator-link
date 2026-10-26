@@ -1,6 +1,9 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.model;
 
-public record PostMessageEvent(String ticketId, String postText, Sender sender)
+import java.util.List;
+
+public record PostMessageEvent(
+    String ticketId, String postText, Sender sender, List<HelpdeskAttachmentRef> attachments)
     implements HelpdeskCallbackEvent {
 
   @Override

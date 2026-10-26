@@ -39,6 +39,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -120,7 +121,7 @@ class NegotiationStateUpdatedHandlerTest {
                 NEGOTIATION_STATE,
                 "SUBMITTED",
                 NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
-                    negotiation, resource1),
+                    negotiation, resource1, List.of(orgName(resource1), orgName(resource2))),
                 List.of(),
                 List.of(new ResourceMappingRef("1", "r-1", String.valueOf(ORG_INTERNAL_ID))),
                 List.of()));
@@ -132,7 +133,7 @@ class NegotiationStateUpdatedHandlerTest {
                 NEGOTIATION_STATE,
                 "SUBMITTED",
                 NegotiationTicketBodyFormatter.getTicketBodyWithSingleResource(
-                    negotiation, resource2),
+                    negotiation, resource2, List.of(orgName(resource1), orgName(resource2))),
                 List.of(),
                 List.of(new ResourceMappingRef("2", "r-2", String.valueOf(ORG_INTERNAL_ID))),
                 List.of()));
@@ -163,7 +164,9 @@ class NegotiationStateUpdatedHandlerTest {
                 NEGOTIATION_STATE,
                 "SUBMITTED",
                 NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(
-                    negotiation, List.of(resource1, resource2)),
+                    negotiation,
+                    List.of(resource1, resource2),
+                    List.of(orgName(resource1), orgName(resource2))),
                 List.of(),
                 List.of(
                     new ResourceMappingRef("1", "r-1", String.valueOf(ORG_INTERNAL_ID)),
@@ -545,6 +548,10 @@ class NegotiationStateUpdatedHandlerTest {
 
   private EntityModelResourceWithStatusDTO createResource(String sourceId, Long id) {
     return TestUtil.resource(id, sourceId, "Resource " + sourceId, ORG_EXT_ID, ORG_INTERNAL_ID);
+  }
+
+  private static String orgName(EntityModelResourceWithStatusDTO resource) {
+    return Objects.requireNonNull(resource.getOrganization()).getName();
   }
 
   private void stubPosts(OrganizationConfig config, List<EntityModelPostDTO> posts) {
