@@ -84,6 +84,26 @@ class ZammadClientIT {
   }
 
   @Test
+  void downloadAttachment_fetchesBytesFromRelativePathWithTokenAuth() {
+    String path = "/api/v1/ticket_attachment/391/2875/668";
+    byte[] fileBytes = "col1,col2\n1,2\n".getBytes(StandardCharsets.UTF_8);
+    wireMock.stubFor(
+        get(urlEqualTo(path))
+            .willReturn(
+                aResponse()
+                    .withStatus(200)
+                    .withHeader("Content-Type", "application/octet-stream")
+                    .withBody(fileBytes)));
+
+    byte[] result = client.downloadAttachment(path, config);
+
+    assertThat(result).isEqualTo(fileBytes);
+    wireMock.verify(
+        getRequestedFor(urlEqualTo(path))
+            .withHeader("Authorization", equalTo("Token token=" + API_TOKEN)));
+  }
+
+  @Test
   void createTicket_perResource_sendsCorrectPayloadAndReturnsTicket() {
     wireMock.stubFor(
         post(urlEqualTo(TICKETS_URL))

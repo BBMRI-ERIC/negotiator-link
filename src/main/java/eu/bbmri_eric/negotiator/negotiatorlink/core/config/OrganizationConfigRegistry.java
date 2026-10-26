@@ -26,7 +26,10 @@ public class OrganizationConfigRegistry {
     this.configs =
         properties.getOrganizations().stream().map(entry -> toConfig(entry, properties)).toList();
     validate(this.configs);
-    log.info("Loaded {} organization configuration(s)", this.configs.size());
+    log.info(
+        "Loaded {} organization from configuration with following org external IDs: {}",
+        this.configs.size(),
+        this.configs.stream().map(OrganizationConfig::organizationExternalId).toList());
   }
 
   public Optional<OrganizationConfig> findByExternalId(String organizationExternalId) {

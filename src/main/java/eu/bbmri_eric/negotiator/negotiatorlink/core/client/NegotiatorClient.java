@@ -2,6 +2,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.client;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorCredentials;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.ApiClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.api.AttachmentsApi;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.api.CommentsApi;
@@ -20,6 +21,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.client.AuthorizedClientServiceOAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.InMemoryOAuth2AuthorizedClientService;
@@ -28,11 +32,16 @@ import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProvider
 import org.springframework.security.oauth2.client.registration.ClientRegistrations;
 import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 
 @Slf4j
 public class NegotiatorClient {
 
+  public static final String UPLOAD_ATTACHMENT_URL =
+      "/v3/negotiations/{negotiationId}/attachments?organizationId={organizationId}";
+  public static final String DOWNLOAD_ATTACHMENT_URL = "/v3/attachments/{id}";
   private final String baseUrl;
   private final String issuerUri;
   private final RestClient.Builder restClientBuilder;
@@ -220,10 +229,57 @@ public class NegotiatorClient {
     return getOrCreateClient(config)
         .restClient()
         .get()
-        .uri(baseUrl + "/v3/attachments/{id}", attachmentId)
+        .uri(baseUrl + DOWNLOAD_ATTACHMENT_URL, attachmentId)
         .accept(MediaType.APPLICATION_OCTET_STREAM)
         .retrieve()
         .body(byte[].class);
+  }
+
+  /**
+   * Upload an attachment to a negotiation.
+   *
+   * <p>Bypasses the generated {@code AttachmentsApi.createForNegotiation} on purpose: that method
+   * only accepts a {@code java.io.File}, whereas our {@link Attachment} holds the content in memory
+   * as a {@code byte[]}
+   *
+   * @param negotiationId the ID of the negotiation to attach the file to
+   * @param attachment the file content, name and MIME type
+   * @param organizationExtId external ID of the organization the attachment is for (scopes the
+   *     attachment to that organization's audience, matching a PRIVATE post)
+   * @param config organization configuration to use for this request
+   * @return the created attachment metadata
+   */
+  public AttachmentMetadataDTO uploadAttachment(
+      String negotiationId,
+      Attachment attachment,
+      String organizationExtId,
+      OrganizationConfig config) {
+    return getOrCreateClient(config)
+        .restClient()
+        .post()
+        .uri(baseUrl + UPLOAD_ATTACHMENT_URL, negotiationId, organizationExtId)
+        .contentType(MediaType.MULTIPART_FORM_DATA)
+        .body(buildMultipartBody(attachment))
+        .retrieve()
+        .body(AttachmentMetadataDTO.class);
+  }
+
+  private MultiValueMap<String, Object> buildMultipartBody(Attachment attachment) {
+    ByteArrayResource filePart =
+        new ByteArrayResource(attachment.content()) {
+          @Override
+          public String getFilename() {
+            return attachment.filename();
+          }
+        };
+    HttpHeaders partHeaders = new HttpHeaders();
+    if (attachment.contentType() != null) {
+      partHeaders.setContentType(MediaType.parseMediaType(attachment.contentType()));
+    }
+    HttpEntity<ByteArrayResource> fileEntity = new HttpEntity<>(filePart, partHeaders);
+    MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+    body.add("file", fileEntity);
+    return body;
   }
 
   private PerOrgClient getOrCreateClient(OrganizationConfig config) {

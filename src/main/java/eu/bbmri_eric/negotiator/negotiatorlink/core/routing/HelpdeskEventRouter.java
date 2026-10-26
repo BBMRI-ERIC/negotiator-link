@@ -52,7 +52,11 @@ public class HelpdeskEventRouter {
         HandlerResult post =
             dispatch(
                 HelpdeskCallbackType.POST_MESSAGE,
-                new PostMessageEvent(combined.ticketId(), combined.postText(), combined.sender()),
+                new PostMessageEvent(
+                    combined.ticketId(),
+                    combined.postText(),
+                    combined.sender(),
+                    combined.attachments()),
                 config);
         List<PendingIntent> intents = new ArrayList<>();
         intents.addAll(transition.intents());
