@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -25,6 +26,8 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedPost;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OutboxIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskAttachmentRef;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.DispatchResult;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentDispatcher;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
@@ -164,7 +167,7 @@ class OutboxIntentDispatcherTest {
     dispatcher.dispatch(
         intent(
             OutboxIntentType.CREATE_POST,
-            new CreatePostPayload(NEGOTIATION_ID, TICKET_ID, SIGNED_TEXT)));
+            new CreatePostPayload(NEGOTIATION_ID, TICKET_ID, SIGNED_TEXT, List.of())));
 
     verify(negotiatorClient)
         .createPost(
@@ -187,9 +190,63 @@ class OutboxIntentDispatcherTest {
     dispatcher.dispatch(
         intent(
             OutboxIntentType.CREATE_POST,
-            new CreatePostPayload(NEGOTIATION_ID, TICKET_ID, SIGNED_TEXT)));
+            new CreatePostPayload(NEGOTIATION_ID, TICKET_ID, SIGNED_TEXT, List.of())));
 
     verify(negotiatorClient, never()).createPost(any(), any(), any());
+    verify(helpdeskClient, never()).downloadAttachment(any(), any());
+    verify(negotiatorClient, never()).uploadAttachment(any(), any(), any(), any());
+  }
+
+  @Test
+  void dispatch_createPost_withAttachments_createsPostThenDownloadsAndUploadsInOrder() {
+    when(originatedPostRepository
+            .findFirstByTextHashAndOrganizationExtIdAndTicketIdOrderByCreatedAtAsc(
+                HashUtil.sha256Hex(SIGNED_TEXT), ORG_EXT_ID, TICKET_ID))
+        .thenReturn(
+            Optional.of(
+                new OriginatedPost(HashUtil.sha256Hex(SIGNED_TEXT), ORG_EXT_ID, TICKET_ID)));
+    var refA =
+        new HelpdeskAttachmentRef("/api/v1/ticket_attachment/391/2875/668", "a.csv", "text/csv");
+    var refB =
+        new HelpdeskAttachmentRef("/api/v1/ticket_attachment/391/2875/669", "b.csv", "text/csv");
+    when(helpdeskClient.downloadAttachment("/api/v1/ticket_attachment/391/2875/668", config))
+        .thenReturn("AAA".getBytes());
+    when(helpdeskClient.downloadAttachment("/api/v1/ticket_attachment/391/2875/669", config))
+        .thenReturn("BBB".getBytes());
+
+    dispatcher.dispatch(
+        intent(
+            OutboxIntentType.CREATE_POST,
+            new CreatePostPayload(NEGOTIATION_ID, TICKET_ID, SIGNED_TEXT, List.of(refA, refB))));
+
+    var inOrder = inOrder(negotiatorClient, helpdeskClient);
+    inOrder
+        .verify(negotiatorClient)
+        .createPost(eq(NEGOTIATION_ID), any(PostCreateDTO.class), eq(config));
+    inOrder
+        .verify(helpdeskClient)
+        .downloadAttachment("/api/v1/ticket_attachment/391/2875/668", config);
+    inOrder
+        .verify(negotiatorClient)
+        .uploadAttachment(
+            eq(NEGOTIATION_ID),
+            argThat(
+                (Attachment a) ->
+                    "a.csv".equals(a.filename())
+                        && "text/csv".equals(a.contentType())
+                        && new String(a.content()).equals("AAA")),
+            eq(ORG_EXT_ID),
+            eq(config));
+    inOrder
+        .verify(helpdeskClient)
+        .downloadAttachment("/api/v1/ticket_attachment/391/2875/669", config);
+    inOrder
+        .verify(negotiatorClient)
+        .uploadAttachment(
+            eq(NEGOTIATION_ID),
+            argThat((Attachment a) -> "b.csv".equals(a.filename())),
+            eq(ORG_EXT_ID),
+            eq(config));
   }
 
   @Test

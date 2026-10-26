@@ -60,4 +60,14 @@ public interface HelpdeskClient extends HelpdeskTyped {
    * objects.
    */
   void linkRelatedTickets(List<String> ticketIds, OrganizationConfig config);
+
+  /**
+   * Download the raw bytes of an attachment from the help desk.
+   *
+   * @param relativePath the help-desk-specific, fully-formed relative path from which the
+   *     attachment is downloaded.
+   * @param config organization configuration to use for this request
+   * @return the attachment content
+   */
+  byte[] downloadAttachment(String relativePath, OrganizationConfig config);
 }

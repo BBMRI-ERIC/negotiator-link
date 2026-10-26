@@ -49,7 +49,7 @@ Open `.env` and fill in the values:
 
 - **`NEGOTIATOR_WEBHOOK_SECRET`** — shared secret between Negotiator and negotiator-link for webhook signature
   verification. You can keep there example for local testing: `whsec_bG9jYWwtZGV2LXdlYmhvb2stc2VjcmV0`
-- **`ZAMMAD_MHH_API_TOKEN`** — Zammad API token (obtain in Step 5 after Zammad starts)
+- **`ZAMMAD_MHH_API_TOKEN`** — Zammad API token (obtain in Step 7)
 - **`ZAMMAD_MHH_CALLBACK_SECRET`** — shared secret for verifying inbound Zammad callbacks. Can be any string for local
   testing, e.g. `local-dev-callback-secret`
 
@@ -266,7 +266,13 @@ In Zammad: **Admin → Integrations → Webhooks → New Webhook**
 - **HMAC SHA1 signature token**: `<value of ZAMMAD_MHH_CALLBACK_SECRET from .env>`
 - **Custom payload** (enable custom payload):
   ```json
-  { "ticket": { "state_updated": true, "id": "#{ticket.id}", "state": "#{ticket.state}" } }
+  {
+  "ticket": {
+    "state_updated": true,
+    "id": "#{ticket.id}",
+    "state": "#{ticket.state.name}"
+  }
+}
   ```
 
 Then the trigger:
@@ -277,25 +283,6 @@ In Zammad: **Admin → Manage → Triggers → New Trigger**
 - **Conditions**: `Ticket → State → has changed` AND `Updated by → is not → <negotiator-link bot user>`
 - make sure in expert mode under Condition that the logic AND is selected.
 - **Execute changes on objects**: `Webhook → negotiator-link: ticket state updated`
-
-> **Loop guard:** the `Updated by → is not → <negotiator-link bot user>` condition is mandatory.
-> negotiator-link itself changes the ticket state when a resource reaches a mapped state (see
-> `resourceStateToTicketState`, e.g. `RESOURCE_MADE_AVAILABLE → closed`). Excluding the bot user
-> prevents those middleware-driven state changes from re-triggering this webhook and looping.
-
-**Configure the ticket-state → resource-event mapping in negotiator-link:**
-
-Add a `ticketStateToResourceEvent` map to the organization entry in negotiator-link's configuration
-(`application.yml`). The map is optional — when absent, the feature is disabled for that organization.
-
-```yaml
-negotiator-link:
-  organizations:
-    - organizationExternalId: "bbmri:DE:MHH"
-      # ...
-      ticketStateToResourceEvent:
-        open: "MARK_AS_CHECKING_AVAILABILITY"
-```
 
 ### Test users
 
@@ -334,3 +321,8 @@ docker compose logs -f  negotiator-link
 
 - [Negotiator Repository](https://github.com/BBMRI-ERIC/negotiator)
 - [Negotiator Documentation](https://bbmri-eric.github.io/negotiator)
+
+## License
+
+This project is licensed under the GNU Affero General Public License v3.0.
+See the [LICENSE](LICENSE) file for details.

@@ -16,6 +16,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskAttachmentRef;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddNegotiationAttachmentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
@@ -120,7 +121,7 @@ public class OutboxIntentDispatcher {
         client.updateTicketState(intent.getTargetId(), readState(intent).value(), config);
         yield DispatchResult.empty();
       }
-      case CREATE_POST -> createPost(intent, config);
+      case CREATE_POST -> createPost(intent, config, client);
       case SEND_RESOURCE_EVENT -> sendResourceEvent(intent, config);
       case SEND_BULK_RESOURCE_EVENT -> sendBulkResourceEvent(intent, config);
     };
@@ -217,7 +218,8 @@ public class OutboxIntentDispatcher {
     return DispatchResult.empty();
   }
 
-  private DispatchResult createPost(OutboxIntent intent, OrganizationConfig config) {
+  private DispatchResult createPost(
+      OutboxIntent intent, OrganizationConfig config, HelpdeskClient client) {
     CreatePostPayload payload = read(intent, CreatePostPayload.class);
     String organizationExtId = config.organizationExternalId();
 
@@ -241,7 +243,35 @@ public class OutboxIntentDispatcher {
     negotiatorClient.createPost(payload.negotiationId(), post, config);
     log.info(
         "Forwarded help desk post to negotiation '{}' as PRIVATE post", payload.negotiationId());
+
+    forwardPostAttachments(payload, config, client);
     return DispatchResult.empty();
+  }
+
+  /**
+   * Downloads each helpdesk post attachment and re-uploads it to the negotiation as a PRIVATE
+   * (org-scoped) attachment, matching the post's visibility.
+   *
+   * <p>TODO:Currently, there is no endpoint in Negotiator to do it in one call along with the post
+   * creation. Rewrite it once such an endpoint is available.
+   */
+  private void forwardPostAttachments(
+      CreatePostPayload payload, OrganizationConfig config, HelpdeskClient client) {
+    if (payload.attachments() == null || payload.attachments().isEmpty()) {
+      return;
+    }
+    for (HelpdeskAttachmentRef ref : payload.attachments()) {
+      byte[] content = client.downloadAttachment(ref.downloadPath(), config);
+      negotiatorClient.uploadAttachment(
+          payload.negotiationId(),
+          new Attachment(ref.filename(), ref.contentType(), content),
+          config.organizationExternalId(),
+          config);
+      log.info(
+          "Forwarded help desk attachment '{}' to negotiation '{}'",
+          ref.filename(),
+          payload.negotiationId());
+    }
   }
 
   private DispatchResult sendResourceEvent(OutboxIntent intent, OrganizationConfig config) {
