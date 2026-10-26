@@ -40,22 +40,20 @@ jobs:
           fi
           mv "$tmp" "$SPEC_PATH"
 
-      - name: Show whether the spec changed
-        id: diff
-        run: |
-          if git diff --quiet -- "$SPEC_PATH"; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "Negotiator OpenAPI spec is already up to date — nothing to do."
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "Negotiator OpenAPI spec changed — a pull request will be opened."
-          fi
+      # A GitHub App token (not the default GITHUB_TOKEN) is required so that the
+      # pull request and its branch pushes trigger the on: pull_request CI checks.
+      # Pull requests created with GITHUB_TOKEN do not trigger further workflow runs.
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.OPENAPI_REFRESH_APP_ID }}
+          private-key: ${{ secrets.OPENAPI_REFRESH_APP_PRIVATE_KEY }}
 
       - name: Open pull request
-        if: steps.diff.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
           branch: chore/refresh-negotiator-openapi
           delete-branch: true
           commit-message: "chore: refresh Negotiator OpenAPI spec"
