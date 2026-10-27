@@ -17,7 +17,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepo
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.HelpdeskEventRouter;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.NegotiatorEventRouter;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.RouteOutcome;
-import io.micrometer.core.instrument.MeterRegistry;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
@@ -44,7 +43,7 @@ public class InboxEventProcessor {
   private final OriginatedPostRepository originatedPostRepository;
   private final ObjectMapper objectMapper;
   private final NegotiatorLinkProperties properties;
-  private final MeterRegistry meterRegistry;
+  private final AfterCommitMetrics afterCommitMetrics;
 
   /** Routes a claimed inbox event. */
   public RouteOutcome buildOutcome(InboxEvent event) {
@@ -79,15 +78,14 @@ public class InboxEventProcessor {
       outboxService.enqueue(outcome.intents(), event);
       markTerminal(event, InboxStatus.PROCESSED, null, null);
       String eventType = event.getEventType() != null ? event.getEventType() : "unknown";
-      meterRegistry.counter("inbox_events_processed_total", "event_type", eventType).increment();
+      afterCommitMetrics.incrementAfterCommit(
+          "inbox_events_processed_total", "event_type", eventType);
     } else {
       markTerminal(event, InboxStatus.SKIPPED, outcome.skipReason(), null);
-      meterRegistry
-          .counter(
-              "inbox_events_skipped_total",
-              "reason",
-              outcome.skipReason().startsWith("no-handler:") ? "no-handler" : outcome.skipReason())
-          .increment();
+      afterCommitMetrics.incrementAfterCommit(
+          "inbox_events_skipped_total",
+          "reason",
+          outcome.skipReason().startsWith("no-handler:") ? "no-handler" : outcome.skipReason());
     }
   }
 
@@ -120,7 +118,7 @@ public class InboxEventProcessor {
           error);
     } else {
       markTerminal(event, InboxStatus.FAILED, null, truncate(error.getMessage()));
-      meterRegistry.counter("inbox_events_failed_total").increment();
+      afterCommitMetrics.incrementAfterCommit("inbox_events_failed_total");
       log.error(
           "Inbox row {} failed ({}, attempt {}) — marked FAILED",
           rowId,

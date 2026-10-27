@@ -5,7 +5,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OutboxIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
-import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -27,7 +26,7 @@ public class OutboxDeliverer {
   private final AttachmentForwardingService attachmentForwardingService;
   private final FailureClassifier failureClassifier;
   private final PendingTicketCreationCache pendingTicketCreationCache;
-  private final MeterRegistry meterRegistry;
+  private final AfterCommitMetrics afterCommitMetrics;
   private final int maxAttempts;
   private final Duration baseBackoff;
   private final Duration maxBackoff;
@@ -40,7 +39,7 @@ public class OutboxDeliverer {
       AttachmentForwardingService attachmentForwardingService,
       FailureClassifier failureClassifier,
       PendingTicketCreationCache pendingTicketCreationCache,
-      MeterRegistry meterRegistry,
+      AfterCommitMetrics afterCommitMetrics,
       NegotiatorLinkProperties properties) {
     this.outboxIntentRepository = outboxIntentRepository;
     this.dispatcher = dispatcher;
@@ -49,7 +48,7 @@ public class OutboxDeliverer {
     this.attachmentForwardingService = attachmentForwardingService;
     this.failureClassifier = failureClassifier;
     this.pendingTicketCreationCache = pendingTicketCreationCache;
-    this.meterRegistry = meterRegistry;
+    this.afterCommitMetrics = afterCommitMetrics;
     NegotiatorLinkProperties.OutboxProperties outbox = properties.getOutbox();
     this.maxAttempts = outbox.getMaxAttempts();
     this.baseBackoff = outbox.getBaseBackoff();
@@ -115,9 +114,8 @@ public class OutboxDeliverer {
                     record.ticketId(),
                     record.attachmentIds()));
     markDelivered(intent);
-    meterRegistry
-        .counter("outbox_intents_delivered_total", "intent_type", intent.getIntentType().name())
-        .increment();
+    afterCommitMetrics.incrementAfterCommit(
+        "outbox_intents_delivered_total", "intent_type", intent.getIntentType().name());
   }
 
   /**
@@ -145,10 +143,8 @@ public class OutboxDeliverer {
       case TRANSIENT -> {
         if (intent.getAttemptCount() >= maxAttempts) {
           intent.setStatus(OutboxStatus.DEAD_LETTER);
-          meterRegistry
-              .counter(
-                  "outbox_intents_dead_letter_total", "intent_type", intent.getIntentType().name())
-              .increment();
+          afterCommitMetrics.incrementAfterCommit(
+              "outbox_intents_dead_letter_total", "intent_type", intent.getIntentType().name());
           log.error(
               "Intent {} ({}) exhausted {} attempts — DEAD_LETTER",
               intent.getRowId(),
@@ -171,12 +167,8 @@ public class OutboxDeliverer {
       }
       case PERMANENT -> {
         intent.setStatus(OutboxStatus.FAILED_PERMANENT);
-        meterRegistry
-            .counter(
-                "outbox_intents_failed_permanent_total",
-                "intent_type",
-                intent.getIntentType().name())
-            .increment();
+        afterCommitMetrics.incrementAfterCommit(
+            "outbox_intents_failed_permanent_total", "intent_type", intent.getIntentType().name());
         log.error(
             "Intent {} ({}) permanent failure — FAILED_PERMANENT",
             intent.getRowId(),
@@ -185,10 +177,8 @@ public class OutboxDeliverer {
       }
       case UNEXPECTED_ERROR -> {
         intent.setStatus(OutboxStatus.DEAD_LETTER);
-        meterRegistry
-            .counter(
-                "outbox_intents_dead_letter_total", "intent_type", intent.getIntentType().name())
-            .increment();
+        afterCommitMetrics.incrementAfterCommit(
+            "outbox_intents_dead_letter_total", "intent_type", intent.getIntentType().name());
         log.error(
             "Intent {} ({}) unexpected error — DEAD_LETTER",
             intent.getRowId(),

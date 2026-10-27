@@ -15,6 +15,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorLinkPropert
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OutboxIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.AfterCommitMetrics;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.DispatchResult;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.FailureClass;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.FailureClassifier;
@@ -40,6 +41,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
@@ -80,7 +82,7 @@ class OutboxDelivererTest {
             attachmentForwardingService,
             failureClassifier,
             pendingTicketCreationCache,
-            meterRegistry,
+            new AfterCommitMetrics(meterRegistry),
             properties);
   }
 
@@ -156,6 +158,8 @@ class OutboxDelivererTest {
     TransactionSynchronizationManager.initSynchronization();
     try {
       deliverer.commit(ROW_ID, CLAIM_TOKEN, result);
+      // the delivered counter is incremented only after commit; fire the callbacks manually
+      TransactionSynchronizationManager.getSynchronizations().forEach(s -> s.afterCommit());
     } finally {
       TransactionSynchronizationManager.clearSynchronization();
     }
@@ -280,11 +284,15 @@ class OutboxDelivererTest {
     DispatchResult result = new DispatchResult(List.of(), Optional.empty());
 
     TransactionSynchronizationManager.initSynchronization();
-    deliverer.commit(ROW_ID, CLAIM_TOKEN, result);
+    try {
+      deliverer.commit(ROW_ID, CLAIM_TOKEN, result);
+      TransactionSynchronizationManager.getSynchronizations()
+          .forEach(TransactionSynchronization::afterCommit);
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
 
-    assertThat(TransactionSynchronizationManager.getSynchronizations()).isEmpty();
     verify(pendingTicketCreationCache, never()).removeIfNoPendingCreateTicket(any());
-    TransactionSynchronizationManager.clearSynchronization();
   }
 
   @Test
