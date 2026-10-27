@@ -83,7 +83,10 @@ public class InboxEventProcessor {
     } else {
       markTerminal(event, InboxStatus.SKIPPED, outcome.skipReason(), null);
       meterRegistry
-          .counter("inbox_events_skipped_total", "reason", outcome.skipReason())
+          .counter(
+              "inbox_events_skipped_total",
+              "reason",
+              outcome.skipReason().startsWith("no-handler:") ? "no-handler" : outcome.skipReason())
           .increment();
     }
   }
