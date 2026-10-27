@@ -2,13 +2,14 @@ package eu.bbmri_eric.negotiator.negotiatorlink.integration.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.integration.IntegrationBase;
+import eu.bbmri_eric.negotiator.negotiatorlink.integration.util.IntegrationBase;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-class MigrationsIT extends IntegrationBase {
+@IntegrationBase
+class MigrationsIT {
 
   @Autowired private DataSource dataSource;
 

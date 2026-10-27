@@ -6,12 +6,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.InboxEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.EventSource;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.InboxEventRepository;
-import eu.bbmri_eric.negotiator.negotiatorlink.integration.IntegrationBase;
+import eu.bbmri_eric.negotiator.negotiatorlink.integration.util.IntegrationBase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 
-class InboxDedupIT extends IntegrationBase {
+@IntegrationBase
+class InboxDedupIT {
 
   private static final String SOURCE = EventSource.NEGOTIATOR.name();
   private static final String DELIVERY_ID = "delivery-dup-1";

@@ -12,7 +12,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.InboxStatus;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxPoller;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.InboxEventRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.routing.NegotiatorEventRouter;
-import eu.bbmri_eric.negotiator.negotiatorlink.integration.IntegrationBase;
+import eu.bbmri_eric.negotiator.negotiatorlink.integration.util.IntegrationBase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,7 +21,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientResponseException;
 
-class InboxPollerIT extends IntegrationBase {
+@IntegrationBase
+class InboxPollerIT {
 
   private static final String DELIVERY_ID = "delivery-1";
   private static final String PAYLOAD = "{}";

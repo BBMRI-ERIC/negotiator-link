@@ -14,7 +14,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxStatus;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.InboxEventRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepository;
-import eu.bbmri_eric.negotiator.negotiatorlink.integration.IntegrationBase;
+import eu.bbmri_eric.negotiator.negotiatorlink.integration.util.IntegrationBase;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -24,7 +24,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
-class OutboxClaimerIT extends IntegrationBase {
+@IntegrationBase
+class OutboxClaimerIT {
 
   @Autowired private OutboxClaimer claimer;
   @Autowired private OutboxIntentRepository outboxIntentRepository;

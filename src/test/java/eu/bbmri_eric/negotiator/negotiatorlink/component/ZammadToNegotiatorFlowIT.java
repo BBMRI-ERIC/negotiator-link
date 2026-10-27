@@ -24,7 +24,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepos
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostCreateDTO;
-import eu.bbmri_eric.negotiator.negotiatorlink.integration.IntegrationBase;
+import eu.bbmri_eric.negotiator.negotiatorlink.integration.util.IntegrationBase;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorResourceEvent;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -46,7 +46,8 @@ import org.springframework.web.client.RestClient;
 
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 @TestPropertySource(properties = "negotiator-link.scheduling.enabled=true")
-class ZammadToNegotiatorFlowIT extends IntegrationBase {
+@IntegrationBase
+class ZammadToNegotiatorFlowIT {
 
   private static final String TICKET_ID = "1";
   private static final String NEGOTIATION_ID = "neg-cb-1";

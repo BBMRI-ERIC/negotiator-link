@@ -4,14 +4,15 @@ import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.hmacSha1Hex;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.integration.IntegrationBase;
+import eu.bbmri_eric.negotiator.negotiatorlink.integration.util.IntegrationBase;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-class HelpdeskCallbackControllerIT extends IntegrationBase {
+@IntegrationBase
+class HelpdeskCallbackControllerIT {
 
   private static final String KNOWN_ORG = "bbmri:DE:MHH";
   private static final String UNKNOWN_ORG = "bbmri:XX:UNKNOWN";

@@ -36,7 +36,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRep
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
-import eu.bbmri_eric.negotiator.negotiatorlink.integration.IntegrationBase;
+import eu.bbmri_eric.negotiator.negotiatorlink.integration.util.IntegrationBase;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorNegotiationEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorResourceEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
@@ -60,7 +60,8 @@ import org.springframework.test.web.servlet.ResultActions;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestPropertySource(properties = "negotiator-link.scheduling.enabled=true")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-class NegotiatorWebhookControllerIT extends IntegrationBase {
+@IntegrationBase
+class NegotiatorWebhookControllerIT {
 
   private static final String BODY = "{\"event\":\"test\"}";
   private static final String NEGOTIATION_ID = "neg-1";

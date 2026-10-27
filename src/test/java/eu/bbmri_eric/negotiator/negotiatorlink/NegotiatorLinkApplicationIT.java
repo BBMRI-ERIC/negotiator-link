@@ -1,9 +1,10 @@
 package eu.bbmri_eric.negotiator.negotiatorlink;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.integration.IntegrationBase;
+import eu.bbmri_eric.negotiator.negotiatorlink.integration.util.IntegrationBase;
 import org.junit.jupiter.api.Test;
 
-class NegotiatorLinkApplicationIT extends IntegrationBase {
+@IntegrationBase
+class NegotiatorLinkApplicationIT {
 
   @Test
   void contextLoads() {}

@@ -32,7 +32,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepos
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.AttachmentMetadataDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
-import eu.bbmri_eric.negotiator.negotiatorlink.integration.IntegrationBase;
+import eu.bbmri_eric.negotiator.negotiatorlink.integration.util.IntegrationBase;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorNegotiationEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorResourceEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
@@ -54,7 +54,8 @@ import org.springframework.web.client.RestClient;
 
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 @TestPropertySource(properties = "negotiator-link.scheduling.enabled=true")
-class NegotiatorToZammadFlowIT extends IntegrationBase {
+@IntegrationBase
+class NegotiatorToZammadFlowIT {
 
   private static final String ZAMMAD_BASE = "https://zammad.mhh.de";
   private static final String TICKETS_URL = ZAMMAD_BASE + "/api/v1/tickets";
