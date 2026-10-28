@@ -15,6 +15,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorLinkPropert
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OutboxIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.AfterCommitMetrics;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.DispatchResult;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.FailureClass;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.FailureClassifier;
@@ -29,6 +30,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -39,6 +41,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
@@ -60,6 +63,7 @@ class OutboxDelivererTest {
   @Mock private PendingTicketCreationCache pendingTicketCreationCache;
 
   private OutboxDeliverer deliverer;
+  private SimpleMeterRegistry meterRegistry;
 
   @BeforeEach
   void setUp() {
@@ -68,6 +72,7 @@ class OutboxDelivererTest {
     outbox.setMaxAttempts(MAX_ATTEMPTS);
     outbox.setBaseBackoff(Duration.ofSeconds(1));
     outbox.setMaxBackoff(Duration.ofSeconds(30));
+    meterRegistry = new SimpleMeterRegistry();
     deliverer =
         new OutboxDeliverer(
             outboxIntentRepository,
@@ -77,6 +82,7 @@ class OutboxDelivererTest {
             attachmentForwardingService,
             failureClassifier,
             pendingTicketCreationCache,
+            new AfterCommitMetrics(meterRegistry),
             properties);
   }
 
@@ -152,6 +158,8 @@ class OutboxDelivererTest {
     TransactionSynchronizationManager.initSynchronization();
     try {
       deliverer.commit(ROW_ID, CLAIM_TOKEN, result);
+      // the delivered counter is incremented only after commit; fire the callbacks manually
+      TransactionSynchronizationManager.getSynchronizations().forEach(s -> s.afterCommit());
     } finally {
       TransactionSynchronizationManager.clearSynchronization();
     }
@@ -163,6 +171,7 @@ class OutboxDelivererTest {
     assertNull(intent.getClaimExpiresAt());
     assertNull(intent.getClaimToken());
     verify(outboxIntentRepository).save(intent);
+    assertThat(counter("outbox_intents_delivered_total", "CREATE_TICKET")).isEqualTo(1.0);
   }
 
   @Test
@@ -275,11 +284,15 @@ class OutboxDelivererTest {
     DispatchResult result = new DispatchResult(List.of(), Optional.empty());
 
     TransactionSynchronizationManager.initSynchronization();
-    deliverer.commit(ROW_ID, CLAIM_TOKEN, result);
+    try {
+      deliverer.commit(ROW_ID, CLAIM_TOKEN, result);
+      TransactionSynchronizationManager.getSynchronizations()
+          .forEach(TransactionSynchronization::afterCommit);
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
 
-    assertThat(TransactionSynchronizationManager.getSynchronizations()).isEmpty();
     verify(pendingTicketCreationCache, never()).removeIfNoPendingCreateTicket(any());
-    TransactionSynchronizationManager.clearSynchronization();
   }
 
   @Test
@@ -344,6 +357,7 @@ class OutboxDelivererTest {
     assertEquals(OutboxStatus.DEAD_LETTER, intent.getStatus());
     assertNull(intent.getClaimExpiresAt());
     assertNull(intent.getClaimToken());
+    assertThat(counter("outbox_intents_dead_letter_total", "ADD_COMMENT")).isEqualTo(1.0);
   }
 
   @Test
@@ -357,6 +371,7 @@ class OutboxDelivererTest {
     assertEquals(OutboxStatus.FAILED_PERMANENT, intent.getStatus());
     assertNull(intent.getClaimExpiresAt());
     assertNull(intent.getClaimToken());
+    assertThat(counter("outbox_intents_failed_permanent_total", "ADD_COMMENT")).isEqualTo(1.0);
   }
 
   @Test
@@ -370,6 +385,7 @@ class OutboxDelivererTest {
     assertEquals(OutboxStatus.DEAD_LETTER, intent.getStatus());
     assertNull(intent.getClaimExpiresAt());
     assertNull(intent.getClaimToken());
+    assertThat(counter("outbox_intents_dead_letter_total", "ADD_COMMENT")).isEqualTo(1.0);
   }
 
   private OutboxIntent intent(OutboxIntentType type, OutboxStatus status) {
@@ -385,5 +401,10 @@ class OutboxDelivererTest {
   private TicketMapping ticketMapping() {
     return new TicketMapping(
         new TicketMappingId(NEGOTIATION_ID, TICKET_ID, "101"), "src-1", "42", ORG_EXT_ID);
+  }
+
+  private double counter(String name, String intentType) {
+    var counter = meterRegistry.find(name).tag("intent_type", intentType).counter();
+    return counter == null ? 0.0 : counter.count();
   }
 }

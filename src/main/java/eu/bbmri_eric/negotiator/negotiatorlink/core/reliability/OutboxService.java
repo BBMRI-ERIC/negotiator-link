@@ -14,9 +14,12 @@ import org.springframework.stereotype.Service;
 public class OutboxService {
 
   private final OutboxIntentRepository outboxIntentRepository;
+  private final AfterCommitMetrics afterCommitMetrics;
 
-  public OutboxService(OutboxIntentRepository outboxIntentRepository) {
+  public OutboxService(
+      OutboxIntentRepository outboxIntentRepository, AfterCommitMetrics afterCommitMetrics) {
     this.outboxIntentRepository = outboxIntentRepository;
+    this.afterCommitMetrics = afterCommitMetrics;
   }
 
   /** Enqueues the given intents as {@code PENDING} outbox rows. */
@@ -40,6 +43,8 @@ public class OutboxService {
               intent.negotiationId(),
               intent.organizationExtId(),
               intent.payloadJson()));
+      afterCommitMetrics.incrementAfterCommit(
+          "outbox_intents_enqueued_total", "intent_type", intent.outboxIntentType().name());
     }
     outboxIntentRepository.saveAll(outboxIntents);
   }
