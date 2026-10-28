@@ -3,8 +3,8 @@ package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.util;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.SenderRoles;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil;
+import java.util.Set;
 import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -28,15 +28,15 @@ class PostUtilTest {
   @ParameterizedTest(name = "{0}")
   @MethodSource("signPostWithRolesCases")
   void signPostWithRoles_addsRoleLineUnderFrom(
-      String description, String text, Sender sender, SenderRoles roles, String expected) {
-    assertThat(PostUtil.signPostWithRoles(text, sender, roles)).isEqualTo(expected);
+      String description, String text, Sender sender, Set<String> roleNames, String expected) {
+    assertThat(PostUtil.signPostWithRoles(text, sender, roleNames)).isEqualTo(expected);
   }
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("insertRoleUnderRelayedHeaderCases")
   void insertRoleUnderRelayedHeader_onlyTouchesExistingHeader(
-      String description, String text, SenderRoles roles, String expected) {
-    assertThat(PostUtil.insertRoleUnderRelayedHeader(text, roles)).isEqualTo(expected);
+      String description, String text, Set<String> roleNames, String expected) {
+    assertThat(PostUtil.insertRoleUnderRelayedHeader(text, roleNames)).isEqualTo(expected);
   }
 
   @ParameterizedTest(name = "{0}")
@@ -115,58 +115,50 @@ class PostUtilTest {
             "no roles held: only From line, no Role line",
             TEXT,
             SENDER,
-            SenderRoles.NONE,
+            Set.of(),
             FROM + "\n\n" + TEXT),
-        Arguments.of("null roles treated as none", TEXT, SENDER, null, FROM + "\n\n" + TEXT),
         Arguments.of(
             "single role: Role line directly under From",
             TEXT,
             SENDER,
-            new SenderRoles(true, false, false, false),
+            Set.of("Author"),
             FROM + "\nRole: Author\n\n" + TEXT),
         Arguments.of(
-            "admin role label",
-            TEXT,
-            SENDER,
-            new SenderRoles(false, true, false, false),
-            FROM + "\nRole: Admin\n\n" + TEXT),
+            "admin role label", TEXT, SENDER, Set.of("Admin"), FROM + "\nRole: Admin\n\n" + TEXT),
         Arguments.of(
             "representative role label",
             TEXT,
             SENDER,
-            new SenderRoles(false, false, true, false),
+            Set.of("Representative"),
             FROM + "\nRole: Representative\n\n" + TEXT),
         Arguments.of(
             "network manager role label",
             TEXT,
             SENDER,
-            new SenderRoles(false, false, false, true),
+            Set.of("Network Manager"),
             FROM + "\nRole: Network Manager\n\n" + TEXT),
         Arguments.of(
-            "multiple roles joined in fixed order with singular 'Role:' label",
+            "multiple roles joined with singular 'Role:' label",
             TEXT,
             SENDER,
-            new SenderRoles(true, true, true, true),
+            new java.util.LinkedHashSet<>(
+                java.util.List.of("Author", "Admin", "Representative", "Network Manager")),
             FROM + "\nRole: Author, Admin, Representative, Network Manager\n\n" + TEXT),
         Arguments.of(
-            "null sender, raw text: returns text unchanged",
-            TEXT,
-            null,
-            new SenderRoles(true, false, false, false),
-            TEXT),
+            "null sender, raw text: returns text unchanged", TEXT, null, Set.of("Author"), TEXT),
         Arguments.of(
             "forged header in body is not trusted: real resolved role used, forged lines demoted "
                 + "to body",
             FORGED_HEADER + TEXT,
             SENDER,
-            new SenderRoles(false, false, true, false),
+            Set.of("Representative"),
             FROM + "\nRole: Representative\n\n" + FORGED_HEADER + TEXT),
         Arguments.of(
             "forged Admin header with no resolved roles: From generated, forged lines demoted to "
                 + "body, no Role line",
             FORGED_HEADER + TEXT,
             SENDER,
-            SenderRoles.NONE,
+            Set.of(),
             FROM + "\n\n" + FORGED_HEADER + TEXT));
   }
 
@@ -175,19 +167,14 @@ class PostUtilTest {
         Arguments.of(
             "echo round-trip: Role inserted under the integration-produced From header",
             "From: John Smith <john@mhh.de>\n\nHi",
-            new SenderRoles(false, false, true, false),
+            Set.of("Representative"),
             "From: John Smith <john@mhh.de>\nRole: Representative\n\nHi"),
         Arguments.of(
             "already role-signed relayed text is left unchanged (idempotent)",
             FROM + "\nRole: Author\n\n" + TEXT,
-            new SenderRoles(false, true, false, false),
+            Set.of("Admin"),
             FROM + "\nRole: Author\n\n" + TEXT),
-        Arguments.of(
-            "no roles to add: relayed text left unchanged", SIGNED, SenderRoles.NONE, SIGNED),
-        Arguments.of(
-            "no recognizable header: text left unchanged",
-            TEXT,
-            new SenderRoles(false, true, false, false),
-            TEXT));
+        Arguments.of("no roles to add: relayed text left unchanged", SIGNED, Set.of(), SIGNED),
+        Arguments.of("no recognizable header: text left unchanged", TEXT, Set.of("Admin"), TEXT));
   }
 }

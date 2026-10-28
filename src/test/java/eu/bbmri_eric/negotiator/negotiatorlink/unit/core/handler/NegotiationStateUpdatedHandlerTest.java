@@ -34,7 +34,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFo
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
-import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.UserResponseModel;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostTagDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorNegotiationEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.time.LocalDateTime;
@@ -439,6 +439,8 @@ class NegotiationStateUpdatedHandlerTest {
   @Test
   void handle_stateChange_withPostId_addsRoleLineForAuthor() {
     var config = createConfig(TicketStrategy.PER_RESOURCE);
+    var tag = new PostTagDTO();
+    tag.setName("Author");
     var post =
         TestUtil.post(
             "p-1",
@@ -447,12 +449,10 @@ class NegotiationStateUpdatedHandlerTest {
             null,
             "Alice",
             "alice@example.com");
-    post.getCreatedBy().setId("user-7");
+    post.addTagsItem(tag);
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(twoMappings());
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
     when(negotiatorClient.getPost(NEGOTIATION_ID, "p-1", config)).thenReturn(post);
-    when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config))
-        .thenReturn(negotiationWithAuthorId("user-7"));
 
     List<PendingIntent> intents =
         handler.handle(eventDataWithPost(NegotiatorNegotiationEvent.PAUSE, "p-1")).intents();
@@ -570,14 +570,6 @@ class NegotiationStateUpdatedHandlerTest {
 
   private EntityModelNegotiationDTO createNegotiation() {
     return TestUtil.negotiation(NEGOTIATION_ID, DISPLAY_ID, NEGOTIATION_STATE);
-  }
-
-  private EntityModelNegotiationDTO negotiationWithAuthorId(String authorId) {
-    var negotiation = createNegotiation();
-    var author = new UserResponseModel();
-    author.setId(authorId);
-    negotiation.setAuthor(author);
-    return negotiation;
   }
 
   private EntityModelResourceWithStatusDTO createResource(String sourceId, Long id) {

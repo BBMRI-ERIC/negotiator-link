@@ -12,7 +12,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigReg
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.SenderRoles;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationCache;
@@ -33,14 +32,18 @@ import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDT
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.NegotiationStateUpdatedWebhookEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.OrganizationDTO;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostTagDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.UserResponseModel;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -163,7 +166,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
             body,
             context.attachmentIds(),
             resourceRefs(resources),
-            orderAndSignNegotiationPosts(context.posts(), getAuthorId(negotiation)));
+            orderAndSignNegotiationPosts(context.posts()));
     return List.of(createTicketIntent(negotiation.getId(), orgExtId, payload));
   }
 
@@ -188,7 +191,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
               body,
               context.attachmentIds(),
               resourceRefs(List.of(resource)),
-              orderAndSignNegotiationPosts(context.posts(), getAuthorId(negotiation)));
+              orderAndSignNegotiationPosts(context.posts()));
       intents.add(createTicketIntent(negotiation.getId(), orgExtId, payload));
     }
 
@@ -237,28 +240,26 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
         .toList();
   }
 
-  private List<String> orderAndSignNegotiationPosts(
-      List<EntityModelPostDTO> posts, String negotiationAuthorId) {
+  private List<String> orderAndSignNegotiationPosts(List<EntityModelPostDTO> posts) {
     return posts.stream()
         .filter(post -> post.getText() != null)
         .sorted(
             Comparator.comparing(
                 EntityModelPostDTO::getCreationDate,
                 Comparator.nullsLast(Comparator.naturalOrder())))
-        .map(post -> signPostText(post, negotiationAuthorId))
+        .map(this::signPostText)
         .toList();
   }
 
-  private static String getAuthorId(EntityModelNegotiationDTO negotiation) {
-    return negotiation.getAuthor() != null ? negotiation.getAuthor().getId() : null;
-  }
-
-  private String signPostText(EntityModelPostDTO post, String negotiationAuthorId) {
+  private String signPostText(EntityModelPostDTO post) {
     UserResponseModel createdBy = post.getCreatedBy();
     Sender sender =
         createdBy != null ? new Sender(createdBy.getName(), createdBy.getEmail()) : null;
-    SenderRoles roles = PostUtil.resolveSenderRoles(createdBy, negotiationAuthorId);
-    return PostUtil.signPostWithRoles(post.getText(), sender, roles);
+    Set<String> roleNames =
+        post.getTags() != null
+            ? post.getTags().stream().map(PostTagDTO::getName).collect(Collectors.toSet())
+            : Collections.emptySet();
+    return PostUtil.signPostWithRoles(post.getText(), sender, roleNames);
   }
 
   private String resolveInitialState(EntityModelResourceWithStatusDTO resource) {
@@ -415,12 +416,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     if (post == null || post.getText() == null) {
       return null;
     }
-    return signPostText(post, fetchNegotiationAuthorId(negotiationId, config));
-  }
-
-  private String fetchNegotiationAuthorId(String negotiationId, OrganizationConfig config) {
-    EntityModelNegotiationDTO negotiation = negotiatorClient.getNegotiation(negotiationId, config);
-    return negotiation != null ? getAuthorId(negotiation) : null;
+    return signPostText(post);
   }
 
   /** Parses and validates the webhook event, or returns {@code null} if it is incomplete. */

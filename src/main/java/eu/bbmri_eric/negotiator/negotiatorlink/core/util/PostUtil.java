@@ -1,11 +1,8 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.util;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.SenderRoles;
-import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.UserResponseModel;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -34,15 +31,15 @@ public final class PostUtil {
    *
    * @param text the text to be decorated
    * @param sender the sender information
-   * @param roles the roles held by the sender
+   * @param roleNames the roles held by the sender
    * @return the signed text, or the original text when there is no sender to attribute it to
    */
-  public static String signPostWithRoles(String text, Sender sender, SenderRoles roles) {
+  public static String signPostWithRoles(String text, Sender sender, Set<String> roleNames) {
     String fromLine = buildFromLine(sender);
     if (fromLine == null) {
       return text;
     }
-    String roleLine = formatRoles(roles).isEmpty() ? null : "Role: " + formatRoles(roles);
+    String roleLine = roleNames.isEmpty() ? null : "Role: " + String.join(", ", roleNames);
     String header = roleLine == null ? fromLine : fromLine + "\n" + roleLine;
     return header + "\n\n" + text;
   }
@@ -52,57 +49,19 @@ public final class PostUtil {
    * help-desk comment into the Negotiator.
    *
    * @param text the already integration-signed text being relayed back
-   * @param roles the roles to add, if any
+   * @param roleNames the roles to add, if any
    * @return the text with a {@code Role:} line inserted under the existing header, or the original
    *     text when there is no role to add, the header already carries one, or no header is present
    */
-  public static String insertRoleUnderRelayedHeader(String text, SenderRoles roles) {
-    String formatted = formatRoles(roles);
-    if (formatted.isEmpty() || !startsWithSignerHeader(text) || hasRoleLine(text)) {
+  public static String insertRoleUnderRelayedHeader(String text, Set<String> roleNames) {
+    if (roleNames.isEmpty() || !startsWithSignerHeader(text) || hasRoleLine(text)) {
       return text;
     }
     int firstNewline = text.indexOf('\n');
-    return text.substring(0, firstNewline) + "\nRole: " + formatted + text.substring(firstNewline);
-  }
-
-  /**
-   * Builds the {@link SenderRoles} for a post's author, for display on a help-desk ticket comment.
-   *
-   * @param createdBy the post author
-   * @param negotiationAuthorId the id of the negotiation's author
-   * @return the resolved roles, or {@link SenderRoles#NONE} when there is no author
-   */
-  public static SenderRoles resolveSenderRoles(
-      UserResponseModel createdBy, String negotiationAuthorId) {
-    if (createdBy == null) {
-      return SenderRoles.NONE;
-    }
-    boolean isAuthor = createdBy.getId() != null && createdBy.getId().equals(negotiationAuthorId);
-    return new SenderRoles(
-        isAuthor,
-        Boolean.TRUE.equals(createdBy.getAdmin()),
-        Boolean.TRUE.equals(createdBy.getRepresentativeOfAnyResource()),
-        Boolean.TRUE.equals(createdBy.getNetworkManager()));
-  }
-
-  private static String formatRoles(SenderRoles roles) {
-    if (roles == null || !roles.any()) {
-      return "";
-    }
-    List<String> names = new ArrayList<>();
-    if (roles.author()) {
-      names.add("Author");
-    }
-    if (roles.admin()) {
-      names.add("Admin");
-    }
-    if (roles.representativeOfAnyResource()) {
-      names.add("Representative");
-    }
-    if (roles.networkManager()) {
-      names.add("Network Manager");
-    }
-    return String.join(", ", names);
+    return text.substring(0, firstNewline)
+        + "\nRole: "
+        + String.join(", ", roleNames)
+        + text.substring(firstNewline);
   }
 
   /**

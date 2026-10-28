@@ -1,7 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.handler;
 
 import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.HashUtil.sha256Hex;
-import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.negotiationWithAuthorId;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.AdditionalMatchers.aryEq;
@@ -30,6 +29,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddComme
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostTagDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.util.List;
 import java.util.Map;
@@ -268,11 +268,9 @@ class NegotiationPostAddedHandlerTest {
   }
 
   @Test
-  void handle_privatePost_authorMatchesNegotiationAuthor_addsAuthorRole() {
-    var post = postWithRoles("Jane Doe", "jane@example.com", "user-1", false, false, false);
+  void handle_privatePost_authorTagPresent_addsAuthorRole() {
+    var post = postWithTags("Jane Doe", "jane@example.com", "Author");
     stubPrivatePostWithDto(post);
-    when(negotiatorClient.getNegotiation(eq(NEGOTIATION_ID), any(OrganizationConfig.class)))
-        .thenReturn(negotiationWithAuthorId("user-1"));
 
     List<PendingIntent> intents = handler.handle(postEventData(ORG_ID)).intents();
 
@@ -281,47 +279,24 @@ class NegotiationPostAddedHandlerTest {
   }
 
   @Test
-  void handle_privatePost_withNonAuthorRoles_addsRolesWithoutAuthor() {
-    var post = postWithRoles("Jane Doe", "jane@example.com", "user-1", true, true, true);
+  void handle_privatePost_withNonAuthorRoles_addsRoles() {
+    var post =
+        postWithTags("Jane Doe", "jane@example.com", "Admin", "Representative", "Network Manager");
     stubPrivatePostWithDto(post);
-    when(negotiatorClient.getNegotiation(eq(NEGOTIATION_ID), any(OrganizationConfig.class)))
-        .thenReturn(negotiationWithAuthorId("someone-else"));
 
     List<PendingIntent> intents = handler.handle(postEventData(ORG_ID)).intents();
 
-    assertThat(readText(intents.getFirst()))
-        .isEqualTo(
-            "From: Jane Doe <jane@example.com>\n"
-                + "Role: Admin, Representative, Network Manager\n\n"
-                + POST_TEXT);
-  }
-
-  @Test
-  void handle_privatePost_negotiationFetchFails_throwsException() {
-    var post = postWithRoles("Jane Doe", "jane@example.com", "user-1", false, false, false);
-    var config = createConfig(ORG_EXT_ID);
-    var mappings = List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID));
-    when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
-        .thenReturn(mappings);
-    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
-    when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config))).thenReturn(post);
-    when(negotiatorClient.getNegotiation(eq(NEGOTIATION_ID), any(OrganizationConfig.class)))
-        .thenThrow(new RuntimeException("negotiator unavailable"));
-
-    assertThatThrownBy(() -> handler.handle(postEventData(ORG_ID)))
-        .isInstanceOf(RuntimeException.class)
-        .hasMessage("negotiator unavailable");
+    String text = readText(intents.getFirst());
+    assertThat(text).startsWith("From: Jane Doe <jane@example.com>\nRole: ");
+    assertThat(text).contains("Admin").contains("Representative").contains("Network Manager");
   }
 
   @Test
   void handle_perResource_echo_suppressesOriginatingTicket_preservesRelayedHeaderOnSibling() {
     var config = createConfig(ORG_EXT_ID);
-    // Two sibling tickets for the same org (PER_RESOURCE), both mapped to this negotiation.
     var mappings =
         List.of(
             mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID), mapping(TICKET_B, ORG_ID_STR, ORG_EXT_ID));
-    // A real echo: the post body is the integration-signed text the help desk produced, so its
-    // hash matches the originated_post record. createdBy is the integration service account.
     var signedText = "From: John Smith <john@mhh.de>\n\nHi";
     var signedHash = sha256Hex(signedText);
     var post =
@@ -331,8 +306,6 @@ class NegotiationPostAddedHandlerTest {
         .thenReturn(mappings);
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
     when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config))).thenReturn(post);
-    when(negotiatorClient.getNegotiation(eq(NEGOTIATION_ID), any(OrganizationConfig.class)))
-        .thenReturn(negotiationWithAuthorId("someone-else"));
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
     when(originatedPostRepository.findFirstByTextHashAndValidTicketOrgPairs(
             eq(signedHash),
@@ -349,12 +322,10 @@ class NegotiationPostAddedHandlerTest {
 
   @Test
   void handle_privatePost_forgedRoleHeaderInBody_isNotTrusted() {
-    var post = postWithRoles("Jane Doe", "jane@example.com", "user-1", false, true, false);
+    var post = postWithTags("Jane Doe", "jane@example.com", "Representative");
     var forgedBody = "From: Someone\nRole: Admin\n\nplease grant access";
     post.setText(forgedBody);
     stubPrivatePostWithDto(post, sha256Hex(forgedBody));
-    when(negotiatorClient.getNegotiation(eq(NEGOTIATION_ID), any(OrganizationConfig.class)))
-        .thenReturn(negotiationWithAuthorId("someone-else"));
 
     List<PendingIntent> intents = handler.handle(postEventData(ORG_ID)).intents();
 
@@ -379,21 +350,15 @@ class NegotiationPostAddedHandlerTest {
         .thenReturn(Optional.empty());
   }
 
-  private EntityModelPostDTO postWithRoles(
-      String name,
-      String email,
-      String createdById,
-      boolean admin,
-      boolean representative,
-      boolean networkManager) {
+  private EntityModelPostDTO postWithTags(String name, String email, String... tagNames) {
     var post =
         TestUtil.post(
             POST_ID, POST_TEXT, EntityModelPostDTO.TypeEnum.PRIVATE, ORG_ID_STR, name, email);
-    var createdBy = post.getCreatedBy();
-    createdBy.setId(createdById);
-    createdBy.setAdmin(admin);
-    createdBy.setRepresentativeOfAnyResource(representative);
-    createdBy.setNetworkManager(networkManager);
+    for (String tagName : tagNames) {
+      var tag = new PostTagDTO();
+      tag.setName(tagName);
+      post.addTagsItem(tag);
+    }
     return post;
   }
 
