@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.InboxEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.InboxService;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.InboxEventRepository;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,11 +25,13 @@ class InboxServiceTest {
   @Mock private InboxEventRepository inboxEventRepository;
   @Mock private InboxService self;
 
+  private SimpleMeterRegistry meterRegistry;
   private InboxService inboxService;
 
   @BeforeEach
   void setUp() {
-    inboxService = new InboxService(inboxEventRepository, self);
+    meterRegistry = new SimpleMeterRegistry();
+    inboxService = new InboxService(inboxEventRepository, self, meterRegistry);
   }
 
   @Test
@@ -39,6 +42,8 @@ class InboxServiceTest {
     Optional<InboxEvent> result = inboxService.capture("NEGOTIATOR", "delivery-1", "{}".getBytes());
 
     assertThat(result).isPresent().contains(event);
+    assertThat(meterRegistry.counter("inbox_events_captured_total", "source", "NEGOTIATOR").count())
+        .isEqualTo(1.0);
   }
 
   @Test
@@ -51,6 +56,7 @@ class InboxServiceTest {
     Optional<InboxEvent> result = inboxService.capture("NEGOTIATOR", "delivery-1", "{}".getBytes());
 
     assertThat(result).isEmpty();
+    assertThat(meterRegistry.find("inbox_events_captured_total").counter()).isNull();
   }
 
   @Test

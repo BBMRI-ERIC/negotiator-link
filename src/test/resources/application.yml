@@ -6,6 +6,15 @@ spring:
       ddl-auto: validate
     open-in-view: false
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  security:
+    user: "test-actuator"
+    password: "test-actuator-password"
+
 negotiator-link:
   scheduling:
     # Disabled by default for integration tests: all ITs share one database, so a cached
