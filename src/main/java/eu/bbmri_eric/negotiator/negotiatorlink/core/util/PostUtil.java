@@ -16,7 +16,7 @@ public final class PostUtil {
    *
    * @param text the text to be signed
    * @param sender the sender information
-   * @return the signed text if not already signed, otherwise the original text
+   * @return the signed text if sender is available, otherwise the original text
    */
   public static String signPost(String text, Sender sender) {
     String fromLine = buildFromLine(sender);
@@ -32,7 +32,7 @@ public final class PostUtil {
    * @param text the text to be decorated
    * @param sender the sender information
    * @param roleNames the roles held by the sender
-   * @return the signed text, or the original text when there is no sender to attribute it to
+   * @return the signed text if sender is available, otherwise the original text
    */
   public static String signPostWithRoles(String text, Sender sender, Set<String> roleNames) {
     String fromLine = buildFromLine(sender);
