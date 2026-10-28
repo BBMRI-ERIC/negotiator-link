@@ -10,6 +10,15 @@ spring:
     hibernate:
       ddl-auto: create-drop
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  security:
+    user: "test-actuator"
+    password: "test-actuator-password"
+
 negotiator-link:
   webhook:
     secret: "whsec_dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaA=="
@@ -100,15 +109,15 @@ negotiator-link:
   inbox:
     batch-size: 25
     poll-delay-ms: 500
-    max-attempts: 3
-    base-backoff: PT2S
-    max-backoff: PT60S
+    max-attempts: 2
+    base-backoff: PT1S
+    max-backoff: PT2S
   outbox:
     poll-delay-ms: 200
-    max-attempts: 4
-    base-backoff: PT3S
-    max-backoff: PT120S
-    claim-timeout: PT600S
-    claim-reap-interval: PT60S
+    max-attempts: 1
+    base-backoff: PT1S
+    max-backoff: PT2S
+    claim-timeout: PT6000S
+    claim-reap-interval: PT600S
     worker-count: 3
     queue-depth: 10

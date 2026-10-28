@@ -3,6 +3,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.reliability;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.InboxEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.InboxEventRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.HashUtil;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
@@ -19,10 +20,15 @@ public class InboxService {
 
   private final InboxEventRepository inboxEventRepository;
   private final InboxService self;
+  private final MeterRegistry meterRegistry;
 
-  public InboxService(InboxEventRepository inboxEventRepository, @Lazy InboxService self) {
+  public InboxService(
+      InboxEventRepository inboxEventRepository,
+      @Lazy InboxService self,
+      MeterRegistry meterRegistry) {
     this.inboxEventRepository = inboxEventRepository;
     this.self = self;
+    this.meterRegistry = meterRegistry;
   }
 
   /**
@@ -39,6 +45,7 @@ public class InboxService {
     String payload = new String(rawBody, StandardCharsets.UTF_8);
     try {
       InboxEvent event = self.insert(source, effectiveDeliveryId, payload);
+      meterRegistry.counter("inbox_events_captured_total", "source", source).increment();
       log.info(
           "Captured inbound event {} from '{}' (delivery {})",
           event.getRowId(),

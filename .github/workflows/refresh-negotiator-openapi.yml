@@ -1,0 +1,76 @@
+name: Refresh Negotiator OpenAPI spec
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Weekly, Monday 05:17 UTC
+    - cron: '17 5 * * 1'
+
+permissions:
+  contents: read
+
+env:
+  SPEC_URL: https://negotiator.bbmri-eric.eu/api/v3/api-docs
+  SPEC_PATH: src/main/resources/openapi/negotiator/negotiator-openapi.json
+
+jobs:
+  refresh-spec:
+    name: Download spec and open PR on change
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout codebase
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+
+      - name: Download latest Negotiator OpenAPI document
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp)"
+          http_code="$(curl -sS --fail --max-time 60 \
+            -H 'Accept: application/json' \
+            -w '%{http_code}' \
+            -o "$tmp" \
+            "$SPEC_URL")"
+          echo "HTTP $http_code from $SPEC_URL"
+          if ! jq -e '.openapi and .paths' "$tmp" > /dev/null; then
+            echo "::error::Downloaded content is not a valid OpenAPI document" >&2
+            exit 1
+          fi
+          jq '.' "$tmp" > "$SPEC_PATH"
+
+      - name: Open pull request
+        id: cpr
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: chore/refresh-negotiator-openapi
+          delete-branch: true
+          commit-message: "chore: refresh Negotiator OpenAPI spec"
+          title: "chore: refresh Negotiator OpenAPI spec"
+          body: |
+            Automated refresh of the vendored Negotiator OpenAPI document.
+
+            - **Source:** `${{ env.SPEC_URL }}`
+            - **File:** `${{ env.SPEC_PATH }}`
+
+            The generated Negotiator client is produced from this file at build
+            time, so this PR effectively proposes updating the client to match
+            Negotiator's current contract.
+
+            **Review guidance:** check CI below, the OpenAPI Generator runs
+            during `compile`, so a breaking contract change surfaces as a build
+            or test failure here. Also try to run development environment locally
+            as described in the README, and check that the basic functionality
+            works as expected.
+
+      - name: Trigger CI on pull request
+        if: steps.cpr.outputs.pull-request-number != ''
+        run: |
+          git fetch origin chore/refresh-negotiator-openapi
+          git checkout chore/refresh-negotiator-openapi
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git commit --allow-empty -m "ci: trigger CI checks"
+          git push origin chore/refresh-negotiator-openapi

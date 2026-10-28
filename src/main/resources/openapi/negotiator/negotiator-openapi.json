@@ -71,6 +71,10 @@
       "description": "Set requirements for Resource states in Negotiations."
     },
     {
+      "name": "Templates",
+      "description": "Manage templates for email notifications and PDF exports"
+    },
+    {
       "name": "Dynamic access forms",
       "description": "Setup and retrieve dynamic access forms"
     },
@@ -109,10 +113,6 @@
     {
       "name": "Requests",
       "description": "Handover of Resources to the Negotiator to apply for access"
-    },
-    {
-      "name": "Email Templates",
-      "description": "Retrieve and update templates"
     }
   ],
   "paths": {
@@ -155,11 +155,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -308,11 +303,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -445,11 +435,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -578,11 +563,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -685,11 +665,11 @@
     "/v3/templates/{templateName}": {
       "get": {
         "tags": [
-          "Email Templates"
+          "Templates"
         ],
-        "summary": "Get a notification template",
-        "description": "Get a notification template by name",
-        "operationId": "getNotificationTemplate",
+        "summary": "Get a template",
+        "description": "Get a template by name",
+        "operationId": "getTemplate",
         "parameters": [
           {
             "name": "templateName",
@@ -721,11 +701,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -827,11 +802,11 @@
       },
       "put": {
         "tags": [
-          "Email Templates"
+          "Templates"
         ],
-        "summary": "Update a notification template",
-        "description": "Update the content of a notification template by name",
-        "operationId": "updateNotificationTemplate",
+        "summary": "Update a template",
+        "description": "Update the content of a template by name",
+        "operationId": "updateTemplate",
         "parameters": [
           {
             "name": "templateName",
@@ -873,11 +848,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1017,11 +987,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1170,11 +1135,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -1311,11 +1271,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1457,11 +1412,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -1595,11 +1545,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1748,11 +1693,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -1882,11 +1822,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -2056,11 +1991,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -2206,11 +2136,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -2364,11 +2289,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -2534,11 +2454,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -2677,11 +2592,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -2830,11 +2740,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -2964,11 +2869,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -3109,11 +3009,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -3262,11 +3157,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -3404,11 +3294,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -3556,11 +3441,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -3700,11 +3580,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -3854,11 +3729,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -4007,11 +3877,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -4171,11 +4036,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -4304,11 +4164,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -4446,11 +4301,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -4600,11 +4450,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -4745,11 +4590,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -4877,11 +4717,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -5019,11 +4854,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -5126,11 +4956,11 @@
     "/v3/templates/{templateName}/operations": {
       "post": {
         "tags": [
-          "Email Templates"
+          "Templates"
         ],
-        "summary": "Reset a notification template",
-        "description": "Reset a notification template to the default content",
-        "operationId": "resetNotificationTemplate",
+        "summary": "Reset a template",
+        "description": "Reset a template to the default content",
+        "operationId": "resetTemplate",
         "parameters": [
           {
             "name": "templateName",
@@ -5172,11 +5002,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -5305,11 +5130,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -5446,11 +5266,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -5589,11 +5404,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -5734,11 +5544,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -5868,11 +5673,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -6005,11 +5805,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -6192,11 +5987,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -6335,11 +6125,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -6491,11 +6276,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -6634,11 +6414,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -6799,11 +6574,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -6947,11 +6717,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -7112,11 +6877,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -7260,11 +7020,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -7549,11 +7304,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -7688,11 +7438,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -7830,11 +7575,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -7980,11 +7720,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -8132,11 +7867,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -8292,11 +8022,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -8436,11 +8161,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -8611,11 +8331,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -8759,11 +8474,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -8901,11 +8611,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -9048,11 +8753,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -9192,11 +8892,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -9324,11 +9019,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -9466,11 +9156,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -9598,11 +9283,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -9740,11 +9420,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -9874,11 +9549,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -10014,11 +9684,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -10157,11 +9822,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -10310,11 +9970,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -10467,11 +10122,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -10607,11 +10257,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -10752,11 +10397,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -10893,11 +10533,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -11028,11 +10663,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -11182,11 +10812,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -11325,11 +10950,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -11470,11 +11090,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -11643,11 +11258,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -11797,11 +11407,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -11962,11 +11567,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -12107,11 +11707,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -12250,11 +11845,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -12402,11 +11992,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -12559,11 +12144,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -12711,11 +12291,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -12853,11 +12428,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -12987,11 +12557,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -13138,11 +12703,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -13280,11 +12840,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -13432,11 +12987,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -13574,11 +13124,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -13725,11 +13270,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -13886,11 +13426,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -14163,11 +13698,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -14306,11 +13836,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -14484,11 +14009,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -14782,11 +14302,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -14917,11 +14432,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -15055,11 +14565,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -15189,11 +14694,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -15296,11 +14796,11 @@
     "/v3/templates": {
       "get": {
         "tags": [
-          "Email Templates"
+          "Templates"
         ],
-        "summary": "Get all notification templates",
-        "description": "Get all notification templates",
-        "operationId": "getAllNotificationTemplates",
+        "summary": "Get all templates",
+        "description": "Get all templates for email notifications and PDF exports",
+        "operationId": "getAllTemplates",
         "responses": {
           "200": {
             "description": "OK",
@@ -15325,11 +14825,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -15459,11 +14954,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -15586,11 +15076,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -15739,11 +15224,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -15866,11 +15346,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -16020,11 +15495,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -16158,11 +15628,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -16302,11 +15767,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -16474,11 +15934,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -16617,11 +16072,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -16914,11 +16364,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -17067,11 +16512,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -17217,11 +16657,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -17358,11 +16793,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -17514,11 +16944,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -17659,11 +17084,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -17803,11 +17223,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -17935,11 +17350,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -18084,11 +17494,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -18211,11 +17616,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -18359,11 +17759,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -18572,11 +17967,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -18719,11 +18109,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -18863,11 +18248,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -18996,11 +18376,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -19158,11 +18533,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -19317,11 +18687,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -19455,11 +18820,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -19592,11 +18952,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -19733,11 +19088,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -19880,11 +19230,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -20025,11 +19370,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -20172,11 +19512,6 @@
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
                 }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
               }
             }
           },
@@ -20317,11 +19652,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -20470,11 +19800,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -20632,11 +19957,6 @@
                   "status": 400,
                   "detail": "Specific error message goes here",
                   "instance": "/api/your-endpoint"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -20828,27 +20148,27 @@
           "type"
         ]
       },
-      "NegotiationResourceUpdatedWebhookEvent": {
-        "description": "Webhook data payload for newly added negotiation resources.",
+      "NegotiationInfoUpdatedWebhookEvent": {
+        "description": "Webhook data payload for updated negotiation information.",
         "properties": {
           "negotiationId": {
             "type": "string",
             "description": "Identifier of the affected negotiation",
-            "example": "negotiation-4"
+            "example": "negotiation-1"
           }
         }
       },
-      "NegotiationResourceUpdatedWebhookEventEnvelope": {
+      "NegotiationInfoUpdatedWebhookEventEnvelope": {
         "type": "object",
-        "description": "Outbound webhook envelope for event type 'negotiation.resource.added'.",
+        "description": "Outbound webhook envelope for event type 'negotiation.info.updated'.",
         "properties": {
           "type": {
             "type": "string",
             "description": "Semantic webhook event type",
             "enum": [
-              "negotiation.resource.added"
+              "negotiation.info.updated"
             ],
-            "example": "negotiation.resource.added"
+            "example": "negotiation.info.updated"
           },
           "timestamp": {
             "type": "string",
@@ -20857,7 +20177,100 @@
             "example": "2026-04-24T07:12:30Z"
           },
           "data": {
-            "$ref": "#/components/schemas/NegotiationResourceUpdatedWebhookEvent"
+            "$ref": "#/components/schemas/NegotiationInfoUpdatedWebhookEvent"
+          }
+        },
+        "required": [
+          "data",
+          "timestamp",
+          "type"
+        ]
+      },
+      "NegotiationPostAddedWebhookEvent": {
+        "description": "Webhook data payload for a newly created negotiation post.",
+        "properties": {
+          "postId": {
+            "type": "string",
+            "description": "Identifier of the created post",
+            "example": "post-1"
+          },
+          "negotiationId": {
+            "type": "string",
+            "description": "Identifier of the parent negotiation",
+            "example": "ab222d9c-4567-4c9a-8f0e-123456789abc"
+          },
+          "userId": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Identifier of the user that created the post",
+            "example": 1000
+          },
+          "organizationId": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Optional identifier of the organization context",
+            "example": 2000
+          }
+        }
+      },
+      "NegotiationPostAddedWebhookEventEnvelope": {
+        "type": "object",
+        "description": "Outbound webhook envelope for event type 'negotiation.post.added'.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Semantic webhook event type",
+            "enum": [
+              "negotiation.post.added"
+            ],
+            "example": "negotiation.post.added"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "UTC timestamp describing when the source event happened",
+            "example": "2026-04-24T07:12:30Z"
+          },
+          "data": {
+            "$ref": "#/components/schemas/NegotiationPostAddedWebhookEvent"
+          }
+        },
+        "required": [
+          "data",
+          "timestamp",
+          "type"
+        ]
+      },
+      "NegotiationUpdatedWebhookEvent": {
+        "description": "Webhook data payload for an updated negotiation.",
+        "properties": {
+          "negotiationId": {
+            "type": "string",
+            "description": "Identifier of the affected negotiation",
+            "example": "29f1819b-a1d4-48b6-a284-2f9e269bbd05"
+          }
+        }
+      },
+      "NegotiationUpdatedWebhookEventEnvelope": {
+        "type": "object",
+        "description": "Outbound webhook envelope for event type 'negotiation.updated'.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Semantic webhook event type",
+            "enum": [
+              "negotiation.updated"
+            ],
+            "example": "negotiation.updated"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "UTC timestamp describing when the source event happened",
+            "example": "2026-04-24T07:12:30Z"
+          },
+          "data": {
+            "$ref": "#/components/schemas/NegotiationUpdatedWebhookEvent"
           }
         },
         "required": [
@@ -20919,27 +20332,27 @@
           "type"
         ]
       },
-      "NegotiationUpdatedWebhookEvent": {
-        "description": "Webhook data payload for an updated negotiation.",
+      "NegotiationResourceUpdatedWebhookEvent": {
+        "description": "Webhook data payload for newly added negotiation resources.",
         "properties": {
           "negotiationId": {
             "type": "string",
             "description": "Identifier of the affected negotiation",
-            "example": "29f1819b-a1d4-48b6-a284-2f9e269bbd05"
+            "example": "negotiation-4"
           }
         }
       },
-      "NegotiationUpdatedWebhookEventEnvelope": {
+      "NegotiationResourceUpdatedWebhookEventEnvelope": {
         "type": "object",
-        "description": "Outbound webhook envelope for event type 'negotiation.updated'.",
+        "description": "Outbound webhook envelope for event type 'negotiation.resource.added'.",
         "properties": {
           "type": {
             "type": "string",
             "description": "Semantic webhook event type",
             "enum": [
-              "negotiation.updated"
+              "negotiation.resource.added"
             ],
-            "example": "negotiation.updated"
+            "example": "negotiation.resource.added"
           },
           "timestamp": {
             "type": "string",
@@ -20948,7 +20361,7 @@
             "example": "2026-04-24T07:12:30Z"
           },
           "data": {
-            "$ref": "#/components/schemas/NegotiationUpdatedWebhookEvent"
+            "$ref": "#/components/schemas/NegotiationResourceUpdatedWebhookEvent"
           }
         },
         "required": [
@@ -21089,99 +20502,6 @@
           },
           "data": {
             "$ref": "#/components/schemas/PingWebhookEvent"
-          }
-        },
-        "required": [
-          "data",
-          "timestamp",
-          "type"
-        ]
-      },
-      "NegotiationPostAddedWebhookEvent": {
-        "description": "Webhook data payload for a newly created negotiation post.",
-        "properties": {
-          "postId": {
-            "type": "string",
-            "description": "Identifier of the created post",
-            "example": "post-1"
-          },
-          "negotiationId": {
-            "type": "string",
-            "description": "Identifier of the parent negotiation",
-            "example": "ab222d9c-4567-4c9a-8f0e-123456789abc"
-          },
-          "userId": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Identifier of the user that created the post",
-            "example": 1000
-          },
-          "organizationId": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Optional identifier of the organization context",
-            "example": 2000
-          }
-        }
-      },
-      "NegotiationPostAddedWebhookEventEnvelope": {
-        "type": "object",
-        "description": "Outbound webhook envelope for event type 'negotiation.post.added'.",
-        "properties": {
-          "type": {
-            "type": "string",
-            "description": "Semantic webhook event type",
-            "enum": [
-              "negotiation.post.added"
-            ],
-            "example": "negotiation.post.added"
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time",
-            "description": "UTC timestamp describing when the source event happened",
-            "example": "2026-04-24T07:12:30Z"
-          },
-          "data": {
-            "$ref": "#/components/schemas/NegotiationPostAddedWebhookEvent"
-          }
-        },
-        "required": [
-          "data",
-          "timestamp",
-          "type"
-        ]
-      },
-      "NegotiationInfoUpdatedWebhookEvent": {
-        "description": "Webhook data payload for updated negotiation information.",
-        "properties": {
-          "negotiationId": {
-            "type": "string",
-            "description": "Identifier of the affected negotiation",
-            "example": "negotiation-1"
-          }
-        }
-      },
-      "NegotiationInfoUpdatedWebhookEventEnvelope": {
-        "type": "object",
-        "description": "Outbound webhook envelope for event type 'negotiation.info.updated'.",
-        "properties": {
-          "type": {
-            "type": "string",
-            "description": "Semantic webhook event type",
-            "enum": [
-              "negotiation.info.updated"
-            ],
-            "example": "negotiation.info.updated"
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time",
-            "description": "UTC timestamp describing when the source event happened",
-            "example": "2026-04-24T07:12:30Z"
-          },
-          "data": {
-            "$ref": "#/components/schemas/NegotiationInfoUpdatedWebhookEvent"
           }
         },
         "required": [
@@ -21657,8 +20977,35 @@
               "PUBLIC"
             ]
           },
+          "tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PostTagDTO"
+            }
+          },
           "_links": {
             "$ref": "#/components/schemas/Links"
+          }
+        }
+      },
+      "PostTagDTO": {
+        "type": "object",
+        "description": "A role tag annotating the author of a post",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Stable machine-readable key of the tag",
+            "example": "representative"
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable name of the tag",
+            "example": "Representative"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description of the tag",
+            "example": "Representative of a resource"
           }
         }
       },
@@ -21698,10 +21045,10 @@
           "admin": {
             "type": "boolean"
           },
-          "serviceAccount": {
+          "networkManager": {
             "type": "boolean"
           },
-          "networkManager": {
+          "serviceAccount": {
             "type": "boolean"
           }
         }
@@ -21788,7 +21135,8 @@
           "type": {
             "type": "string",
             "enum": [
-              "SINGLE_CHOICE",
+              "SINGLE_CHOICE_RADIO",
+              "SINGLE_CHOICE_DROPDOWN",
               "MULTIPLE_CHOICE",
               "FILE",
               "TEXT",
@@ -21903,7 +21251,8 @@
           "type": {
             "type": "string",
             "enum": [
-              "SINGLE_CHOICE",
+              "SINGLE_CHOICE_RADIO",
+              "SINGLE_CHOICE_DROPDOWN",
               "MULTIPLE_CHOICE",
               "FILE",
               "TEXT",
@@ -23327,10 +22676,10 @@
           "admin": {
             "type": "boolean"
           },
-          "serviceAccount": {
+          "networkManager": {
             "type": "boolean"
           },
-          "networkManager": {
+          "serviceAccount": {
             "type": "boolean"
           },
           "_links": {
@@ -23507,10 +22856,10 @@
           "admin": {
             "type": "boolean"
           },
-          "serviceAccount": {
+          "networkManager": {
             "type": "boolean"
           },
-          "networkManager": {
+          "serviceAccount": {
             "type": "boolean"
           },
           "_links": {
@@ -23718,11 +23067,11 @@
       "EntityModelNetworkStatistics": {
         "type": "object",
         "properties": {
-          "numberOfSuccessfulNegotiations": {
+          "numberOfNewRequesters": {
             "type": "integer",
             "format": "int32",
-            "description": "Number of successful negotiations in the network",
-            "example": 120
+            "description": "Number of new requesters in the network",
+            "example": 30
           },
           "numberOfActiveRepresentatives": {
             "type": "integer",
@@ -23736,29 +23085,29 @@
             "description": "Total number of negotiations in the network",
             "example": 150
           },
-          "numberOfIgnoredNegotiations": {
-            "type": "integer",
-            "format": "int32",
-            "description": "Number of negotiations ignored in the network",
-            "example": 10
-          },
-          "numberOfNewRequesters": {
-            "type": "integer",
-            "format": "int32",
-            "description": "Number of new requesters in the network",
-            "example": 30
-          },
           "networkId": {
             "type": "integer",
             "format": "int64",
             "description": "Unique identifier of the network",
             "example": 101
           },
+          "numberOfIgnoredNegotiations": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Number of negotiations ignored in the network",
+            "example": 10
+          },
           "medianResponseTime": {
             "type": "number",
             "format": "double",
             "description": "Median response time for negotiations in days",
             "example": 10.6
+          },
+          "numberOfSuccessfulNegotiations": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Number of successful negotiations in the network",
+            "example": 120
           },
           "statusDistribution": {
             "type": "object",

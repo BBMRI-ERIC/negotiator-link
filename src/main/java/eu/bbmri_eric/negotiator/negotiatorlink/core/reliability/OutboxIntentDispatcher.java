@@ -16,6 +16,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskAttachmentRef;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddNegotiationAttachmentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
@@ -30,6 +31,8 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepo
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService.ResolvedAttachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostCreateDTO;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -51,6 +54,7 @@ public class OutboxIntentDispatcher {
   private final AttachmentForwardingService attachmentForwardingService;
   private final PendingTicketCreationCache pendingTicketCreationCache;
   private final ObjectMapper objectMapper;
+  private final MeterRegistry meterRegistry;
 
   public OutboxIntentDispatcher(
       OrganizationConfigRegistry registry,
@@ -60,7 +64,8 @@ public class OutboxIntentDispatcher {
       OriginatedPostRepository originatedPostRepository,
       AttachmentForwardingService attachmentForwardingService,
       PendingTicketCreationCache pendingTicketCreationCache,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      MeterRegistry meterRegistry) {
     this.registry = registry;
     this.clients = clients;
     this.negotiatorClient = negotiatorClient;
@@ -69,9 +74,24 @@ public class OutboxIntentDispatcher {
     this.attachmentForwardingService = attachmentForwardingService;
     this.pendingTicketCreationCache = pendingTicketCreationCache;
     this.objectMapper = objectMapper;
+    this.meterRegistry = meterRegistry;
   }
 
   public DispatchResult dispatch(OutboxIntent intent) {
+    Timer.Sample sample = Timer.start(meterRegistry);
+    try {
+      return doDispatch(intent);
+    } finally {
+      sample.stop(
+          Timer.builder("outbox_delivery_duration_seconds")
+              .description("Latency of each outbound help-desk/Negotiator call, per intent type")
+              .tag("intent_type", intent.getIntentType().name())
+              .publishPercentileHistogram()
+              .register(meterRegistry));
+    }
+  }
+
+  private DispatchResult doDispatch(OutboxIntent intent) {
     OrganizationConfig config =
         registry
             .findByExternalId(intent.getOrganizationExtId())
@@ -101,7 +121,7 @@ public class OutboxIntentDispatcher {
         client.updateTicketState(intent.getTargetId(), readState(intent).value(), config);
         yield DispatchResult.empty();
       }
-      case CREATE_POST -> createPost(intent, config);
+      case CREATE_POST -> createPost(intent, config, client);
       case SEND_RESOURCE_EVENT -> sendResourceEvent(intent, config);
       case SEND_BULK_RESOURCE_EVENT -> sendBulkResourceEvent(intent, config);
     };
@@ -198,7 +218,8 @@ public class OutboxIntentDispatcher {
     return DispatchResult.empty();
   }
 
-  private DispatchResult createPost(OutboxIntent intent, OrganizationConfig config) {
+  private DispatchResult createPost(
+      OutboxIntent intent, OrganizationConfig config, HelpdeskClient client) {
     CreatePostPayload payload = read(intent, CreatePostPayload.class);
     String organizationExtId = config.organizationExternalId();
 
@@ -222,7 +243,35 @@ public class OutboxIntentDispatcher {
     negotiatorClient.createPost(payload.negotiationId(), post, config);
     log.info(
         "Forwarded help desk post to negotiation '{}' as PRIVATE post", payload.negotiationId());
+
+    forwardPostAttachments(payload, config, client);
     return DispatchResult.empty();
+  }
+
+  /**
+   * Downloads each helpdesk post attachment and re-uploads it to the negotiation as a PRIVATE
+   * (org-scoped) attachment, matching the post's visibility.
+   *
+   * <p>TODO:Currently, there is no endpoint in Negotiator to do it in one call along with the post
+   * creation. Rewrite it once such an endpoint is available.
+   */
+  private void forwardPostAttachments(
+      CreatePostPayload payload, OrganizationConfig config, HelpdeskClient client) {
+    if (payload.attachments() == null || payload.attachments().isEmpty()) {
+      return;
+    }
+    for (HelpdeskAttachmentRef ref : payload.attachments()) {
+      byte[] content = client.downloadAttachment(ref.downloadPath(), config);
+      negotiatorClient.uploadAttachment(
+          payload.negotiationId(),
+          new Attachment(ref.filename(), ref.contentType(), content),
+          config.organizationExternalId(),
+          config);
+      log.info(
+          "Forwarded help desk attachment '{}' to negotiation '{}'",
+          ref.filename(),
+          payload.negotiationId());
+    }
   }
 
   private DispatchResult sendResourceEvent(OutboxIntent intent, OrganizationConfig config) {
