@@ -20,7 +20,7 @@ public final class PostUtil {
    */
   public static String signPost(String text, Sender sender) {
     String fromLine = buildFromLine(sender);
-    if (fromLine == null || startsWithSignerHeader(text)) {
+    if (fromLine == null) {
       return text;
     }
     return fromLine + "\n\n" + text;

@@ -20,7 +20,7 @@ class PostUtilTest {
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("signPostCases")
-  void signPost_signsUnlessNullSenderOrAlreadySigned(
+  void signPost_signsUnlessNullSender(
       String description, String text, Sender sender, String expected) {
     assertThat(PostUtil.signPost(text, sender)).isEqualTo(expected);
   }
@@ -67,10 +67,10 @@ class PostUtilTest {
         Arguments.of(
             "name and email both null returns text unchanged", TEXT, new Sender(null, null), TEXT),
         Arguments.of(
-            "already signed returns text unchanged",
+            "already signed text is signed again on top",
             SIGNED,
             new Sender("Other", "other@example.com"),
-            SIGNED),
+            "From: Other <other@example.com>\n\n" + SIGNED),
         Arguments.of(
             "name and email prepends full from header",
             TEXT,
