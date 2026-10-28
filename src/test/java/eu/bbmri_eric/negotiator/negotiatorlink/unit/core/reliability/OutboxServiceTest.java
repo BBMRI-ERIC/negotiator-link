@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OutboxIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.AfterCommitMetrics;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxService;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
@@ -19,6 +20,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepo
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.PayloadUtil;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.Link;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -48,7 +50,11 @@ class OutboxServiceTest {
 
   @BeforeEach
   void setUp() {
-    outboxService = new OutboxService(outboxIntentRepository, ticketMappingRepository);
+    outboxService =
+        new OutboxService(
+            outboxIntentRepository,
+            ticketMappingRepository,
+            new AfterCommitMetrics(new SimpleMeterRegistry()));
   }
 
   @Test

@@ -36,7 +36,9 @@ public class OutboxService {
   private final AfterCommitMetrics afterCommitMetrics;
 
   public OutboxService(
-      OutboxIntentRepository outboxIntentRepository, TicketMappingRepository ticketMappingRepository, AfterCommitMetrics afterCommitMetrics) {
+      OutboxIntentRepository outboxIntentRepository,
+      TicketMappingRepository ticketMappingRepository,
+      AfterCommitMetrics afterCommitMetrics) {
     this.outboxIntentRepository = outboxIntentRepository;
     this.ticketMappingRepository = ticketMappingRepository;
     this.afterCommitMetrics = afterCommitMetrics;
