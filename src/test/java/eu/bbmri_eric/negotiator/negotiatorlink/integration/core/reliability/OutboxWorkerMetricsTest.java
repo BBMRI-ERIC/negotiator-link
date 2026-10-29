@@ -2,13 +2,14 @@ package eu.bbmri_eric.negotiator.negotiatorlink.integration.core.reliability;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import eu.bbmri_eric.negotiator.negotiatorlink.integration.util.IntegrationBase;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
+@IntegrationBase
 class OutboxWorkerMetricsTest {
 
   @Autowired private MeterRegistry meterRegistry;

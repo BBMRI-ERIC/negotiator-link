@@ -18,7 +18,7 @@ management:
 negotiator-link:
   scheduling:
     # Disabled by default for integration tests: all ITs share one database, so a cached
-    # context's background pollers would race another context's manually-driven test. Tests that
+    # context's background pollers would race another context's test. Tests that
     # need the real scheduled pipeline re-enable this via @TestPropertySource.
     enabled: false
   webhook:
