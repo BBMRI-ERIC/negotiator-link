@@ -32,14 +32,18 @@ import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDT
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.NegotiationStateUpdatedWebhookEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.OrganizationDTO;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostTagDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.UserResponseModel;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -251,7 +255,11 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     UserResponseModel createdBy = post.getCreatedBy();
     Sender sender =
         createdBy != null ? new Sender(createdBy.getName(), createdBy.getEmail()) : null;
-    return PostUtil.signPost(post.getText(), sender);
+    Set<String> roleNames =
+        post.getTags() != null
+            ? post.getTags().stream().map(PostTagDTO::getName).collect(Collectors.toSet())
+            : Collections.emptySet();
+    return PostUtil.signPostWithRoles(post.getText(), sender, roleNames);
   }
 
   private String resolveInitialState(EntityModelResourceWithStatusDTO resource) {

@@ -2,7 +2,6 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
 import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.HashUtil.sha256Hex;
 import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PayloadUtil.serialize;
-import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil.signPost;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,13 +20,18 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.NegotiationPostAddedWebhookEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostTagDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.UserResponseModel;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -46,8 +50,6 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
   private final PendingTicketCreationCache pendingTicketCreationCache;
   private final ObjectMapper objectMapper;
 
-  private record PostContent(String text, boolean isPublic, String textHash) {}
-
   @Override
   public String getSupportedEventType() {
     return EVENT_TYPE;
@@ -60,13 +62,12 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
       return HandlerResult.empty();
     }
 
-    PostContent content = fetchPostContent(event);
-    if (content == null) {
+    EntityModelPostDTO post = fetchPost(event);
+    if (post == null) {
       return HandlerResult.empty();
     }
 
-    LinkedHashMap<String, String> ticketToOrgExtId =
-        resolveTargetTickets(event, content.isPublic());
+    LinkedHashMap<String, String> ticketToOrgExtId = resolveTargetTickets(event);
     if (ticketToOrgExtId.isEmpty()) {
       log.debug(
           "No target tickets for post '{}' in negotiation '{}'",
@@ -75,20 +76,27 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
       return HandlerResult.empty();
     }
 
-    Optional<OriginatedPost> consumed =
-        findConsumedOriginatedPost(content.textHash(), ticketToOrgExtId, content.isPublic());
-    return consumed
-        .map(
-            originatedPost -> {
-              log.debug(
-                  "Deduplication: excluding originating ticket '{}' from fan-out for post '{}'",
-                  originatedPost.getTicketId(),
-                  event.getPostId());
-              ticketToOrgExtId.remove(originatedPost.getTicketId());
-              return HandlerResult.of(
-                  fanOut(ticketToOrgExtId, content.text(), event), originatedPost);
-            })
-        .orElseGet(() -> HandlerResult.of(fanOut(ticketToOrgExtId, content.text(), event)));
+    Optional<OriginatedPost> originatedPost =
+        findConsumedOriginatedPost(sha256Hex(post.getText()), ticketToOrgExtId, event);
+    String text = decoratePost(post, originatedPost.isPresent());
+
+    originatedPost.ifPresent(
+        op -> excludeOriginatingTicket(ticketToOrgExtId, op, event.getPostId()));
+
+    List<PendingIntent> intents = fanOut(ticketToOrgExtId, text, event);
+    return new HandlerResult(intents, originatedPost);
+  }
+
+  /** Removes the originating ticket from the fan-out set so the post is not echoed back to it. */
+  private void excludeOriginatingTicket(
+      LinkedHashMap<String, String> ticketToOrgExtId,
+      OriginatedPost originatedPost,
+      String postId) {
+    log.debug(
+        "Deduplication: excluding originating ticket '{}' from fan-out for post '{}'",
+        originatedPost.getTicketId(),
+        postId);
+    ticketToOrgExtId.remove(originatedPost.getTicketId());
   }
 
   /** Parses and validates the webhook event, or returns {@code null} if it is incomplete. */
@@ -106,8 +114,7 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
     return event;
   }
 
-  /** Loads the post and returns its content, or {@code null} if it cannot be forwarded. */
-  private PostContent fetchPostContent(NegotiationPostAddedWebhookEvent event) {
+  private EntityModelPostDTO fetchPost(NegotiationPostAddedWebhookEvent event) {
     OrganizationConfig fetchConfig =
         resolveFetchConfig(event.getNegotiationId(), event.getOrganizationId());
     String postId = event.getPostId();
@@ -128,12 +135,23 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
           postId);
       return null;
     }
+    return post;
+  }
+
+  private String decoratePost(EntityModelPostDTO post, boolean isRelayed) {
+    Set<String> roleNames =
+        post.getTags() != null
+            ? post.getTags().stream().map(PostTagDTO::getName).collect(Collectors.toSet())
+            : Collections.emptySet();
+
+    if (isRelayed) {
+      return PostUtil.insertRoleUnderRelayedHeader(post.getText(), roleNames);
+    }
 
     UserResponseModel createdBy = post.getCreatedBy();
     Sender sender =
         createdBy != null ? new Sender(createdBy.getName(), createdBy.getEmail()) : null;
-    String postText = signPost(post.getText(), sender);
-    return new PostContent(postText, isPublic, sha256Hex(post.getText()));
+    return PostUtil.signPostWithRoles(post.getText(), sender, roleNames);
   }
 
   private OrganizationConfig resolveFetchConfig(String negotiationId, Long organizationId) {
@@ -155,7 +173,7 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
 
   /** Resolves the distinct target tickets for the post based on its visibility. */
   private LinkedHashMap<String, String> resolveTargetTickets(
-      NegotiationPostAddedWebhookEvent event, boolean isPublic) {
+      NegotiationPostAddedWebhookEvent event) {
     List<TicketMapping> allMappings =
         ticketMappingRepository.findByIdNegotiationId(event.getNegotiationId());
     if (allMappings.isEmpty()) {
@@ -166,7 +184,7 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
           "No ticket mappings for negotiation '{}' — nothing to fan out", event.getNegotiationId());
       return new LinkedHashMap<>();
     }
-    return resolveTargets(allMappings, isPublic, event.getOrganizationId());
+    return resolveTargets(allMappings, event.getOrganizationId());
   }
 
   /**
@@ -174,8 +192,10 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
    * can be excluded from fan-out. Returns the record to be consumed, or {@code Optional.empty()}.
    */
   private Optional<OriginatedPost> findConsumedOriginatedPost(
-      String textHash, LinkedHashMap<String, String> ticketToOrgExtId, boolean isPublic) {
-    if (isPublic) {
+      String textHash,
+      LinkedHashMap<String, String> ticketToOrgExtId,
+      NegotiationPostAddedWebhookEvent event) {
+    if (event.getOrganizationId() == null) {
       return Optional.empty();
     }
     String[] ticketIds = ticketToOrgExtId.keySet().toArray(String[]::new);
@@ -210,7 +230,7 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
   }
 
   private LinkedHashMap<String, String> resolveTargets(
-      List<TicketMapping> allMappings, boolean isPublic, Long organizationId) {
+      List<TicketMapping> allMappings, Long organizationId) {
     LinkedHashMap<String, String> ticketToOrgExtId = new LinkedHashMap<>();
 
     for (TicketMapping mapping : allMappings) {
@@ -218,9 +238,9 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
       String orgExtId = mapping.getOrganizationExtId();
       String mappingOrgId = mapping.getOrganizationId();
 
-      if (isPublic) {
+      if (organizationId == null) {
         ticketToOrgExtId.putIfAbsent(ticketId, orgExtId);
-      } else if (organizationId != null && String.valueOf(organizationId).equals(mappingOrgId)) {
+      } else if (String.valueOf(organizationId).equals(mappingOrgId)) {
         // PRIVATE: only tickets belonging to the post's organization
         ticketToOrgExtId.putIfAbsent(ticketId, orgExtId);
       }
