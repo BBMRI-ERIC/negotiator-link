@@ -27,7 +27,7 @@ public class StaleRecordsCleanupJob {
       OriginatedPostRepository originatedPostRepository,
       InboxEventRepository inboxEventRepository,
       OutboxIntentRepository outboxIntentRepository,
-      @Value("${negotiator-link.cleanup.cutoff-age:PT24H}") Duration cutoffAge) {
+      @Value("${negotiator-link.cleanup.cutoff-age:PT96H}") Duration cutoffAge) {
     this.originatedPostRepository = originatedPostRepository;
     this.inboxEventRepository = inboxEventRepository;
     this.outboxIntentRepository = outboxIntentRepository;
