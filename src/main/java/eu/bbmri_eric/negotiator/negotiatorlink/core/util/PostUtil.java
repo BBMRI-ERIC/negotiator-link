@@ -6,6 +6,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import org.apache.commons.lang3.StringUtils;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class PostUtil {
@@ -73,10 +74,12 @@ public final class PostUtil {
     }
     String name = sender.name();
     String email = sender.email();
-    if (name == null && email == null) {
+    boolean hasName = StringUtils.isNotBlank(name);
+    boolean hasEmail = StringUtils.isNotBlank(email);
+    if (!hasName && !hasEmail) {
       return null;
     }
-    String from = name != null ? name + (email != null ? " <" + email + ">" : "") : email;
+    String from = hasName ? name + (hasEmail ? " <" + email + ">" : "") : email;
     return "From: " + from;
   }
 
@@ -109,7 +112,7 @@ public final class PostUtil {
 
   public static String enumToText(String value) {
     return Arrays.stream(value.split("_"))
-        .map(word -> word.substring(0, 1).toUpperCase() + word.substring(1).toLowerCase())
+        .map(word -> StringUtils.capitalize(word.toLowerCase()))
         .collect(Collectors.joining(" "));
   }
 }
