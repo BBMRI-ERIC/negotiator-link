@@ -1,4 +1,4 @@
-package eu.bbmri_eric.negotiator.negotiatorlink.e2e;
+package eu.bbmri_eric.negotiator.negotiatorlink.component;
 
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.hmacSha1Hex;
 import static org.awaitility.Awaitility.await;
@@ -24,6 +24,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepos
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostCreateDTO;
+import eu.bbmri_eric.negotiator.negotiatorlink.integration.util.IntegrationBase;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorResourceEvent;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -34,20 +35,19 @@ import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.client.RestClient;
 
-@SpringBootTest
-@AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
-class ZammadToNegotiatorE2ETest {
+@TestPropertySource(properties = "negotiator-link.scheduling.enabled=true")
+@IntegrationBase
+class ZammadToNegotiatorFlowIT {
 
   private static final String TICKET_ID = "1";
   private static final String NEGOTIATION_ID = "neg-cb-1";
@@ -113,10 +113,7 @@ class ZammadToNegotiatorE2ETest {
 
   @BeforeEach
   void setUp() {
-    ticketMappingRepository.deleteAll();
     zammadServer = MockRestServiceServer.bindTo(restClientBuilder).build();
-    outboxIntentRepository.deleteAll();
-    inboxEventRepository.deleteAll();
     when(negotiatorClient.getNegotiation(eq(NEGOTIATION_ID), any(OrganizationConfig.class)))
         .thenReturn(new EntityModelNegotiationDTO().privatePostsEnabled(true));
   }

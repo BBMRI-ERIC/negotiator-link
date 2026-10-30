@@ -1,4 +1,4 @@
-package eu.bbmri_eric.negotiator.negotiatorlink.unit.adapter.zammad;
+package eu.bbmri_eric.negotiator.negotiatorlink.integration.adapter.zammad;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
@@ -37,7 +37,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
-class ZammadClientTest {
+class ZammadClientIT {
 
   private static final String TICKETS_URL = "/api/v1/tickets";
   private static final String TICKET_ARTICLES_URL = "/api/v1/ticket_articles";

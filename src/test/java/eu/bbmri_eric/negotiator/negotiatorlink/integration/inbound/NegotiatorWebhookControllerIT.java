@@ -36,31 +36,32 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRep
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
+import eu.bbmri_eric.negotiator.negotiatorlink.integration.util.IntegrationBase;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorNegotiationEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorResourceEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
-@SpringBootTest
-@AutoConfigureMockMvc
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class NegotiatorWebhookControllerTest {
+@TestPropertySource(properties = "negotiator-link.scheduling.enabled=true")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@IntegrationBase
+class NegotiatorWebhookControllerIT {
 
   private static final String BODY = "{\"event\":\"test\"}";
   private static final String NEGOTIATION_ID = "neg-1";
@@ -83,7 +84,7 @@ class NegotiatorWebhookControllerTest {
   @Value("${negotiator-link.webhook.secret}")
   private String secret;
 
-  @BeforeAll
+  @BeforeEach
   void seedTicketMappings() {
     ticketMappingRepository.save(
         new TicketMapping(
@@ -113,8 +114,6 @@ class NegotiatorWebhookControllerTest {
     Mockito.doNothing().when(helpdeskClient).updateNegotiationState(any(), any(), any());
     Mockito.doNothing().when(helpdeskClient).updateResourceState(any(), any(), any());
     Mockito.doNothing().when(helpdeskClient).updateTicketState(any(), any(), any());
-    outboxIntentRepository.deleteAll();
-    inboxEventRepository.deleteAll();
   }
 
   @Test
