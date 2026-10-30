@@ -1,14 +1,10 @@
 spring:
-  datasource:
-    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
-    driver-class-name: org.h2.Driver
-    username: sa
-    password: ""
   flyway:
-    enabled: false
+    enabled: true
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: validate
+    open-in-view: false
 
 management:
   endpoints:
@@ -20,6 +16,11 @@ management:
     password: "test-actuator-password"
 
 negotiator-link:
+  scheduling:
+    # Disabled by default for integration tests: all ITs share one database, so a cached
+    # context's background pollers would race another context's test. Tests that
+    # need the real scheduled pipeline re-enable this via @TestPropertySource.
+    enabled: false
   webhook:
     secret: "whsec_dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaA=="
   negotiator:

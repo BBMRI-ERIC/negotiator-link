@@ -1,4 +1,4 @@
-package eu.bbmri_eric.negotiator.negotiatorlink.e2e;
+package eu.bbmri_eric.negotiator.negotiatorlink.component;
 
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.negotiation;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.negotiationApprovedPayload;
@@ -32,6 +32,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepos
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.AttachmentMetadataDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
+import eu.bbmri_eric.negotiator.negotiatorlink.integration.util.IntegrationBase;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorNegotiationEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorResourceEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
@@ -42,20 +43,19 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.client.RestClient;
 
-@SpringBootTest
-@AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
-class NegotiatorToZammadE2ETest {
+@TestPropertySource(properties = "negotiator-link.scheduling.enabled=true")
+@IntegrationBase
+class NegotiatorToZammadFlowIT {
 
   private static final String ZAMMAD_BASE = "https://zammad.mhh.de";
   private static final String TICKETS_URL = ZAMMAD_BASE + "/api/v1/tickets";

@@ -4,35 +4,26 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.InboxEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OutboxIntent;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.job.OutboxClaimReaper;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.EventSource;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.InboxPoller;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.InboxStatus;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxPoller;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxStatus;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.InboxEventRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepository;
+import eu.bbmri_eric.negotiator.negotiatorlink.integration.util.IntegrationBase;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
-@SpringBootTest
+@IntegrationBase
 class MetricsConfigTest {
 
   @Autowired private MeterRegistry meterRegistry;
   @Autowired private InboxEventRepository inboxEventRepository;
   @Autowired private OutboxIntentRepository outboxIntentRepository;
-
-  // Pollers are mocked so they do not drain the rows we seed for the gauge assertions.
-  @MockitoBean private InboxPoller inboxPoller;
-  @MockitoBean private OutboxPoller outboxPoller;
-  @MockitoBean private OutboxClaimReaper outboxClaimReaper;
 
   @BeforeEach
   void clear() {
@@ -82,9 +73,12 @@ class MetricsConfigTest {
   }
 
   private void saveIntent(OutboxStatus status) {
+    InboxEvent parent =
+        inboxEventRepository.save(
+            new InboxEvent("someOrgExternalId", "d-" + System.nanoTime(), null, "{}"));
     OutboxIntent intent =
         new OutboxIntent(
-            1L,
+            parent.getRowId(),
             OutboxIntentType.ADD_COMMENT,
             TargetKind.TICKET.name(),
             "ticket-1",
