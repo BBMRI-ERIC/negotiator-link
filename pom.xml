@@ -27,7 +27,7 @@
         <standardwebhooks.version>1.2.0</standardwebhooks.version>
         <j2html.version>1.6.0</j2html.version>
         <fmt-maven-plugin.version>2.29</fmt-maven-plugin.version>
-        <jacoco.version>0.8.15</jacoco.version>
+        <jacoco.version>0.8.16</jacoco.version>
     </properties>
 
     <dependencies>
