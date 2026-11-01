@@ -23,7 +23,7 @@
         <wiremock.version>3.13.2</wiremock.version>
         <okhttp.version>5.5.0</okhttp.version>
         <jsoup.version>1.23.2</jsoup.version>
-        <jackson-databind-nullable.version>0.2.11</jackson-databind-nullable.version>
+        <jackson-databind-nullable.version>0.2.13</jackson-databind-nullable.version>
         <standardwebhooks.version>1.2.0</standardwebhooks.version>
         <j2html.version>1.6.0</j2html.version>
         <fmt-maven-plugin.version>2.29</fmt-maven-plugin.version>
