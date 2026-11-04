@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Repeatable load-test driver for negotiator-link.
+Repeatable load and performance test for negotiator-link.
 
 Phases:
   1. seed    — generate + apply N synthetic IN_PROGRESS negotiations to the
