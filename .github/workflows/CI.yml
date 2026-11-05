@@ -77,7 +77,8 @@ jobs:
         if: ${{ !cancelled() }}
         uses: cicirello/jacoco-badge-generator@72266185b7ee48a6fd74eaf0238395cc8b14fef8 # v2.12.1
         with:
-          jacoco-csv-file: ${{ github.workspace }}/target/site/jacoco/jacoco.csv
+          jacoco-csv-file: target/site/jacoco/jacoco.csv
+          on-missing-report: quiet
           generate-coverage-badge: false
           generate-branches-badge: false
           generate-summary: false
