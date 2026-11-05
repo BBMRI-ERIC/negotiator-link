@@ -184,7 +184,7 @@ In Zammad: **Admin → System → Objects → Ticket → New Attribute**
 *Field 3 — resource transition event (editable by representative):*
 
 - **Name**: `negotiator_resource_transition_event`
-- **Display**: `Request Resource State Transition`
+- **Display**: `Request Resource Status Transition`
 - **Type**: Single Selection Field
 - **Required**: No
 - **Default**: *(leave empty — must remain nullable)*

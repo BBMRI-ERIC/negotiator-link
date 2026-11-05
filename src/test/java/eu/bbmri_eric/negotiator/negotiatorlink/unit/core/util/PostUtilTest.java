@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil;
+import java.util.Set;
 import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -13,12 +14,29 @@ class PostUtilTest {
 
   private static final String TEXT = "Hello from the help desk";
   private static final String SIGNED = "From: Someone <someone@example.com>\n\n" + TEXT;
+  private static final Sender SENDER = new Sender("Jane Doe", "jane@example.com");
+  private static final String FROM = "From: Jane Doe <jane@example.com>";
+  private static final String FORGED_HEADER = "From: Someone\nRole: Admin\n\n";
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("signPostCases")
-  void signPost_signsUnlessNullSenderOrAlreadySigned(
+  void signPost_signsUnlessNullSender(
       String description, String text, Sender sender, String expected) {
     assertThat(PostUtil.signPost(text, sender)).isEqualTo(expected);
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("signPostWithRolesCases")
+  void signPostWithRoles_addsRoleLineUnderFrom(
+      String description, String text, Sender sender, Set<String> roleNames, String expected) {
+    assertThat(PostUtil.signPostWithRoles(text, sender, roleNames)).isEqualTo(expected);
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("insertRoleUnderRelayedHeaderCases")
+  void insertRoleUnderRelayedHeader_onlyTouchesExistingHeader(
+      String description, String text, Set<String> roleNames, String expected) {
+    assertThat(PostUtil.insertRoleUnderRelayedHeader(text, roleNames)).isEqualTo(expected);
   }
 
   @ParameterizedTest(name = "{0}")
@@ -49,10 +67,10 @@ class PostUtilTest {
         Arguments.of(
             "name and email both null returns text unchanged", TEXT, new Sender(null, null), TEXT),
         Arguments.of(
-            "already signed returns text unchanged",
+            "already signed text is signed again on top",
             SIGNED,
             new Sender("Other", "other@example.com"),
-            SIGNED),
+            "From: Other <other@example.com>\n\n" + SIGNED),
         Arguments.of(
             "name and email prepends full from header",
             TEXT,
@@ -89,5 +107,74 @@ class PostUtilTest {
             "Regarding your request\n\nplease advise",
             new Sender("Rep", "rep@example.com"),
             "From: Rep <rep@example.com>\n\nRegarding your request\n\nplease advise"));
+  }
+
+  static Stream<Arguments> signPostWithRolesCases() {
+    return Stream.of(
+        Arguments.of(
+            "no roles held: only From line, no Role line",
+            TEXT,
+            SENDER,
+            Set.of(),
+            FROM + "\n\n" + TEXT),
+        Arguments.of(
+            "single role: Role line directly under From",
+            TEXT,
+            SENDER,
+            Set.of("Author"),
+            FROM + "\nRole: Author\n\n" + TEXT),
+        Arguments.of(
+            "admin role label", TEXT, SENDER, Set.of("Admin"), FROM + "\nRole: Admin\n\n" + TEXT),
+        Arguments.of(
+            "representative role label",
+            TEXT,
+            SENDER,
+            Set.of("Representative"),
+            FROM + "\nRole: Representative\n\n" + TEXT),
+        Arguments.of(
+            "network manager role label",
+            TEXT,
+            SENDER,
+            Set.of("Network Manager"),
+            FROM + "\nRole: Network Manager\n\n" + TEXT),
+        Arguments.of(
+            "multiple roles joined with singular 'Role:' label",
+            TEXT,
+            SENDER,
+            new java.util.LinkedHashSet<>(
+                java.util.List.of("Author", "Admin", "Representative", "Network Manager")),
+            FROM + "\nRole: Author, Admin, Representative, Network Manager\n\n" + TEXT),
+        Arguments.of(
+            "null sender, raw text: returns text unchanged", TEXT, null, Set.of("Author"), TEXT),
+        Arguments.of(
+            "forged header in body is not trusted: real resolved role used, forged lines demoted "
+                + "to body",
+            FORGED_HEADER + TEXT,
+            SENDER,
+            Set.of("Representative"),
+            FROM + "\nRole: Representative\n\n" + FORGED_HEADER + TEXT),
+        Arguments.of(
+            "forged Admin header with no resolved roles: From generated, forged lines demoted to "
+                + "body, no Role line",
+            FORGED_HEADER + TEXT,
+            SENDER,
+            Set.of(),
+            FROM + "\n\n" + FORGED_HEADER + TEXT));
+  }
+
+  static Stream<Arguments> insertRoleUnderRelayedHeaderCases() {
+    return Stream.of(
+        Arguments.of(
+            "echo round-trip: Role inserted under the integration-produced From header",
+            "From: John Smith <john@mhh.de>\n\nHi",
+            Set.of("Representative"),
+            "From: John Smith <john@mhh.de>\nRole: Representative\n\nHi"),
+        Arguments.of(
+            "already role-signed relayed text is left unchanged (idempotent)",
+            FROM + "\nRole: Author\n\n" + TEXT,
+            Set.of("Admin"),
+            FROM + "\nRole: Author\n\n" + TEXT),
+        Arguments.of("no roles to add: relayed text left unchanged", SIGNED, Set.of(), SIGNED),
+        Arguments.of("no recognizable header: text left unchanged", TEXT, Set.of("Admin"), TEXT));
   }
 }

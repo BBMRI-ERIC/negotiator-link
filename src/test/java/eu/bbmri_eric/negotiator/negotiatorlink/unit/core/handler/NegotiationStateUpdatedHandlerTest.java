@@ -34,6 +34,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFo
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostTagDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorNegotiationEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.time.LocalDateTime;
@@ -433,6 +434,31 @@ class NegotiationStateUpdatedHandlerTest {
         .containsExactlyInAnyOrder("ticket-1", "ticket-2");
     assertThat(readComment(firstOf(intents, OutboxIntentType.ADD_COMMENT)).text())
         .startsWith("From: Alice <alice@example.com>");
+  }
+
+  @Test
+  void handle_stateChange_withPostId_addsRoleLineForAuthor() {
+    var config = createConfig(TicketStrategy.PER_RESOURCE);
+    var tag = new PostTagDTO();
+    tag.setName("Author");
+    var post =
+        TestUtil.post(
+            "p-1",
+            "Hello world",
+            EntityModelPostDTO.TypeEnum.PUBLIC,
+            null,
+            "Alice",
+            "alice@example.com");
+    post.addTagsItem(tag);
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(twoMappings());
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+    when(negotiatorClient.getPost(NEGOTIATION_ID, "p-1", config)).thenReturn(post);
+
+    List<PendingIntent> intents =
+        handler.handle(eventDataWithPost(NegotiatorNegotiationEvent.PAUSE, "p-1")).intents();
+
+    assertThat(readComment(firstOf(intents, OutboxIntentType.ADD_COMMENT)).text())
+        .isEqualTo("From: Alice <alice@example.com>\n" + "Role: Author\n\n" + "Hello world");
   }
 
   private CreateTicketPayload createTicketPayload(

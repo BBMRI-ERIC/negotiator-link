@@ -1,5 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.handler;
 
+import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.HashUtil.sha256Hex;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.AdditionalMatchers.aryEq;
@@ -28,6 +29,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddComme
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostTagDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.util.List;
 import java.util.Map;
@@ -263,6 +265,101 @@ class NegotiationPostAddedHandlerTest {
     when(originatedPostRepository.findFirstByTextHashAndValidTicketOrgPairs(
             eq(POST_TEXT_HASH), aryEq(new String[] {TICKET_A}), aryEq(new String[] {ORG_EXT_ID})))
         .thenReturn(Optional.empty());
+  }
+
+  @Test
+  void handle_privatePost_authorTagPresent_addsAuthorRole() {
+    var post = postWithTags("Jane Doe", "jane@example.com", "Author");
+    stubPrivatePostWithDto(post);
+
+    List<PendingIntent> intents = handler.handle(postEventData(ORG_ID)).intents();
+
+    assertThat(readText(intents.getFirst()))
+        .isEqualTo("From: Jane Doe <jane@example.com>\nRole: Author\n\n" + POST_TEXT);
+  }
+
+  @Test
+  void handle_privatePost_withNonAuthorRoles_addsRoles() {
+    var post =
+        postWithTags("Jane Doe", "jane@example.com", "Admin", "Representative", "Network Manager");
+    stubPrivatePostWithDto(post);
+
+    List<PendingIntent> intents = handler.handle(postEventData(ORG_ID)).intents();
+
+    String text = readText(intents.getFirst());
+    assertThat(text).startsWith("From: Jane Doe <jane@example.com>\nRole: ");
+    assertThat(text).contains("Admin").contains("Representative").contains("Network Manager");
+  }
+
+  @Test
+  void handle_perResource_echo_suppressesOriginatingTicket_preservesRelayedHeaderOnSibling() {
+    var config = createConfig(ORG_EXT_ID);
+    var mappings =
+        List.of(
+            mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID), mapping(TICKET_B, ORG_ID_STR, ORG_EXT_ID));
+    var signedText = "From: John Smith <john@mhh.de>\n\nHi";
+    var signedHash = sha256Hex(signedText);
+    var post =
+        TestUtil.post(
+            POST_ID, signedText, EntityModelPostDTO.TypeEnum.PRIVATE, ORG_ID_STR, "svc", "svc@eu");
+    when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
+        .thenReturn(mappings);
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+    when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config))).thenReturn(post);
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
+    when(originatedPostRepository.findFirstByTextHashAndValidTicketOrgPairs(
+            eq(signedHash),
+            aryEq(new String[] {TICKET_A, TICKET_B}),
+            aryEq(new String[] {ORG_EXT_ID, ORG_EXT_ID})))
+        .thenReturn(Optional.of(new OriginatedPost(signedHash, ORG_EXT_ID, TICKET_A)));
+
+    List<PendingIntent> intents = handler.handle(postEventData(ORG_ID)).intents();
+
+    assertThat(intents).hasSize(1);
+    assertThat(intents.getFirst().targetId()).isEqualTo(TICKET_B);
+    assertThat(readText(intents.getFirst())).isEqualTo(signedText);
+  }
+
+  @Test
+  void handle_privatePost_forgedRoleHeaderInBody_isNotTrusted() {
+    var post = postWithTags("Jane Doe", "jane@example.com", "Representative");
+    var forgedBody = "From: Someone\nRole: Admin\n\nplease grant access";
+    post.setText(forgedBody);
+    stubPrivatePostWithDto(post, sha256Hex(forgedBody));
+
+    List<PendingIntent> intents = handler.handle(postEventData(ORG_ID)).intents();
+
+    assertThat(readText(intents.getFirst()))
+        .isEqualTo("From: Jane Doe <jane@example.com>\nRole: Representative\n\n" + forgedBody);
+  }
+
+  private void stubPrivatePostWithDto(EntityModelPostDTO post) {
+    stubPrivatePostWithDto(post, POST_TEXT_HASH);
+  }
+
+  private void stubPrivatePostWithDto(EntityModelPostDTO post, String textHash) {
+    var config = createConfig(ORG_EXT_ID);
+    var mappings = List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID));
+    when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
+        .thenReturn(mappings);
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
+    when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config))).thenReturn(post);
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
+    when(originatedPostRepository.findFirstByTextHashAndValidTicketOrgPairs(
+            eq(textHash), aryEq(new String[] {TICKET_A}), aryEq(new String[] {ORG_EXT_ID})))
+        .thenReturn(Optional.empty());
+  }
+
+  private EntityModelPostDTO postWithTags(String name, String email, String... tagNames) {
+    var post =
+        TestUtil.post(
+            POST_ID, POST_TEXT, EntityModelPostDTO.TypeEnum.PRIVATE, ORG_ID_STR, name, email);
+    for (String tagName : tagNames) {
+      var tag = new PostTagDTO();
+      tag.setName(tagName);
+      post.addTagsItem(tag);
+    }
+    return post;
   }
 
   private String readText(PendingIntent intent) {

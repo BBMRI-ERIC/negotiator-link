@@ -51,7 +51,7 @@ negotiator-link:
         open: "MARK_AS_CHECKING_AVAILABILITY"
   cleanup:
     cron: "0 0 0 * * *"
-    cutoff-age: PT24H
+    cutoff-age: PT96H
   inbox:
     batch-size: 50
     poll-delay-ms: 500
