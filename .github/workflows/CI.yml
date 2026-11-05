@@ -73,13 +73,25 @@ jobs:
       - name: Run tests with coverage
         run: mvn --quiet clean verify -B -Dlogging.level.root=error
 
-      - name: Check coverage on changed files
+      - name: Check line coverage
         uses: madrapps/jacoco-report@e51ce1f46f7f8b5331593f935e59cbaf44b84920 # v1.8.0
         with:
           paths: ${{ github.workspace }}/target/site/jacoco/jacoco.xml
           token: ${{ secrets.GITHUB_TOKEN }}
+          coverage-counter-type: LINE
+          min-coverage-overall: 85
           min-coverage-changed-files: 85
-          title: Code Coverage
+          title: Line Coverage
+
+      - name: Check branch coverage
+        uses: madrapps/jacoco-report@e51ce1f46f7f8b5331593f935e59cbaf44b84920 # v1.8.0
+        with:
+          paths: ${{ github.workspace }}/target/site/jacoco/jacoco.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
+          coverage-counter-type: BRANCH
+          min-coverage-overall: 75
+          min-coverage-changed-files: 75
+          title: Branch Coverage
 
   build-image:
     name: Build Docker image
