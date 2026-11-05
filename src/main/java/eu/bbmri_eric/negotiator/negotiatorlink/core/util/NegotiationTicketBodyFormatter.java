@@ -136,7 +136,7 @@ public final class NegotiationTicketBodyFormatter {
     fields.add(Field.scalar("Status", enumToText(negotiation.getStatus())));
     fields.add(Field.scalar("Negotiation ID", negotiation.getDisplayId()));
 
-    Optional<String> uiHref = NegotiationLinkUtil.uiLink(negotiation);
+    Optional<String> uiHref = NegotiationLinkUtil.getLink(negotiation);
     DomContent linkRow =
         uiHref.isPresent()
             ? p(a("View in Negotiator").withHref(uiHref.get()).withStyle(LINK_STYLE))

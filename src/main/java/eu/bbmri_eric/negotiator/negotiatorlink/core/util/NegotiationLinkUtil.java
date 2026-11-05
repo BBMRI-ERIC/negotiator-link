@@ -15,7 +15,7 @@ public final class NegotiationLinkUtil {
    * Returns the {@code "ui"} HATEOAS link href, or empty when the negotiation or the link is
    * absent.
    */
-  public static Optional<String> uiLink(EntityModelNegotiationDTO negotiation) {
+  public static Optional<String> getLink(EntityModelNegotiationDTO negotiation) {
     if (negotiation == null || negotiation.getLinks() == null) {
       return Optional.empty();
     }
