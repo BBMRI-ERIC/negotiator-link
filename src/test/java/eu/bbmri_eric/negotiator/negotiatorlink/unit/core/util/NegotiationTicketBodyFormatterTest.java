@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.NegotiationTicketBodyFormatter;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
+import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.Link;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.UserResponseModel;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -283,6 +284,32 @@ class NegotiationTicketBodyFormatterTest {
     assertThat(html).startsWith("<p><strong>");
     assertThat(html).contains("updated");
     assertThat(html).contains("Negotiator Access Request");
+  }
+
+  @Test
+  void getTicketBodyWithSingleResource_rendersNegotiatorLinkWhenUiHrefPresent() {
+    var negotiation = createNegotiation(true);
+    var ui = new Link();
+    ui.setHref("http://negotiator.example.com/api/v3/negotiations/abc-123");
+    negotiation.setLinks(Map.of("ui", ui));
+
+    Document doc = renderSingle(negotiation, submittedResource());
+
+    Element link = doc.selectFirst("a");
+    assertThat(link).isNotNull();
+    assertThat(link.attr("href"))
+        .isEqualTo("http://negotiator.example.com/api/v3/negotiations/abc-123");
+    assertThat(link.text()).isEqualTo("View in Negotiator");
+  }
+
+  @Test
+  void getTicketBodyWithSingleResource_omitsNegotiatorLinkWhenLinksAbsent() {
+    var negotiation = createNegotiation(true);
+    negotiation.setLinks(null);
+
+    Document doc = renderSingle(negotiation, submittedResource());
+
+    assertThat(doc.select("a")).isEmpty();
   }
 
   // ---------------------------------------------------------------------------
