@@ -301,17 +301,6 @@ def seed_poison_mappings(container: str, poison_negs: list[str]) -> list[str]:
     return fake_ids
 
 
-def count_failed(container: str) -> tuple[int, int, int]:
-    """(inbox FAILED, outbox FAILED_PERMANENT, outbox DEAD_LETTER) — for the --error report."""
-    inbox = psql(container, "negotiator_link", "negotiator_link",
-                 "SELECT count(*) FROM inbox_event WHERE status = 'FAILED';").strip() or "0"
-    perm = psql(container, "negotiator_link", "negotiator_link",
-                "SELECT count(*) FROM outbox_intent WHERE status = 'FAILED_PERMANENT';").strip() or "0"
-    dead = psql(container, "negotiator_link", "negotiator_link",
-                "SELECT count(*) FROM outbox_intent WHERE status = 'DEAD_LETTER';").strip() or "0"
-    return int(inbox), int(perm), int(dead)
-
-
 # --------------------------------------------------------------------------- #
 # Performance measurement — run isolation by row_id watermark
 # --------------------------------------------------------------------------- #
@@ -592,7 +581,7 @@ def _pct(sorted_vals: list[float], q: float) -> float:
 
 def phase_report(load_results: list, capture_wall_ms: float,
                  processing: dict | None,
-                 failed: tuple[int, int, int] | None = None):
+                 show_failures: bool = False):
     """Two clearly separated measurements:
 
       A. Webhook capture  — HTTP acceptance of the measured LOAD-PHASE webhooks only
@@ -667,13 +656,22 @@ def phase_report(load_results: list, capture_wall_ms: float,
             print("    (some rows never reached a terminal state within --processing-timeout)")
 
     # ---- Failure states (only shown with --error) --------------------------------------- #
-    if failed is not None:
+    # Derive from the per-run breakdown captured in section B (row_id-watermarked) rather than
+    # re-querying the whole tables — otherwise failures retained from a previous --error run
+    # would be re-counted here and disagree with the per-run processing numbers above.
+    if show_failures and processing is not None:
         print()
-        f_inbox, f_perm, f_dead = failed
+        f_inbox = processing["inbox_counts"].get("FAILED", 0)
+        f_perm = processing["outbox_counts"].get("FAILED_PERMANENT", 0)
+        f_dead = processing["outbox_counts"].get("DEAD_LETTER", 0)
         print("  Failure states (this run):")
         print(f"      inbox FAILED={f_inbox}, outbox FAILED_PERMANENT={f_perm}, "
               f"DEAD_LETTER={f_dead}")
         print("      (includes failures injected by --error)")
+    elif show_failures:
+        print()
+        print("  Failure states (this run): unavailable "
+              "(end-to-end processing measurement was disabled)")
 
     print("=" * 70)
     print("Watch Grafana / http://localhost:8090/actuator/prometheus during the run.")
@@ -757,6 +755,16 @@ def main():
         print("No tickets found — cannot run the load loop. Check the stack and Zammad config.")
         sys.exit(1)
 
+    print(f"[3b/6] Waiting for setup inbox/outbox to drain (timeout {args.wait_timeout}s)")
+    try:
+        _, setup_drained = wait_until_drained(args.link_db_container, 0, 0, args.wait_timeout)
+        if not setup_drained:
+            print("      WARNING: setup work did not fully drain; measurement baseline may "
+                  "include leftover setup rows competing with the load")
+    except RuntimeError as e:
+        print(f"      WARNING: could not confirm setup drain ({e}); "
+              "measurement baseline may be contaminated by in-flight setup work")
+
     # --- Measured region begins here -------------------------------------------------- #
     try:
         inbox_wm, outbox_wm = row_watermarks(args.link_db_container)
@@ -788,15 +796,12 @@ def main():
         except RuntimeError as e:
             print(f"      WARNING: processing measurement failed ({e})")
 
-    failed = None
-    if args.error > 0:
-        try:
-            failed = count_failed(args.link_db_container)
-        except RuntimeError:
-            failed = None
-
-    errors = phase_report(load_results, capture_wall_ms, processing, failed)
-    sys.exit(1 if errors else 0)
+    errors = phase_report(load_results, capture_wall_ms, processing, args.error > 0)
+    # Fail the run if webhook capture saw unexpected statuses, OR if the end-to-end measurement
+    # ran but the inbox/outbox never drained to a terminal state within --processing-timeout.
+    # (processing is None => measurement was disabled, which is not itself a failure.)
+    drain_failed = processing is not None and not processing["drained"]
+    sys.exit(1 if errors or drain_failed else 0)
 
 
 if __name__ == "__main__":
