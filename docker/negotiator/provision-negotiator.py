@@ -143,70 +143,106 @@ def fetch_token() -> str:
 # Provisioning steps
 # --------------------------------------------------------------------------- #
 def provision_webhook(n: Negotiator, webhook_secret: str) -> None:
-    """Create the negotiator-link webhook if it does not already exist."""
+    """Create the negotiator-link webhook, or reconcile it if it already exists.
+
+    The webhook's ``secret`` is the key Negotiator signs callbacks with; the
+    negotiator-link container verifies incoming signatures against the same
+    ``NEGOTIATOR_WEBHOOK_SECRET``. If the env value changes, Compose recreates
+    negotiator-link with the new secret, so the existing Negotiator webhook
+    must be PATCHed to the new secret too — otherwise every callback fails
+    signature verification while provisioning still reports success.
+    """
     print("Webhook…")
     url = f"{WEBHOOK_LISTENER_URL}/webhooks/negotiator"
+
+    desired = {
+        "url": url,
+        "secret": webhook_secret,
+        "sslVerification": False,
+        "active": True,
+    }
 
     existing = n.get("v3/webhooks")
     embedded = (existing or {}).get("_embedded", {})
     webhooks = embedded.get("webhookResponseDTOList", [])
     for wh in webhooks:
         if wh.get("url") == url:
-            print(f"  = webhook already registered (id={wh.get('id')})")
+            n.patch(f"v3/webhooks/{wh['id']}", desired)
+            print(f"  ~ webhook already exist, just refreshing the webhook secret/settings (id={wh.get('id')})")
             return
 
-    status, body = n.post("v3/webhooks", {
-        "url": url,
-        "secret": webhook_secret,
-        "sslVerification": False,
-        "active": True,
-    })
+    status, body = n.post("v3/webhooks", desired)
     print(f"  + created webhook (id={body.get('id') if body else '?'})")
+
+
+def resolve_user_id(n: Negotiator, client_id: str) -> int | None:
+    """Resolve a service account's internal Person id from its OIDC subject.
+    Returns the numeric id, or None if no (or an ambiguous) exact match exists.
+    """
+    query = urllib.parse.quote(client_id, safe="")
+    users = n.get(f"v3/users?subjectId={query}")
+    user_list = (users or {}).get("_embedded", {}).get("users", [])
+    exact = [u for u in user_list if u.get("subjectId") == client_id]
+    if not exact:
+        return None
+    if len(exact) > 1:
+        print(f"  ! ambiguous: {len(exact)} users with exact subjectId '{client_id}'")
+        return None
+    return exact[0].get("id")
 
 
 def provision_resource_assignments(n: Negotiator, orgs: list[dict]) -> None:
     """Assign each negotiator-link service user to its resource.
-
-    The service user subject ids are stable (assigned deterministically by
-    Negotiator on first OAuth2 login from the client-credentials clients):
-      negotiator-link        -> subject 10000 -> resource 1 (SE_890)
-      negotiator-link-cz-mmci -> subject 10001 -> resource 2 (CZ_MMCI)
+      negotiator-link         -> resource 1 (SE_890)
+      negotiator-link-cz-mmci -> resource 2 (CZ_MMCI)
 
     Failures are logged but do not abort the script.
     """
     print("Resource assignments…")
 
-    ORG_TO_SUBJECT = {
-        "bbmri-eric:ID:SE_890": 10000,
-        "bbmri-eric:ID:CZ_MMCI": 10001,
+    # OIDC clientId of the service account that represents each org.
+    ORG_TO_CLIENT_ID = {
+        "bbmri-eric:ID:SE_890": "negotiator-link",
+        "bbmri-eric:ID:CZ_MMCI": "negotiator-link-cz-mmci",
     }
 
     for org in orgs:
         org_id = org["org_id"]
         resource_id = org["resource_id"]
-        subject_id = ORG_TO_SUBJECT.get(org_id)
-        if subject_id is None:
-            print(f"  ! no subject id mapping for org '{org_id}' — skipping")
+        client_id = ORG_TO_CLIENT_ID.get(org_id)
+        if client_id is None:
+            print(f"  ! no client id mapping for org '{org_id}' — skipping")
+            continue
+
+        # Resolve the internal Person id from the stable OIDC subject (clientId).
+        try:
+            user_id = resolve_user_id(n, client_id)
+        except RuntimeError as e:
+            print(f"  ! could not resolve Person for client '{client_id}' (org '{org_id}'): {e} — skipping")
+            continue
+        if user_id is None:
+            print(f"  ! no Person for client '{client_id}' (org '{org_id}') — "
+                  f"has the middleware called /v3/users/userinfo yet? — skipping")
             continue
 
         # Check existing assignments to stay idempotent.
         try:
-            existing = n.get(f"v3/users/{subject_id}/resources")
+            existing = n.get(f"v3/users/{user_id}/resources")
             embedded = (existing or {}).get("_embedded", {})
             resources = embedded.get("resources", [])
             already_assigned = any(r.get("id") == resource_id for r in resources)
             if already_assigned:
-                print(f"  = user {subject_id} already assigned to resource {resource_id} (org '{org_id}')")
+                print(f"  = user {user_id} ({client_id}) already assigned to resource {resource_id} (org '{org_id}')")
                 continue
         except RuntimeError as e:
-            print(f"  ! could not fetch assignments for user {subject_id} (org '{org_id}'): {e} — skipping")
+            print(f"  ! could not fetch assignments for user {user_id} ({client_id}, org '{org_id}'): {e} — skipping")
             continue
 
         try:
-            status, _ = n.patch(f"v3/users/{subject_id}/resources", {"id": resource_id})
-            print(f"  + assigned user {subject_id} to resource {resource_id} (org '{org_id}')")
+            status, _ = n.patch(f"v3/users/{user_id}/resources", {"id": resource_id})
+            print(f"  + assigned user {user_id} ({client_id}) to resource {resource_id} (org '{org_id}')")
         except RuntimeError as e:
-            print(f"  ! failed to assign user {subject_id} to resource {resource_id} (org '{org_id}'): {e}")
+            print(f"  ! failed to assign user {user_id} ({client_id}) to resource {resource_id} (org '{org_id}'): {e}")
 
 
 # --------------------------------------------------------------------------- #
