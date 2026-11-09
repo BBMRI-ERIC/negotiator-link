@@ -1,7 +1,5 @@
 # Negotiator Link
 
-> **Note:** This project is currently under development. APIs and configuration formats may change without notice.
-
 **Negotiator Link** is a standalone middleware service that
 integrates [BBMRI-ERIC Negotiator](https://github.com/BBMRI-ERIC/negotiator) with external help desk systems. It allows
 representatives of biobanks to manage access decisions and communicate with researchers from
@@ -118,6 +116,15 @@ docker compose --env-file .env.dev up --build -d negotiator-link
 # Follow negotiator-link logs
 docker compose --env-file .env.dev logs -f negotiator-link
 ```
+
+## Documentation
+
+Further documentation lives in [`docs/`](docs/):
+
+- **[deployment.md](docs/deployment.md)** — how to deploy negotiator-link to a real environment.
+- **Initial platform configuration** — the manual setup each platform needs to enable the integration:
+  [zammad-init-setup.md](docs/zammad-init-setup.md) (Zammad) and
+  [negotiator-init-setup.md](docs/negotiator-init-setup.md) (Negotiator).
 
 ## Related Projects
 
