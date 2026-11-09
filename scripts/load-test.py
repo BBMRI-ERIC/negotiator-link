@@ -28,7 +28,7 @@ Usage (run with defaults):
   --seed-offset 0), runs 4 message-mix rounds (--iterations 4) with up to 5
   webhooks in flight at once (--concurrency 5), and injects no failure cases
   (--error 0). It targets negotiator-link at http://localhost:8090 and reads the
-  webhook secrets from .env (NEGOTIATOR_WEBHOOK_SECRET / ZAMMAD_MHH_CALLBACK_SECRET).
+  webhook secrets from .env (NEGOTIATOR_WEBHOOK_SECRET / ZAMMAD_CALLBACK_SECRET).
   It waits up to 120 s for the tickets to be created (--wait-timeout 120) and up to
   180 s for the inbox/outbox to fully drain (--processing-timeout 180).
 
@@ -680,7 +680,7 @@ def phase_report(load_results: list, capture_wall_ms: float,
 
 # --------------------------------------------------------------------------- #
 def load_env_default(key: str, fallback: str) -> str:
-    env_path = REPO_ROOT / ".env"
+    env_path = REPO_ROOT / ".env.dev"
     if env_path.exists():
         for line in env_path.read_text(encoding="utf-8").splitlines():
             line = line.strip()
@@ -696,7 +696,7 @@ def main():
     parser.add_argument("--neg-secret", default=None,
                         help="Negotiator webhook secret (default: NEGOTIATOR_WEBHOOK_SECRET from .env)")
     parser.add_argument("--zammad-secret", default=None,
-                        help="Zammad callback secret (default: ZAMMAD_MHH_CALLBACK_SECRET from .env)")
+                        help="Zammad callback secret (default: ZAMMAD_CALLBACK_SECRET from .env)")
     parser.add_argument("--count", type=int, default=6, help="number of negotiations to seed")
     parser.add_argument("--seed-offset", type=int, default=0,
                         help="batch offset; bump it for each run to seed a fresh batch of "
@@ -723,9 +723,9 @@ def main():
     args = parser.parse_args()
 
     args.neg_secret = args.neg_secret or load_env_default("NEGOTIATOR_WEBHOOK_SECRET", "local-dev-webhook-secret")
-    args.zammad_secret = args.zammad_secret or load_env_default("ZAMMAD_MHH_CALLBACK_SECRET", "")
+    args.zammad_secret = args.zammad_secret or load_env_default("ZAMMAD_CALLBACK_SECRET", "")
     if not args.zammad_secret:
-        parser.error("Zammad callback secret not found; pass --zammad-secret or set ZAMMAD_MHH_CALLBACK_SECRET in .env")
+        parser.error("Zammad callback secret not found; pass --zammad-secret or set ZAMMAD_CALLBACK_SECRET in .env.dev")
     if args.seed_offset < 0:
         parser.error("--seed-offset must be >= 0")
 
