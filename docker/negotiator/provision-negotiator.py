@@ -143,15 +143,7 @@ def fetch_token() -> str:
 # Provisioning steps
 # --------------------------------------------------------------------------- #
 def provision_webhook(n: Negotiator, webhook_secret: str) -> None:
-    """Create the negotiator-link webhook, or reconcile it if it already exists.
-
-    The webhook's ``secret`` is the key Negotiator signs callbacks with; the
-    negotiator-link container verifies incoming signatures against the same
-    ``NEGOTIATOR_WEBHOOK_SECRET``. If the env value changes, Compose recreates
-    negotiator-link with the new secret, so the existing Negotiator webhook
-    must be PATCHed to the new secret too — otherwise every callback fails
-    signature verification while provisioning still reports success.
-    """
+    """Create the negotiator-link webhook, or update it if it already exists."""
     print("Webhook…")
     url = f"{WEBHOOK_LISTENER_URL}/webhooks/negotiator"
 
