@@ -73,13 +73,26 @@ jobs:
       - name: Run tests with coverage
         run: mvn --quiet clean verify -B -Dlogging.level.root=error
 
-      - name: Check coverage on changed files
+      - name: Coverage job summary
+        if: ${{ !cancelled() }}
+        uses: cicirello/jacoco-badge-generator@72266185b7ee48a6fd74eaf0238395cc8b14fef8 # v2.12.1
+        with:
+          jacoco-csv-file: target/site/jacoco/jacoco.csv
+          on-missing-report: quiet
+          generate-coverage-badge: false
+          generate-branches-badge: false
+          generate-summary: false
+          generate-workflow-summary: true
+          workflow-summary-heading: JaCoCo coverage (instruction + branch)
+
+      - name: Report coverage on changed files
+        if: ${{ !cancelled() }}
         uses: madrapps/jacoco-report@e51ce1f46f7f8b5331593f935e59cbaf44b84920 # v1.8.0
         with:
           paths: ${{ github.workspace }}/target/site/jacoco/jacoco.xml
           token: ${{ secrets.GITHUB_TOKEN }}
           min-coverage-changed-files: 85
-          title: Code Coverage
+          title: Code Coverage (instruction)
 
   build-image:
     name: Build Docker image
