@@ -1,4 +1,5 @@
 {
+  "_comment": "After editing this file, regenerate the AUTOWIZARD_JSON base64 blob in compose.yml: base64 < docker/zammad/auto_wizard.json | tr -d '\\n'",
   "Token": "negotiator-link-dev-setup-token",
   "TextModuleLocale": {
     "Locale": "en-us"
