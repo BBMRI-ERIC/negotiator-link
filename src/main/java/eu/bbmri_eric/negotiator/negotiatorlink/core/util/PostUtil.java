@@ -20,11 +20,7 @@ public final class PostUtil {
    * @return the signed text if sender is available, otherwise the original text
    */
   public static String signPost(String text, Sender sender) {
-    String fromLine = buildFromLine(sender);
-    if (fromLine == null) {
-      return text;
-    }
-    return fromLine + "\n\n" + text;
+    return new PostBuilder(text).from(buildFromLine(sender)).build();
   }
 
   /**
@@ -33,16 +29,16 @@ public final class PostUtil {
    * @param text the text to be decorated
    * @param sender the sender information
    * @param roleNames the roles held by the sender
-   * @return the signed text if sender is available, otherwise the original text
+   * @param isPublicPost whether the post is visible to all request participants
+   * @return the decorated text, or the original text when there is no header line to add
    */
-  public static String signPostWithRoles(String text, Sender sender, Set<String> roleNames) {
-    String fromLine = buildFromLine(sender);
-    if (fromLine == null) {
-      return text;
-    }
-    String roleLine = roleNames.isEmpty() ? null : "Role: " + String.join(", ", roleNames);
-    String header = roleLine == null ? fromLine : fromLine + "\n" + roleLine;
-    return header + "\n\n" + text;
+  public static String signPostWithRoles(
+      String text, Sender sender, Set<String> roleNames, boolean isPublicPost) {
+    return new PostBuilder(text)
+        .from(buildFromLine(sender))
+        .role(buildRoleLine(roleNames))
+        .visibility(buildVisibilityLine(isPublicPost))
+        .build();
   }
 
   /**
@@ -60,8 +56,8 @@ public final class PostUtil {
     }
     int firstNewline = text.indexOf('\n');
     return text.substring(0, firstNewline)
-        + "\nRole: "
-        + String.join(", ", roleNames)
+        + "\n"
+        + buildRoleLine(roleNames)
         + text.substring(firstNewline);
   }
 
@@ -114,5 +110,62 @@ public final class PostUtil {
     return Arrays.stream(value.split("_"))
         .map(word -> StringUtils.capitalize(word.toLowerCase()))
         .collect(Collectors.joining(" "));
+  }
+
+  private static String buildRoleLine(Set<String> roleNames) {
+    return roleNames.isEmpty() ? null : "Role: " + String.join(", ", roleNames);
+  }
+
+  private static String buildVisibilityLine(boolean isPublicPost) {
+    return isPublicPost ? "Visibility: All request participants" : null;
+  }
+
+  private static final class PostBuilder {
+
+    private final String text;
+    private String fromLine;
+    private String roleLine;
+    private String visibilityLine;
+
+    PostBuilder(String text) {
+      this.text = text;
+    }
+
+    PostBuilder from(String fromLine) {
+      this.fromLine = fromLine;
+      return this;
+    }
+
+    PostBuilder role(String roleLine) {
+      this.roleLine = roleLine;
+      return this;
+    }
+
+    PostBuilder visibility(String visibilityLine) {
+      this.visibilityLine = visibilityLine;
+      return this;
+    }
+
+    String build() {
+      StringBuilder header = new StringBuilder();
+      appendLine(header, fromLine);
+      if (StringUtils.isNotBlank(fromLine)) {
+        appendLine(header, roleLine);
+      }
+      appendLine(header, visibilityLine);
+      if (header.isEmpty()) {
+        return text;
+      }
+      return header + "\n\n" + text;
+    }
+
+    private static void appendLine(StringBuilder header, String line) {
+      if (StringUtils.isNotBlank(line)) {
+        if (!header.isEmpty()) {
+          header.append('\n');
+        }
+        header.append(line);
+      }
+    }
   }
 }
