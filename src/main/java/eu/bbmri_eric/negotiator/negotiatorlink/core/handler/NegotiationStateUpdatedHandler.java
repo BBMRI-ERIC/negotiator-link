@@ -259,7 +259,8 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
         post.getTags() != null
             ? post.getTags().stream().map(PostTagDTO::getName).collect(Collectors.toSet())
             : Collections.emptySet();
-    return PostUtil.signPostWithRoles(post.getText(), sender, roleNames);
+    return PostUtil.signPostWithRoles(
+        post.getText(), sender, roleNames, post.getType() == EntityModelPostDTO.TypeEnum.PUBLIC);
   }
 
   private String resolveInitialState(EntityModelResourceWithStatusDTO resource) {

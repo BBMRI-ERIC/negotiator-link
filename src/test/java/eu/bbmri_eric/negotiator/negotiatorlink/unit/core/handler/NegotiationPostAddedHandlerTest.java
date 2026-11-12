@@ -97,8 +97,9 @@ class NegotiationPostAddedHandlerTest {
     assertThat(intents)
         .extracting(PendingIntent::organizationExtId)
         .containsExactly(ORG_EXT_ID, orgExtIdAmc);
-    assertThat(readText(intents.getFirst())).isEqualTo(POST_TEXT);
-    assertThat(readText(intents.getLast())).isEqualTo(POST_TEXT);
+    String expectedPublicText = "Visibility: All request participants\n\n" + POST_TEXT;
+    assertThat(readText(intents.getFirst())).isEqualTo(expectedPublicText);
+    assertThat(readText(intents.getLast())).isEqualTo(expectedPublicText);
   }
 
   @Test
