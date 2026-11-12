@@ -312,10 +312,20 @@ public final class NegotiationTicketBodyFormatter {
     static Field of(String label, Object raw) {
       if (raw instanceof List<?> list) {
         var bullets = new ArrayList<String>(list.size());
-        for (Object item : list) bullets.add(String.valueOf(item));
+        for (Object item : list) bullets.add(displayValue(item));
         return list(label, bullets);
       }
-      return scalar(label, raw == null ? null : raw.toString());
+      return scalar(label, raw == null ? null : displayValue(raw));
+    }
+
+    private static String displayValue(Object item) {
+      if (item instanceof Map<?, ?> map) {
+        Object name = map.get("name");
+        if (name != null) {
+          return name.toString();
+        }
+      }
+      return item.toString();
     }
 
     boolean isList() {
