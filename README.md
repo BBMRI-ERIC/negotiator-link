@@ -26,7 +26,7 @@ so no manual setup is required.
   requires significant memory)
 - [Docker Compose](https://docs.docker.com/compose/) v2.x (included in Docker Desktop)
 
-### Start everything
+### Start all services
 
 ```bash
 docker compose --env-file .env.dev up -d
