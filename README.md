@@ -86,7 +86,7 @@ docker compose --env-file .env.dev logs negotiator-provision
 
 ## Automatic configuration
 
-On `docker compose up`, one-shot containers provision both systems so the environment is ready for end-to-end testing
+On `docker compose up`, one-shot containers provision both systems so the local environment is ready for end-to-end testing
 without any manual steps:
 
 - **`zammad-bot-token`** — runs the Zammad setup wizard (creating the `admin@local.dev` admin) and creates the
