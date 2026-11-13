@@ -107,10 +107,10 @@ needed — only configuration.
    sudo docker compose -f compose.prod.yml logs -f negotiator-link
    ```
 
-> Configuring negotiator-link is only one side. The organization's **Negotiator webhook** and
-> **help-desk webhook/triggers** must also be set up to point at negotiator-link (see the webhook
-> and trigger setup in the project `README.md`). Until both sides are configured, events will not
-> flow.
+> Configuring negotiator-link is only one side. The organization's service account will be automatically created
+> after successful onboarding in negotiator-link and starting the application. The service account needs to be
+> assigned to the organization resources as described in the [Initial Negotiator Setup](docs/negotiator-init-setup.md) guide.
+> Also the helpdesk setup needs to be performed according the the helpdesk type (for Zammad see [Zammad Initial Setup](docs/zammad-init-setup.md)).
 
 ## 7. Default values in organization config
 
