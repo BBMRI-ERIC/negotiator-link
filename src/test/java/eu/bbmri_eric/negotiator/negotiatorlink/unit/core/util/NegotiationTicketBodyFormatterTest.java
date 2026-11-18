@@ -103,6 +103,26 @@ class NegotiationTicketBodyFormatterTest {
   }
 
   @Test
+  void getTicketBodyWithSingleResource_rendersAttachmentMapAsFileName() {
+    var negotiation = createNegotiation(true);
+    @SuppressWarnings({"unchecked"})
+    Map<String, Object> ethicsVote =
+        (Map<String, Object>) ((Map<String, Object>) negotiation.getPayload()).get("ethics-vote");
+    ethicsVote.put(
+        "ethics-vote-attachment",
+        Map.of(
+            "id", "3096c923-ae97-45d7-b93e-0c1c7c89dce8",
+            "organizationId", "null",
+            "name", "approval.pdf",
+            "contentType", "application/pdf",
+            "size", 61446));
+
+    Document doc = renderSingle(negotiation, submittedResource());
+
+    assertThat(fieldValue(doc, "Ethics Vote Attachment")).isEqualTo("approval.pdf");
+  }
+
+  @Test
   void getTicketBodyWithSingleResource_rendersSearchParameters() {
     Document doc = renderSingle(createNegotiation(true), submittedResource());
 
