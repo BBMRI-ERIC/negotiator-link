@@ -54,11 +54,11 @@ public final class PostUtil {
     if (roleNames.isEmpty() || !startsWithSignerHeader(text) || hasRoleLine(text)) {
       return text;
     }
-    int firstNewline = text.indexOf('\n');
-    return text.substring(0, firstNewline)
+    return StringUtils.substringBefore(text, "\n")
         + "\n"
         + buildRoleLine(roleNames)
-        + text.substring(firstNewline);
+        + "\n"
+        + StringUtils.substringAfter(text, "\n");
   }
 
   /**
