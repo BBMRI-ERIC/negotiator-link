@@ -2,6 +2,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.handler;
 
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.organizationConfig;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -101,31 +102,24 @@ class HelpdeskPostHandlerTest {
   }
 
   @Test
-  void handle_privatePostsFlagNull_emitsSystemCommentIntentAndNoOriginatedPost() {
+  void handle_getNegotiationReturnsNull_throws() {
     when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
             TICKET_ID, ORG_EXT_ID))
         .thenReturn(List.of(mapping()));
-    when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config))
-        .thenReturn(negotiationWithPrivatePosts(null));
+    when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config)).thenReturn(null);
 
-    HandlerResult result = handler.handle(callbackEvent(), config);
-
-    assertSystemCommentRejection(result.intents());
-    assertThat(result.originatedPost()).isEmpty();
+    assertThrows(NullPointerException.class, () -> handler.handle(callbackEvent(), config));
   }
 
   @Test
-  void handle_getNegotiationFails_emitsSystemCommentIntentAndNoOriginatedPost() {
+  void handle_getNegotiationFails_throws() {
     when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
             TICKET_ID, ORG_EXT_ID))
         .thenReturn(List.of(mapping()));
     when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config))
         .thenThrow(new RuntimeException("negotiator unavailable"));
 
-    HandlerResult result = handler.handle(callbackEvent(), config);
-
-    assertSystemCommentRejection(result.intents());
-    assertThat(result.originatedPost()).isEmpty();
+    assertThrows(RuntimeException.class, () -> handler.handle(callbackEvent(), config));
   }
 
   private void assertSystemCommentRejection(List<PendingIntent> intents) {
