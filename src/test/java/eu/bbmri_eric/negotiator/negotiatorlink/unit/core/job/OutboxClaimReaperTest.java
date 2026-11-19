@@ -21,21 +21,31 @@ class OutboxClaimReaperTest {
   @InjectMocks private OutboxClaimReaper reaper;
 
   @Test
-  void reclaimExpiredClaims_rowsReclaimed_doesNotFail() {
-    when(claimer.reclaimExpiredClaims()).thenReturn(List.of(1L, 2L, 3L));
+  void run_releasesAllClaims() {
+    when(claimer.releaseAllClaims()).thenReturn(List.of(1L, 2L));
 
-    reaper.reclaimExpiredClaims();
+    reaper.run(null);
 
-    verify(claimer).reclaimExpiredClaims();
+    verify(claimer).releaseAllClaims();
+    verifyNoMoreInteractions(claimer);
   }
 
   @Test
-  void reclaimExpiredClaims_nothingReclaimed_doesNotFail() {
-    when(claimer.reclaimExpiredClaims()).thenReturn(List.of());
+  void releaseExpiredClaims_rowsReclaimed_doesNotFail() {
+    when(claimer.releaseExpiredClaims()).thenReturn(List.of(1L, 2L, 3L));
 
-    reaper.reclaimExpiredClaims();
+    reaper.releaseExpiredClaims();
 
-    verify(claimer).reclaimExpiredClaims();
+    verify(claimer).releaseExpiredClaims();
+  }
+
+  @Test
+  void releaseExpiredClaims_nothingReclaimed_doesNotFail() {
+    when(claimer.releaseExpiredClaims()).thenReturn(List.of());
+
+    reaper.releaseExpiredClaims();
+
+    verify(claimer).releaseExpiredClaims();
     verifyNoMoreInteractions(claimer);
   }
 }
