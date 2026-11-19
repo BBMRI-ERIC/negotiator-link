@@ -274,7 +274,7 @@ def main() -> int:
     provision_webhook(n, webhook_secret)
     provision_resource_assignments(n, orgs)
 
-    print("\n✅ Negotiator provisioning complete.")
+    print("\nNegotiator provisioning complete.")
     return 0
 
 

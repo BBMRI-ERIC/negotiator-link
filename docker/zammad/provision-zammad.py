@@ -558,9 +558,7 @@ def main() -> int:
     provision_triggers(z, bot["id"], webhook_ids)
     provision_core_workflows(z, group["id"])
 
-    print("\n✅ Zammad provisioning complete.")
-    print(f"   group id={group['id']}  role id={role['id']}  bot id={bot['id']}")
-    print("   Remember: assign the bot user to resources in Negotiator (README Step 8).")
+    print("\nZammad provisioning complete.")
     return 0
 
 
