@@ -65,6 +65,12 @@ class NegotiatorToZammadFlowIT {
   private static final String PAUSED_SYSTEM_COMMENT = "Negotiation status changed to 'Paused'";
   private static final String CHECKING_AVAILABILITY_SYS_COMMENT =
       "Resource 'src-e2e-1' changed the status to 'Checking Availability'";
+  private static final String POST_TEXT = "Hello from Negotiator";
+  private static final String FROM_LINE = "From: Jane Doe <jane@example.com>";
+  private static final String VISIBILITY_LINE = "Visibility: All request participants";
+  private static final String SIGNED_POST_TEXT = FROM_LINE + "\n\n" + POST_TEXT;
+  private static final String PUBLIC_SIGNED_POST_TEXT =
+      FROM_LINE + "\n" + VISIBILITY_LINE + "\n\n" + POST_TEXT;
 
   @Autowired private MockMvc mockMvc;
   @Autowired private TicketMappingRepository ticketMappingRepository;
@@ -173,7 +179,7 @@ class NegotiatorToZammadFlowIT {
         .thenReturn(
             TestUtil.post(
                 postId,
-                "Hello from Negotiator",
+                POST_TEXT,
                 EntityModelPostDTO.TypeEnum.PRIVATE,
                 String.valueOf(ORG_ID),
                 "Jane Doe",
@@ -183,8 +189,7 @@ class NegotiatorToZammadFlowIT {
         .expect(requestTo(TICKET_ARTICLES_URL))
         .andExpect(method(HttpMethod.POST))
         .andExpect(jsonPath("$.ticket_id").value(42))
-        .andExpect(
-            jsonPath("$.body").value("From: Jane Doe <jane@example.com>\n\nHello from Negotiator"))
+        .andExpect(jsonPath("$.body").value(SIGNED_POST_TEXT))
         .andExpect(jsonPath("$.internal").value(false))
         .andRespond(withSuccess());
 
@@ -225,7 +230,7 @@ class NegotiatorToZammadFlowIT {
         .thenReturn(
             TestUtil.post(
                 postId,
-                "Hello from Negotiator",
+                POST_TEXT,
                 EntityModelPostDTO.TypeEnum.PUBLIC,
                 String.valueOf(ORG_ID),
                 "Jane Doe",
@@ -250,8 +255,7 @@ class NegotiatorToZammadFlowIT {
         .expect(requestTo(TICKET_ARTICLES_URL))
         .andExpect(method(HttpMethod.POST))
         .andExpect(jsonPath("$.ticket_id").value(Integer.parseInt(ticketId1)))
-        .andExpect(
-            jsonPath("$.body").value("From: Jane Doe <jane@example.com>\n\nHello from Negotiator"))
+        .andExpect(jsonPath("$.body").value(PUBLIC_SIGNED_POST_TEXT))
         .andExpect(jsonPath("$.internal").value(false))
         .andRespond(withSuccess());
 
@@ -274,8 +278,7 @@ class NegotiatorToZammadFlowIT {
         .expect(requestTo(TICKET_ARTICLES_URL))
         .andExpect(method(HttpMethod.POST))
         .andExpect(jsonPath("$.ticket_id").value(Integer.parseInt(ticketId2)))
-        .andExpect(
-            jsonPath("$.body").value("From: Jane Doe <jane@example.com>\n\nHello from Negotiator"))
+        .andExpect(jsonPath("$.body").value(PUBLIC_SIGNED_POST_TEXT))
         .andExpect(jsonPath("$.internal").value(false))
         .andRespond(withSuccess());
 

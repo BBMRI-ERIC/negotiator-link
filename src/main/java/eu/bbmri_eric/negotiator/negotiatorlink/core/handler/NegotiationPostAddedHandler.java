@@ -151,7 +151,8 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
     UserResponseModel createdBy = post.getCreatedBy();
     Sender sender =
         createdBy != null ? new Sender(createdBy.getName(), createdBy.getEmail()) : null;
-    return PostUtil.signPostWithRoles(post.getText(), sender, roleNames);
+    return PostUtil.signPostWithRoles(
+        post.getText(), sender, roleNames, post.getType() == EntityModelPostDTO.TypeEnum.PUBLIC);
   }
 
   private OrganizationConfig resolveFetchConfig(String negotiationId, Long organizationId) {
