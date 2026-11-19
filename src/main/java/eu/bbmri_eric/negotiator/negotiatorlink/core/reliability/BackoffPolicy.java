@@ -5,13 +5,13 @@ import java.util.concurrent.ThreadLocalRandom;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
-/** Exponential backoff with full jitter, capped. Shared by the inbox and outbox retry. */
+/** Exponential backoff with equal jitter, capped. Shared by the inbox and outbox retry. */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class BackoffPolicy {
 
   /**
-   * Returned delay grows as {@code base * 2^(attempt-1)}, capped at {@code max}, then full-jittered
-   * into {@code [cap/2, cap]} to avoid synchronized retries.
+   * Returned delay grows as {@code base * 2^(attempt-1)}, capped at {@code max}, then jittered into
+   * {@code [cap/2, cap]} to avoid synchronized retries.
    */
   public static Duration nextDelay(int attempt, Duration base, Duration max) {
     long exponential = base.toMillis() * (1L << Math.min(Math.max(attempt - 1, 0), 20));
