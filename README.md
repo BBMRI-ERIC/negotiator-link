@@ -28,12 +28,14 @@ so no manual setup is required.
 
 ### Start all services
 
+On first run, create your local `.env` from the `.env.dev` template.
+
 ```bash
-docker compose --env-file .env.dev up -d
+cp .env.dev .env
+docker compose up -d
 ```
 
-Startup takes 3–5 minutes. The committed `.env.dev` contains ready-to-use development defaults — no copying or editing
-is needed.
+Startup takes 3–5 minutes. `.env.dev` contains ready-to-use development defaults.
 
 ### Services
 
@@ -51,20 +53,20 @@ Pre-built Grafana dashboards live in `grafana/dashboards/`.
 ### Verify
 
 ```bash
-docker compose --env-file .env.dev ps
+docker compose ps
 ```
 
 All **16** long-running containers should be **up and healthy**. (Four one-shot containers — `zammad-init`,
-`zammad-bot-token`, `zammad-provision`, and `negotiator-provision` — run once and exit, so they do not count)
+`zammad-autowizard`, `zammad-provision`, and `negotiator-provision` — run once and exit, so they do not count)
 
 Confirm the automatic configuration completed successfully by checking the one-shot provisioning logs:
 
 ```bash
-docker compose --env-file .env.dev logs zammad-bot-token
+docker compose logs zammad-autowizard
 
-docker compose --env-file .env.dev logs zammad-provision
+docker compose logs zammad-provision
  
-docker compose --env-file .env.dev logs negotiator-provision
+docker compose logs negotiator-provision
 ```
 
 ### Test users
@@ -89,10 +91,10 @@ docker compose --env-file .env.dev logs negotiator-provision
 On `docker compose up`, one-shot containers provision both systems so the local environment is ready for end-to-end testing
 without any manual steps:
 
-- **`zammad-bot-token`** — runs the Zammad setup wizard (creating the `admin@local.dev` admin) and creates the
-  negotiator-link bot user with a fixed API token.
-- **`zammad-provision`** — provisions Zammad groups, roles, bot membership, custom ticket fields, webhooks, triggers,
-  and core workflows.
+- **`zammad-autowizard`** — runs the Zammad setup wizard (creating the `admin@local.dev` admin).
+- **`zammad-provision`** — provisions Zammad groups, roles, the negotiator-link bot user and its membership, custom
+  ticket fields, webhooks, triggers, and core workflows. It also mints the bot's API token via the Zammad REST API and
+  writes it into `.env` as `ZAMMAD_API_TOKEN`.
 - **`negotiator-provision`** — registers the negotiator-link webhook in Negotiator and assigns the service accounts to
   their resources.
 
@@ -105,16 +107,16 @@ in [docs/zammad-init-setup.md](docs/zammad-init-setup.md) and [docs/negotiator-i
 
 ```bash
 # Stop all containers without losing data
-docker compose --env-file .env.dev stop
+docker compose stop
 
 # Resume
-docker compose --env-file .env.dev start
+docker compose start
 
 # Rebuild and restart negotiator-link after a code change
-docker compose --env-file .env.dev up --build -d negotiator-link
+docker compose up --build -d negotiator-link
 
 # Follow negotiator-link logs
-docker compose --env-file .env.dev logs -f negotiator-link
+docker compose logs -f negotiator-link
 ```
 
 ## Documentation

@@ -33,7 +33,12 @@ ZAMMAD_URL_HOST = "http://localhost:8888"
 
 AUTOWIZARD_JSON = REPO_ROOT / "docker" / "zammad" / "auto_wizard.json"
 ORGANIZATIONS_YML = REPO_ROOT / "docker" / "organizations.yml"
-ENV_FILE = REPO_ROOT / ".env.dev"
+ENV_TEMPLATE = REPO_ROOT / ".env.dev"
+ENV_FILE = REPO_ROOT / ".env"
+
+# Dev-only password for the bot service account.
+BOT_PASSWORD = "NegotiatorLink-dev-bot1!"
+BOT_TOKEN_NAME = "negotiator-link"
 
 # The custom ticket fields
 NEGOTIATION_STATE_OPTIONS = {
@@ -85,14 +90,17 @@ LOCKED_RESOURCE_STATES = [
 # Single-source config readers
 # --------------------------------------------------------------------------- #
 def read_env(key: str) -> str:
-    """Env var first (compose injects it), then .env.dev as a fallback."""
+    """Env var first (compose injects it), then .env / .env.dev as a fallback."""
     if os.environ.get(key):
         return os.environ[key]
-    if ENV_FILE.exists():
-        for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line.startswith(f"{key}="):
-                return line.split("=", 1)[1].strip()
+    for env_path in (ENV_FILE, ENV_TEMPLATE):
+        if env_path.exists():
+            for line in env_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line.startswith(f"{key}="):
+                    value = line.split("=", 1)[1].strip()
+                    if value:
+                        return value
     return ""
 
 
@@ -152,6 +160,9 @@ class Zammad:
 
     def put(self, path, body):
         return self._request("PUT", path, body)[1]
+
+    def delete(self, path):
+        return self._request("DELETE", path)[1]
 
     def ping(self):
         """Return the authenticated user dict, or raise."""
@@ -218,6 +229,7 @@ def provision_bot_user(z: Zammad, email: str, firstname: str,
         obj = z.put(f"users/{existing['id']}", {
             "role_ids": role_ids,
             "group_ids": group_ids,
+            "password": BOT_PASSWORD,
         })
         print(f"  ~ updated bot user: {email} (id={existing['id']}, roles={role_ids})")
         return obj or existing
@@ -228,6 +240,7 @@ def provision_bot_user(z: Zammad, email: str, firstname: str,
         "active": True,
         "role_ids": [role_id],
         "group_ids": {str(group_id): ["full"]},
+        "password": BOT_PASSWORD,
     })
     print(f"  + created bot user: {email} (id={obj['id']})")
     return obj
@@ -247,6 +260,51 @@ def grant_group_to_user(z: Zammad, email: str, group_id: int) -> None:
     group_ids[str(group_id)] = ["full"]
     z.put(f"users/{existing['id']}", {"group_ids": group_ids})
     print(f"  ~ granted {email} full access to group {group_id}")
+
+
+def mint_bot_token(zammad_url: str, bot_email: str) -> str:
+    """Mint the bot's API token via the public REST API and return its value."""
+    print("Bot API token…")
+    z_bot = Zammad(zammad_url, basic_auth=(bot_email, BOT_PASSWORD))
+    listing = z_bot.get("user_access_token") or {}
+    existing = _find_by(listing.get("tokens"), "name", BOT_TOKEN_NAME)
+    if existing:
+        z_bot.delete(f"user_access_token/{existing['id']}")
+        print(f"  ~ removed previous '{BOT_TOKEN_NAME}' token (id={existing['id']})")
+
+    created = z_bot.post("user_access_token", {
+        "name": BOT_TOKEN_NAME,
+        "permission": ["ticket.agent"],
+    })
+    token = (created or {}).get("token")
+    if not token:
+        raise SystemExit(
+            f"Zammad did not return a token value for '{BOT_TOKEN_NAME}': {created}"
+        )
+    print(f"  + minted '{BOT_TOKEN_NAME}' API token for {bot_email}")
+    return token
+
+
+def write_env_token(token: str) -> None:
+    """Write the minted token into .env as ZAMMAD_API_TOKEN."""
+    key = "ZAMMAD_API_TOKEN"
+    if not ENV_FILE.exists():
+        base = ENV_TEMPLATE.read_text(encoding="utf-8") if ENV_TEMPLATE.exists() else ""
+        ENV_FILE.write_text(base, encoding="utf-8")
+        print(f"  seeded {ENV_FILE.name} from {ENV_TEMPLATE.name}")
+
+    lines = ENV_FILE.read_text(encoding="utf-8").splitlines()
+    new_line = f"{key}={token}"
+    replaced = False
+    for i, line in enumerate(lines):
+        if line.strip().startswith(f"{key}="):
+            lines[i] = new_line
+            replaced = True
+            break
+    if not replaced:
+        lines.append(new_line)
+    ENV_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"  wrote {key} to {ENV_FILE.name}")
 
 
 def _select_attr_payload(name: str, display: str, options: dict, position: int) -> dict:
@@ -551,6 +609,9 @@ def main() -> int:
                              role["id"], group["id"])
     # Let the admin also see/work on negotiator-link tickets.
     grant_group_to_user(z, admin_user, group["id"])
+    # Mint the bot's API token via REST and persist it to .env
+    token = mint_bot_token(zammad_url, org["bot_email"])
+    write_env_token(token)
     # Custom fields first: their DB migration restarts Zammad, and the helper
     # waits for recovery.
     provision_attributes(z)
