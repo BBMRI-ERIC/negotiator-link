@@ -21,10 +21,6 @@ x-zammad-service: &zammad-service
     REDIS_URL: redis://zammad-redis:6379
     TZ: Europe/Berlin
     BACKUP_ON_START: "false"
-    # Regenerate after editing that file with:
-    #   base64 < docker/zammad/auto_wizard.json | tr -d '\n'
-    AUTOWIZARD_JSON: ewogICJfY29tbWVudCI6ICJBZnRlciBlZGl0aW5nIHRoaXMgZmlsZSwgcmVnZW5lcmF0ZSB0aGUgQVVUT1dJWkFSRF9KU09OIGJhc2U2NCBibG9iIGluIGNvbXBvc2UueW1sOiBiYXNlNjQgPCBkb2NrZXIvemFtbWFkL2F1dG9fd2l6YXJkLmpzb24gfCB0ciAtZCAnXFxuJyIsCiAgIlRva2VuIjogIm5lZ290aWF0b3ItbGluay1kZXYtc2V0dXAtdG9rZW4iLAogICJUZXh0TW9kdWxlTG9jYWxlIjogewogICAgIkxvY2FsZSI6ICJlbi11cyIKICB9LAogICJVc2VycyI6IFsKICAgIHsKICAgICAgImxvZ2luIjogImFkbWluQGxvY2FsLmRldiIsCiAgICAgICJmaXJzdG5hbWUiOiAiRGV2IiwKICAgICAgImxhc3RuYW1lIjogIkFkbWluIiwKICAgICAgImVtYWlsIjogImFkbWluQGxvY2FsLmRldiIsCiAgICAgICJwYXNzd29yZCI6ICJaYW1tYWQtZGV2LWFkbWluMSEiCiAgICB9CiAgXSwKICAiU2V0dGluZ3MiOiBbCiAgICB7CiAgICAgICJuYW1lIjogInByb2R1Y3RfbmFtZSIsCiAgICAgICJ2YWx1ZSI6ICJuZWdvdGlhdG9yLWxpbmsgZGV2IgogICAgfSwKICAgIHsKICAgICAgIm5hbWUiOiAic3lzdGVtX29ubGluZV9zZXJ2aWNlIiwKICAgICAgInZhbHVlIjogZmFsc2UKICAgIH0KICBdCn0K
-    AUTOWIZARD_RELATIVE_PATH: auto_wizard.json
   image: ghcr.io/zammad/zammad:7.1.1-0012
   restart: unless-stopped
   volumes:
