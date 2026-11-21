@@ -3,9 +3,9 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.reliability;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepository;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.SequencedMap;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,18 +21,18 @@ public class OutboxClaimer {
 
   /**
    * Claims up to {@code limit} due intents, flipping them to IN_PROGRESS with a shared claim token
-   * and expiry. Returns a map of rowId → claim token.
+   * and expiry. Returns a map of rowId → claim token in ascending {@code row_id} order.
    */
   @Transactional
-  public Map<Long, UUID> claim(int limit, Duration claimTimeout) {
+  public SequencedMap<Long, UUID> claim(int limit, Duration claimTimeout) {
     Instant now = Instant.now();
     List<Long> rowIds = outboxIntentRepository.selectDispatchableIds(now, limit);
     if (rowIds.isEmpty()) {
-      return Map.of();
+      return new LinkedHashMap<>();
     }
     UUID token = UUID.randomUUID();
     outboxIntentRepository.markClaimed(rowIds, now.plus(claimTimeout), token);
-    Map<Long, UUID> result = new HashMap<>(rowIds.size());
+    SequencedMap<Long, UUID> result = new LinkedHashMap<>(rowIds.size());
     for (Long rowId : rowIds) {
       result.put(rowId, token);
     }

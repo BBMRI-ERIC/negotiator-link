@@ -115,8 +115,7 @@ class HelpdeskCallbackControllerIT {
   @Test
   void receiveCallback_negotiationNotObtainedFromNegotiator_rowEndsFailed() throws Exception {
     ticketMappingRepository.save(
-        new TicketMapping(
-            new TicketMappingId("neg-null-1", "1", "r-1"), "src-1", "42", KNOWN_ORG));
+        new TicketMapping(new TicketMappingId("neg-null-1", "1", "r-1"), "src-1", "42", KNOWN_ORG));
 
     when(negotiatorClient.getNegotiation(any(), any())).thenReturn(null);
 

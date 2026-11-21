@@ -19,6 +19,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.SequencedMap;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -64,6 +65,21 @@ class OutboxClaimerIT {
     Map<Long, UUID> claimed = claimer.claim(1, Duration.ofSeconds(60));
 
     assertThat(claimed).containsOnlyKeys(first.getRowId());
+  }
+
+  @Test
+  void claim_returnsRowsInAscendingRowIdOrder() {
+    List<Long> enqueued =
+        List.of(
+            save(pending(Instant.now().minusSeconds(5))).getRowId(),
+            save(pending(Instant.now().minusSeconds(5))).getRowId(),
+            save(pending(Instant.now().minusSeconds(5))).getRowId(),
+            save(pending(Instant.now().minusSeconds(5))).getRowId(),
+            save(pending(Instant.now().minusSeconds(5))).getRowId());
+
+    SequencedMap<Long, UUID> claimed = claimer.claim(10, Duration.ofSeconds(60));
+
+    assertThat(claimed.sequencedKeySet()).containsExactlyElementsOf(enqueued);
   }
 
   @Test
