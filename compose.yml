@@ -119,6 +119,12 @@ services:
     platform: linux/amd64
     ports:
       - "4011:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/.well-known/openid-configuration"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       LOGIN_OPTIONS_INLINE: |
@@ -158,7 +164,7 @@ services:
       negotiator-link-postgresql:
         condition: service_healthy
       oidc-server-mock:
-        condition: service_started
+        condition: service_healthy
       negotiator:
         condition: service_healthy
     environment:
@@ -174,16 +180,32 @@ services:
       NEGOTIATOR_ISSUER_URI: http://oidc-server-mock:8080
       # Webhook signing secret — must match what is configured in Negotiator webhook entity
       NEGOTIATOR_WEBHOOK_SECRET: ${NEGOTIATOR_WEBHOOK_SECRET:-local-dev-webhook-secret}
-      # Zammad credentials — passed through so organizations.yml placeholders are resolved
-      ZAMMAD_MHH_API_TOKEN: ${ZAMMAD_MHH_API_TOKEN}
-      ZAMMAD_MHH_CALLBACK_SECRET: ${ZAMMAD_MHH_CALLBACK_SECRET}
+      ZAMMAD_CALLBACK_SECRET: ${ZAMMAD_CALLBACK_SECRET}
       # Organization config
       ORGANIZATIONS_CONFIG_PATH: /config/organizations.yml
       # Credentials for /actuator/prometheus endpoint
       MANAGEMENT_USER: admin
       MANAGEMENT_PASSWORD: admin
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        echo "waiting for ZAMMAD_API_TOKEN on shared volume (/run/zammad/token) …"
+        _i=0
+        while [ ! -s /run/zammad/token ] && [ "$$_i" -lt 300 ]; do
+          sleep 2
+          _i=$$((_i + 1))
+        done
+        if [ ! -s /run/zammad/token ]; then
+          echo "ERROR: ZAMMAD_API_TOKEN not provisioned at /run/zammad/token after waiting" >&2
+          exit 1
+        fi
+        export ZAMMAD_API_TOKEN="$$(cat /run/zammad/token)"
+        echo "ZAMMAD_API_TOKEN sourced from /run/zammad/token; starting negotiator-link"
+        exec java -jar negotiator-link.jar
     volumes:
       - ./docker/organizations.yml:/config/organizations.yml:ro
+      - zammad-token:/run/zammad
     networks:
       - negotiator-network
 
@@ -262,6 +284,74 @@ services:
     <<: *zammad-service
     command: ["zammad-websocket"]
 
+  zammad-autowizard:
+    <<: *zammad-service
+    restart: "no"
+    environment:
+      <<: *zammad-environment
+    entrypoint: ["bash", "-lc"]
+    command:
+      - |
+        cd /opt/zammad
+        until bundle exec rails runner 'exit 0' >/dev/null 2>&1; do
+          echo "waiting for zammad rails to be ready…"; sleep 5;
+        done
+        echo "running auto-wizard (creates admin@local.dev if absent)…"
+        cp /autowizard/auto_wizard.json /opt/zammad/auto_wizard.json
+        bundle exec rake "zammad:setup:auto_wizard[/opt/zammad/auto_wizard.json]"
+    depends_on:
+      zammad-railsserver:
+        condition: service_healthy
+    volumes:
+      - ./docker/zammad:/autowizard:ro
+
+  zammad-provision:
+    image: python:3.12-slim
+    restart: "no"
+    environment:
+      ZAMMAD_CALLBACK_SECRET: ${ZAMMAD_CALLBACK_SECRET}
+      ZAMMAD_TOKEN_FILE: /run/zammad/token
+      ZAMMAD_URL: ${ZAMMAD_URL:-http://zammad-nginx:8080}
+      WEBHOOK_BASE: ${WEBHOOK_BASE:-http://negotiator-link:8080}
+      ZAMMAD_URL_HOST: ${ZAMMAD_URL_HOST:-http://localhost:8888}
+      BOT_PASSWORD: ${BOT_PASSWORD:-NegotiatorLink-dev-bot1!}
+    working_dir: /app
+    entrypoint: ["python3", "docker/zammad/provision-zammad.py"]
+    depends_on:
+      zammad-nginx:
+        condition: service_started
+      zammad-autowizard:
+        condition: service_completed_successfully
+      # negotiator-link must be on the network (resolvable) before we create the
+      # webhook pointing at it — Zammad validates the endpoint by resolving the host.
+      negotiator-link:
+        condition: service_started
+    volumes:
+      - ./docker:/app/docker:ro
+      - ./.env:/app/.env:ro
+      - ./.env.dev:/app/.env.dev:ro
+      # Hand the freshly-minted bot token to negotiator-link, which blocks on it.
+      - zammad-token:/run/zammad
+    networks:
+      - negotiator-network
+
+  negotiator-provision:
+    image: python:3.12-slim
+    restart: "no"
+    environment:
+      NEGOTIATOR_WEBHOOK_SECRET: ${NEGOTIATOR_WEBHOOK_SECRET:-local-dev-webhook-secret}
+    entrypoint: ["python3", "docker/negotiator/provision-negotiator.py"]
+    depends_on:
+      negotiator:
+        condition: service_healthy
+      negotiator-link:
+        condition: service_healthy
+    volumes:
+      - ./docker:/app/docker:ro
+    working_dir: /app
+    networks:
+      - negotiator-network
+
   zammad-elasticsearch:
     image: elasticsearch:9.4.2
     restart: unless-stopped
@@ -333,3 +423,4 @@ volumes:
   zammad-storage:
   zammad-postgresql-data:
   zammad-redis-data:
+  zammad-token:

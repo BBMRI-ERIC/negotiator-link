@@ -63,6 +63,26 @@
     "AccessTokenLifetime": 3600
   },
   {
+    "ClientId": "dev-admin-script",
+    "ClientSecrets": [
+      "dev-admin-script-secret"
+    ],
+    "Description": "Dev-only client for scripted admin access (password grant)",
+    "AllowedGrantTypes": [
+      "password"
+    ],
+    "AllowedScopes": [
+      "openid",
+      "profile",
+      "email",
+      "permissions",
+      "some-app-scope-1"
+    ],
+    "ClientClaimsPrefix": "",
+    "AccessTokenLifetime": 3600,
+    "AlwaysIncludeUserClaimsInIdToken": true
+  },
+  {
     "ClientId": "negotiator-link-cz-mmci",
     "ClientSecrets": [
       "negotiator-link-cz-mmci-secret"

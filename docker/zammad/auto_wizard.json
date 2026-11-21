@@ -1,0 +1,25 @@
+{
+  "Token": "negotiator-link-dev-setup-token",
+  "TextModuleLocale": {
+    "Locale": "en-us"
+  },
+  "Users": [
+    {
+      "login": "admin@local.dev",
+      "firstname": "Dev",
+      "lastname": "Admin",
+      "email": "admin@local.dev",
+      "password": "Zammad-dev-admin1!"
+    }
+  ],
+  "Settings": [
+    {
+      "name": "product_name",
+      "value": "negotiator-link dev"
+    },
+    {
+      "name": "system_online_service",
+      "value": false
+    }
+  ]
+}

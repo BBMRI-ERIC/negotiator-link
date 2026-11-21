@@ -47,7 +47,7 @@ negotiator-link:
       platformConfig:
         # ^ Free-form, platform-specific settings (map of key -> value).
         #   For ZAMMAD:
-        group: "negotiator-link"
+        group: "negotiator-link-group"
         # ^ Zammad group that owns the tickets created for this organization.
         botEmail: "negotiator-link@local.dev"
         # ^ Email of the Zammad bot/service-account user under which
