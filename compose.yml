@@ -180,8 +180,6 @@ services:
       NEGOTIATOR_ISSUER_URI: http://oidc-server-mock:8080
       # Webhook signing secret — must match what is configured in Negotiator webhook entity
       NEGOTIATOR_WEBHOOK_SECRET: ${NEGOTIATOR_WEBHOOK_SECRET:-local-dev-webhook-secret}
-      # Zammad credentials — passed through so organizations.yml placeholders are resolved.
-      ZAMMAD_API_TOKEN: ${ZAMMAD_API_TOKEN:-}
       ZAMMAD_CALLBACK_SECRET: ${ZAMMAD_CALLBACK_SECRET}
       # Organization config
       ORGANIZATIONS_CONFIG_PATH: /config/organizations.yml
@@ -192,25 +190,22 @@ services:
       - /bin/sh
       - -c
       - |
-        echo "waiting for ZAMMAD_API_TOKEN in /app/.env …"
-        _tok=""
+        echo "waiting for ZAMMAD_API_TOKEN on shared volume (/run/zammad/token) …"
         _i=0
-        while [ -z "$$_tok" ] && [ "$$_i" -lt 300 ]; do
-          if [ -f /app/.env ]; then
-            _tok="$$(grep -E '^ZAMMAD_API_TOKEN=' /app/.env | tail -n1 | cut -d= -f2-)"
-          fi
-          [ -z "$$_tok" ] && { sleep 2; _i=$$((_i + 1)); }
+        while [ ! -s /run/zammad/token ] && [ "$$_i" -lt 300 ]; do
+          sleep 2
+          _i=$$((_i + 1))
         done
-        if [ -z "$$_tok" ]; then
-          echo "ERROR: ZAMMAD_API_TOKEN not present in /app/.env after waiting" >&2
+        if [ ! -s /run/zammad/token ]; then
+          echo "ERROR: ZAMMAD_API_TOKEN not provisioned at /run/zammad/token after waiting" >&2
           exit 1
         fi
-        export ZAMMAD_API_TOKEN="$$_tok"
-        echo "ZAMMAD_API_TOKEN sourced from /app/.env; starting negotiator-link"
+        export ZAMMAD_API_TOKEN="$$(cat /run/zammad/token)"
+        echo "ZAMMAD_API_TOKEN sourced from /run/zammad/token; starting negotiator-link"
         exec java -jar negotiator-link.jar
     volumes:
       - ./docker/organizations.yml:/config/organizations.yml:ro
-      - ./.env:/app/.env:ro
+      - zammad-token:/run/zammad
     networks:
       - negotiator-network
 
@@ -315,6 +310,7 @@ services:
     restart: "no"
     environment:
       ZAMMAD_CALLBACK_SECRET: ${ZAMMAD_CALLBACK_SECRET}
+      ZAMMAD_TOKEN_FILE: /run/zammad/token
     working_dir: /app
     entrypoint: ["python3", "docker/zammad/provision-zammad.py"]
     depends_on:
@@ -328,8 +324,10 @@ services:
         condition: service_started
     volumes:
       - ./docker:/app/docker:ro
-      - ./.env:/app/.env
+      - ./.env:/app/.env:ro
       - ./.env.dev:/app/.env.dev:ro
+      # Hand the freshly-minted bot token to negotiator-link, which blocks on it.
+      - zammad-token:/run/zammad
     networks:
       - negotiator-network
 
@@ -421,3 +419,4 @@ volumes:
   zammad-storage:
   zammad-postgresql-data:
   zammad-redis-data:
+  zammad-token:

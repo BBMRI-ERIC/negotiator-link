@@ -36,6 +36,8 @@ ORGANIZATIONS_YML = REPO_ROOT / "docker" / "organizations.yml"
 ENV_TEMPLATE = REPO_ROOT / ".env.dev"
 ENV_FILE = REPO_ROOT / ".env"
 
+TOKEN_FILE = Path(os.environ.get("ZAMMAD_TOKEN_FILE", "/run/zammad/token"))
+
 # Dev-only password for the bot service account.
 BOT_PASSWORD = "NegotiatorLink-dev-bot1!"
 BOT_TOKEN_NAME = "negotiator-link"
@@ -285,26 +287,12 @@ def mint_bot_token(zammad_url: str, bot_email: str) -> str:
     return token
 
 
-def write_env_token(token: str) -> None:
-    """Write the minted token into .env as ZAMMAD_API_TOKEN."""
-    key = "ZAMMAD_API_TOKEN"
-    if not ENV_FILE.exists():
-        base = ENV_TEMPLATE.read_text(encoding="utf-8") if ENV_TEMPLATE.exists() else ""
-        ENV_FILE.write_text(base, encoding="utf-8")
-        print(f"  seeded {ENV_FILE.name} from {ENV_TEMPLATE.name}")
+def write_token_file(token: str) -> None:
+    """Hand the minted token to the negotiator-link container via the shared volume."""
+    TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
+    TOKEN_FILE.write_text(token, encoding="utf-8")
+    print(f"  wrote token to {TOKEN_FILE}")
 
-    lines = ENV_FILE.read_text(encoding="utf-8").splitlines()
-    new_line = f"{key}={token}"
-    replaced = False
-    for i, line in enumerate(lines):
-        if line.strip().startswith(f"{key}="):
-            lines[i] = new_line
-            replaced = True
-            break
-    if not replaced:
-        lines.append(new_line)
-    ENV_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"  wrote {key} to {ENV_FILE.name}")
 
 
 def _select_attr_payload(name: str, display: str, options: dict, position: int) -> dict:
@@ -609,9 +597,9 @@ def main() -> int:
                              role["id"], group["id"])
     # Let the admin also see/work on negotiator-link tickets.
     grant_group_to_user(z, admin_user, group["id"])
-    # Mint the bot's API token via REST and persist it to .env
+    # Mint the bot's API token via REST and hand it to negotiator-link via the shared volume.
     token = mint_bot_token(zammad_url, org["bot_email"])
-    write_env_token(token)
+    write_token_file(token)
     # Custom fields first: their DB migration restarts Zammad, and the helper
     # waits for recovery.
     provision_attributes(z)

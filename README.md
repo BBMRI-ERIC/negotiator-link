@@ -93,8 +93,7 @@ without any manual steps:
 
 - **`zammad-autowizard`** — runs the Zammad setup wizard (creating the `admin@local.dev` admin).
 - **`zammad-provision`** — provisions Zammad groups, roles, the negotiator-link bot user and its membership, custom
-  ticket fields, webhooks, triggers, and core workflows. It also mints the bot's API token via the Zammad REST API and
-  writes it into `.env` as `ZAMMAD_API_TOKEN`.
+  ticket fields, webhooks, triggers, and core workflows.
 - **`negotiator-provision`** — registers the negotiator-link webhook in Negotiator and assigns the service accounts to
   their resources.
 
