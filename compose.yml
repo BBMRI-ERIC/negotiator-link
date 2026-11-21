@@ -311,6 +311,10 @@ services:
     environment:
       ZAMMAD_CALLBACK_SECRET: ${ZAMMAD_CALLBACK_SECRET}
       ZAMMAD_TOKEN_FILE: /run/zammad/token
+      ZAMMAD_URL: ${ZAMMAD_URL:-http://zammad-nginx:8080}
+      WEBHOOK_BASE: ${WEBHOOK_BASE:-http://negotiator-link:8080}
+      ZAMMAD_URL_HOST: ${ZAMMAD_URL_HOST:-http://localhost:8888}
+      BOT_PASSWORD: ${BOT_PASSWORD:-NegotiatorLink-dev-bot1!}
     working_dir: /app
     entrypoint: ["python3", "docker/zammad/provision-zammad.py"]
     depends_on:

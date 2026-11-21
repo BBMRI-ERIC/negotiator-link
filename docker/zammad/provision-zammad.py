@@ -26,10 +26,9 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
-# Fixed local dev-stack coordinates
-ZAMMAD_URL = "http://zammad-nginx:8080"
-WEBHOOK_BASE = "http://negotiator-link:8080"
-ZAMMAD_URL_HOST = "http://localhost:8888"
+ZAMMAD_URL = os.environ.get("ZAMMAD_URL")
+WEBHOOK_BASE = os.environ.get("WEBHOOK_BASE")
+ZAMMAD_URL_HOST = os.environ.get("ZAMMAD_URL_HOST")
 
 AUTOWIZARD_JSON = REPO_ROOT / "docker" / "zammad" / "auto_wizard.json"
 ORGANIZATIONS_YML = REPO_ROOT / "docker" / "organizations.yml"
@@ -39,7 +38,7 @@ ENV_FILE = REPO_ROOT / ".env"
 TOKEN_FILE = Path(os.environ.get("ZAMMAD_TOKEN_FILE", "/run/zammad/token"))
 
 # Dev-only password for the bot service account.
-BOT_PASSWORD = "NegotiatorLink-dev-bot1!"
+BOT_PASSWORD = os.environ.get("BOT_PASSWORD")
 BOT_TOKEN_NAME = "negotiator-link"
 
 # The custom ticket fields
