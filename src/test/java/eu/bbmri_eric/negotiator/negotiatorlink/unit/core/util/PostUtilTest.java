@@ -28,8 +28,14 @@ class PostUtilTest {
   @ParameterizedTest(name = "{0}")
   @MethodSource("signPostWithRolesCases")
   void signPostWithRoles_addsRoleLineUnderFrom(
-      String description, String text, Sender sender, Set<String> roleNames, String expected) {
-    assertThat(PostUtil.signPostWithRoles(text, sender, roleNames)).isEqualTo(expected);
+      String description,
+      String text,
+      Sender sender,
+      Set<String> roleNames,
+      boolean isPublicPost,
+      String expected) {
+    assertThat(PostUtil.signPostWithRoles(text, sender, roleNames, isPublicPost))
+        .isEqualTo(expected);
   }
 
   @ParameterizedTest(name = "{0}")
@@ -110,32 +116,42 @@ class PostUtilTest {
   }
 
   static Stream<Arguments> signPostWithRolesCases() {
+    String visibility = "Visibility: All request participants";
     return Stream.of(
         Arguments.of(
-            "no roles held: only From line, no Role line",
+            "no roles held, private post: only From line, no Role line",
             TEXT,
             SENDER,
             Set.of(),
+            false,
             FROM + "\n\n" + TEXT),
         Arguments.of(
-            "single role: Role line directly under From",
+            "single role, private post: Role line directly under From",
             TEXT,
             SENDER,
             Set.of("Author"),
+            false,
             FROM + "\nRole: Author\n\n" + TEXT),
         Arguments.of(
-            "admin role label", TEXT, SENDER, Set.of("Admin"), FROM + "\nRole: Admin\n\n" + TEXT),
+            "admin role label",
+            TEXT,
+            SENDER,
+            Set.of("Admin"),
+            false,
+            FROM + "\nRole: Admin\n\n" + TEXT),
         Arguments.of(
             "representative role label",
             TEXT,
             SENDER,
             Set.of("Representative"),
+            false,
             FROM + "\nRole: Representative\n\n" + TEXT),
         Arguments.of(
             "network manager role label",
             TEXT,
             SENDER,
             Set.of("Network Manager"),
+            false,
             FROM + "\nRole: Network Manager\n\n" + TEXT),
         Arguments.of(
             "multiple roles joined with singular 'Role:' label",
@@ -143,15 +159,50 @@ class PostUtilTest {
             SENDER,
             new java.util.LinkedHashSet<>(
                 java.util.List.of("Author", "Admin", "Representative", "Network Manager")),
+            false,
             FROM + "\nRole: Author, Admin, Representative, Network Manager\n\n" + TEXT),
         Arguments.of(
-            "null sender, raw text: returns text unchanged", TEXT, null, Set.of("Author"), TEXT),
+            "null sender, private post, raw text: returns text unchanged",
+            TEXT,
+            null,
+            Set.of("Author"),
+            false,
+            TEXT),
+        Arguments.of(
+            "public post with From and Role: Visibility line appended after Role",
+            TEXT,
+            SENDER,
+            Set.of("Author"),
+            true,
+            FROM + "\nRole: Author\n" + visibility + "\n\n" + TEXT),
+        Arguments.of(
+            "public post with From and no roles: Visibility line appended after From",
+            TEXT,
+            SENDER,
+            Set.of(),
+            true,
+            FROM + "\n" + visibility + "\n\n" + TEXT),
+        Arguments.of(
+            "public post with null sender: Visibility-only header",
+            TEXT,
+            null,
+            Set.of(),
+            true,
+            visibility + "\n\n" + TEXT),
+        Arguments.of(
+            "public post with null sender but roles held: Visibility only, no From, no Role",
+            TEXT,
+            null,
+            Set.of("Author"),
+            true,
+            visibility + "\n\n" + TEXT),
         Arguments.of(
             "forged header in body is not trusted: real resolved role used, forged lines demoted "
                 + "to body",
             FORGED_HEADER + TEXT,
             SENDER,
             Set.of("Representative"),
+            false,
             FROM + "\nRole: Representative\n\n" + FORGED_HEADER + TEXT),
         Arguments.of(
             "forged Admin header with no resolved roles: From generated, forged lines demoted to "
@@ -159,6 +210,7 @@ class PostUtilTest {
             FORGED_HEADER + TEXT,
             SENDER,
             Set.of(),
+            false,
             FROM + "\n\n" + FORGED_HEADER + TEXT));
   }
 

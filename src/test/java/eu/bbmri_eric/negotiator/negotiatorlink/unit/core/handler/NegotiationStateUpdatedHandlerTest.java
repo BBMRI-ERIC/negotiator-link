@@ -65,6 +65,7 @@ class NegotiationStateUpdatedHandlerTest {
   private static final String PAUSED_SYSTEM_COMMENT = "Negotiation status changed to 'Paused'";
   private static final String CONCLUDED_SYSTEM_COMMENT =
       "Negotiation status changed to 'Concluded'";
+  private static final String POST_TEXT = "Hello world";
 
   @Mock private NegotiatorClient negotiatorClient;
   @Mock private OrganizationConfigRegistry registry;
@@ -268,8 +269,8 @@ class NegotiationStateUpdatedHandlerTest {
 
     List<String> postTexts = readCreate(intents.getFirst()).postTexts();
     assertThat(postTexts).hasSize(2);
-    assertThat(postTexts.getFirst()).startsWith("first");
-    assertThat(postTexts.get(1)).startsWith("second");
+    assertThat(postTexts.getFirst()).endsWith("first");
+    assertThat(postTexts.get(1)).endsWith("second");
   }
 
   @Test
@@ -449,7 +450,7 @@ class NegotiationStateUpdatedHandlerTest {
     var post =
         TestUtil.post(
             "p-1",
-            "Hello world",
+            POST_TEXT,
             EntityModelPostDTO.TypeEnum.PUBLIC,
             null,
             "Alice",
@@ -476,7 +477,7 @@ class NegotiationStateUpdatedHandlerTest {
     var post =
         TestUtil.post(
             "p-1",
-            "Hello world",
+            POST_TEXT,
             EntityModelPostDTO.TypeEnum.PUBLIC,
             null,
             "Alice",
@@ -490,7 +491,11 @@ class NegotiationStateUpdatedHandlerTest {
         handler.handle(eventDataWithPost(NegotiatorNegotiationEvent.PAUSE, "p-1")).intents();
 
     assertThat(readComment(firstOf(intents, OutboxIntentType.ADD_COMMENT)).text())
-        .isEqualTo("From: Alice <alice@example.com>\n" + "Role: Author\n\n" + "Hello world");
+        .isEqualTo(
+            "From: Alice <alice@example.com>\n"
+                + "Role: Author\n"
+                + "Visibility: All request participants\n\n"
+                + POST_TEXT);
   }
 
   private CreateTicketPayload createTicketPayload(
