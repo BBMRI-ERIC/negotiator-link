@@ -16,9 +16,7 @@ import org.springframework.stereotype.Component;
 public class OrganizationConfigRegistry {
 
   private static final Map<HelpdeskType, Set<String>> REQUIRED_PLATFORM_KEYS =
-      Map.of(
-          HelpdeskType.ZAMMAD, Set.of("group", "botEmail"),
-          HelpdeskType.ALVAO, Set.of());
+      Map.of(HelpdeskType.ZAMMAD, Set.of("group", "botEmail"));
 
   private final List<OrganizationConfig> configs;
 
