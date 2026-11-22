@@ -286,6 +286,38 @@ class NegotiationStateUpdatedHandlerTest {
   }
 
   @Test
+  void handle_privatePost_excluded() {
+    var config = createConfig(TicketStrategy.PER_NEGOTIATION);
+    var resource = createResource("r-1", 1L);
+    var post = TestUtil.post("p-1", "secret", EntityModelPostDTO.TypeEnum.PRIVATE, null);
+    stubHappyPath(createNegotiation(), config, List.of(resource));
+    stubPosts(config, List.of(post));
+
+    List<PendingIntent> intents = handler.handle(approveEventData()).intents();
+
+    assertThat(readCreate(intents.getFirst()).postTexts()).isEmpty();
+  }
+
+  @Test
+  void handle_withMixedPosts_onlyPublicPostsForwarded() {
+    var config = createConfig(TicketStrategy.PER_NEGOTIATION);
+    var resource = createResource("r-1", 1L);
+    var publicPost = TestUtil.post("p-1", "public text", EntityModelPostDTO.TypeEnum.PUBLIC, null);
+    publicPost.setCreationDate(LocalDateTime.of(2024, 1, 1, 10, 0));
+    var privatePost =
+        TestUtil.post("p-2", "private text", EntityModelPostDTO.TypeEnum.PRIVATE, null);
+    privatePost.setCreationDate(LocalDateTime.of(2024, 1, 2, 10, 0));
+    stubHappyPath(createNegotiation(), config, List.of(resource));
+    stubPosts(config, List.of(publicPost, privatePost));
+
+    List<PendingIntent> intents = handler.handle(approveEventData()).intents();
+
+    List<String> postTexts = readCreate(intents.getFirst()).postTexts();
+    assertThat(postTexts).hasSize(1);
+    assertThat(postTexts.getFirst()).startsWith("public text");
+  }
+
+  @Test
   void handle_stateChange_emitsSetNegotiationStateAndSystemCommentPerTicket() {
     var config = createConfig(TicketStrategy.PER_RESOURCE);
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(twoMappings());

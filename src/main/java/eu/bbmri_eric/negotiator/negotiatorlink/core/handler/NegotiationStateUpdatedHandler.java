@@ -127,8 +127,16 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     List<String> attachmentIds =
         attachmentForwardingService.getNegotiationPayloadAttachmentsIds(
             negotiationId, result.config());
-    List<EntityModelPostDTO> posts = negotiatorClient.getPosts(negotiationId, result.config());
+    List<EntityModelPostDTO> posts = fetchPublicPosts(negotiationId, result.config());
     return Optional.of(new CreateNegotiationContext(negotiation, resources, attachmentIds, posts));
+  }
+
+  private List<EntityModelPostDTO> fetchPublicPosts(
+      String negotiationId, OrganizationConfig config) {
+    return negotiatorClient.getPosts(negotiationId, config).stream()
+        .filter(post -> post.getText() != null)
+        .filter(post -> post.getType() == EntityModelPostDTO.TypeEnum.PUBLIC)
+        .toList();
   }
 
   /** Builds the CREATE_TICKET (+ LINK_TICKETS) intents for a single organization's resources. */
@@ -242,7 +250,6 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
 
   private List<String> orderAndSignNegotiationPosts(List<EntityModelPostDTO> posts) {
     return posts.stream()
-        .filter(post -> post.getText() != null)
         .sorted(
             Comparator.comparing(
                 EntityModelPostDTO::getCreationDate,
