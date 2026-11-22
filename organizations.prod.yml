@@ -24,7 +24,7 @@ negotiator-link:
       #   the key used to route incoming Negotiator events to this config.
 
       type: "ZAMMAD"
-      # ^ Help-desk system type. Supported values: ZAMMAD, ALVAO.
+      # ^ Help-desk system type. Supported values: ZAMMAD.
 
       ticketStrategy: "PER_RESOURCE"
       # ^ How tickets are created for this organization:
