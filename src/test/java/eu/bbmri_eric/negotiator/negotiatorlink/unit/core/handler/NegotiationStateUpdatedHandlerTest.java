@@ -287,35 +287,53 @@ class NegotiationStateUpdatedHandlerTest {
   }
 
   @Test
-  void handle_privatePost_excluded() {
-    var config = createConfig(TicketStrategy.PER_NEGOTIATION);
-    var resource = createResource("r-1", 1L);
-    var post = TestUtil.post("p-1", "secret", EntityModelPostDTO.TypeEnum.PRIVATE, null);
-    stubHappyPath(createNegotiation(), config, List.of(resource));
-    stubPosts(config, List.of(post));
+  void handle_twoOrgs_eachReceivesPublicAndOwnPrivatePost() {
+    String orgExtId2 = "bbmri:DE:KN";
+    Long orgInternalId2 = 20L;
+
+    var config1 = createConfig(TicketStrategy.PER_NEGOTIATION);
+    var config2 = TestUtil.organizationConfig(orgExtId2, TicketStrategy.PER_NEGOTIATION);
+    var resource1 = createResource("r-1", 1L);
+    var resource2 = TestUtil.resource(2L, "r-2", "Resource r-2", orgExtId2, orgInternalId2);
+    var negotiation = createNegotiation();
+
+    // The negotiation + resources are fetched once via the first authorized org.
+    when(registry.findAll()).thenReturn(List.of(config1, config2));
+    when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config1)).thenReturn(negotiation);
+    when(negotiatorClient.getResources(NEGOTIATION_ID, config1))
+        .thenReturn(List.of(resource1, resource2));
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config1));
+    when(registry.findByExternalId(orgExtId2)).thenReturn(Optional.of(config2));
+
+    // Posts are fetched per-org with that org's credentials.
+    var sharedPublic = TestUtil.post("p-pub", "public text", EntityModelPostDTO.TypeEnum.PUBLIC, null);
+    sharedPublic.setCreationDate(LocalDateTime.of(2024, 1, 1, 10, 0));
+    var org1Private =
+        TestUtil.post("p-priv-1", "org1 secret", EntityModelPostDTO.TypeEnum.PRIVATE, null);
+    org1Private.setCreationDate(LocalDateTime.of(2024, 1, 2, 10, 0));
+    var org2Private =
+        TestUtil.post("p-priv-2", "org2 secret", EntityModelPostDTO.TypeEnum.PRIVATE, null);
+    org2Private.setCreationDate(LocalDateTime.of(2024, 1, 2, 10, 0));
+    when(negotiatorClient.getPosts(NEGOTIATION_ID, config1))
+        .thenReturn(List.of(sharedPublic, org1Private));
+    when(negotiatorClient.getPosts(NEGOTIATION_ID, config2))
+        .thenReturn(List.of(sharedPublic, org2Private));
 
     List<PendingIntent> intents = handler.handle(approveEventData()).intents();
 
-    assertThat(readCreate(intents.getFirst()).postTexts()).isEmpty();
-  }
+    assertThat(intents).hasSize(2);
+    CreateTicketPayload payload1 = payloadForOrg(intents, ORG_EXT_ID);
+    CreateTicketPayload payload2 = payloadForOrg(intents, orgExtId2);
 
-  @Test
-  void handle_withMixedPosts_onlyPublicPostsForwarded() {
-    var config = createConfig(TicketStrategy.PER_NEGOTIATION);
-    var resource = createResource("r-1", 1L);
-    var publicPost = TestUtil.post("p-1", "public text", EntityModelPostDTO.TypeEnum.PUBLIC, null);
-    publicPost.setCreationDate(LocalDateTime.of(2024, 1, 1, 10, 0));
-    var privatePost =
-        TestUtil.post("p-2", "private text", EntityModelPostDTO.TypeEnum.PRIVATE, null);
-    privatePost.setCreationDate(LocalDateTime.of(2024, 1, 2, 10, 0));
-    stubHappyPath(createNegotiation(), config, List.of(resource));
-    stubPosts(config, List.of(publicPost, privatePost));
+    assertThat(payload1.postTexts()).hasSize(2);
+    assertThat(payload1.postTexts().getFirst()).contains("public text");
+    assertThat(payload1.postTexts().get(1)).contains("org1 secret");
+    assertThat(payload1.postTexts()).noneMatch(text -> text.contains("org2 secret"));
 
-    List<PendingIntent> intents = handler.handle(approveEventData()).intents();
-
-    List<String> postTexts = readCreate(intents.getFirst()).postTexts();
-    assertThat(postTexts).hasSize(1);
-    assertThat(postTexts.getFirst()).contains("public text");
+    assertThat(payload2.postTexts()).hasSize(2);
+    assertThat(payload2.postTexts().getFirst()).contains("public text");
+    assertThat(payload2.postTexts().get(1)).contains("org2 secret");
+    assertThat(payload2.postTexts()).noneMatch(text -> text.contains("org1 secret"));
   }
 
   @Test
@@ -531,6 +549,15 @@ class NegotiationStateUpdatedHandlerTest {
 
   private CreateTicketPayload readCreate(PendingIntent intent) {
     return read(intent, CreateTicketPayload.class);
+  }
+
+  private CreateTicketPayload payloadForOrg(List<PendingIntent> intents, String orgExtId) {
+    return intents.stream()
+        .filter(i -> i.outboxIntentType() == OutboxIntentType.CREATE_TICKET)
+        .filter(i -> orgExtId.equals(i.organizationExtId()))
+        .findFirst()
+        .map(this::readCreate)
+        .orElseThrow();
   }
 
   private LinkTicketsPayload readLink(PendingIntent intent) {
