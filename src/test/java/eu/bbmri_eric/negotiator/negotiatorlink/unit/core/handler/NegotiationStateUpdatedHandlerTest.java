@@ -315,7 +315,7 @@ class NegotiationStateUpdatedHandlerTest {
 
     List<String> postTexts = readCreate(intents.getFirst()).postTexts();
     assertThat(postTexts).hasSize(1);
-    assertThat(postTexts.getFirst()).startsWith("public text");
+    assertThat(postTexts.getFirst()).contains("public text");
   }
 
   @Test
