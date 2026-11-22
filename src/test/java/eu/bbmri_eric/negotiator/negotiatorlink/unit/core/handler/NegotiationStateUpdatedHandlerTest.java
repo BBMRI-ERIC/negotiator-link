@@ -306,7 +306,8 @@ class NegotiationStateUpdatedHandlerTest {
     when(registry.findByExternalId(orgExtId2)).thenReturn(Optional.of(config2));
 
     // Posts are fetched per-org with that org's credentials.
-    var sharedPublic = TestUtil.post("p-pub", "public text", EntityModelPostDTO.TypeEnum.PUBLIC, null);
+    var sharedPublic =
+        TestUtil.post("p-pub", "public text", EntityModelPostDTO.TypeEnum.PUBLIC, null);
     sharedPublic.setCreationDate(LocalDateTime.of(2024, 1, 1, 10, 0));
     var org1Private =
         TestUtil.post("p-priv-1", "org1 secret", EntityModelPostDTO.TypeEnum.PRIVATE, null);
