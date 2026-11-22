@@ -62,12 +62,18 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
       return HandlerResult.empty();
     }
 
-    EntityModelPostDTO post = fetchPost(event);
+    List<TicketMapping> mappings = getNegotiationMappings(event.getNegotiationId());
+    if (mappings.isEmpty()) {
+      return HandlerResult.empty();
+    }
+
+    EntityModelPostDTO post = fetchPost(event, mappings);
     if (post == null) {
       return HandlerResult.empty();
     }
 
-    LinkedHashMap<String, String> ticketToOrgExtId = resolveTargetTickets(event);
+    LinkedHashMap<String, String> ticketToOrgExtId =
+        resolveTargets(mappings, event.getOrganizationId());
     if (ticketToOrgExtId.isEmpty()) {
       log.debug(
           "No target tickets for post '{}' in negotiation '{}'",
@@ -114,9 +120,23 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
     return event;
   }
 
-  private EntityModelPostDTO fetchPost(NegotiationPostAddedWebhookEvent event) {
-    OrganizationConfig fetchConfig =
-        resolveFetchConfig(event.getNegotiationId(), event.getOrganizationId());
+  private List<TicketMapping> getNegotiationMappings(String negotiationId) {
+    List<TicketMapping> mappings =
+            ticketMappingRepository.findByIdNegotiationId(negotiationId);
+    if (mappings.isEmpty()) {
+      if (pendingTicketCreationCache.isTracked(negotiationId)) {
+        throw new PendingTicketCreationException(negotiationId);
+      }
+      log.debug(
+              "No ticket mappings for negotiation '{}' — nothing to fan out", negotiationId);
+      return List.of();
+    }
+    return mappings;
+  }
+
+  private EntityModelPostDTO fetchPost(
+      NegotiationPostAddedWebhookEvent event, List<TicketMapping> mappings) {
+    OrganizationConfig fetchConfig = resolveFetchConfig(mappings, event.getOrganizationId());
     String postId = event.getPostId();
     if (fetchConfig == null) {
       log.warn("No usable org config to fetch post '{}' — skipping", postId);
@@ -154,37 +174,21 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
     return PostUtil.signPostWithRoles(post.getText(), sender, roleNames);
   }
 
-  private OrganizationConfig resolveFetchConfig(String negotiationId, Long organizationId) {
+  private OrganizationConfig resolveFetchConfig(
+      List<TicketMapping> mappings, Long organizationId) {
     if (organizationId != null) {
       String orgIdStr = String.valueOf(organizationId);
-      return ticketMappingRepository
-          .findByIdNegotiationIdAndOrganizationId(negotiationId, orgIdStr)
-          .stream()
+      return mappings.stream()
+          .filter(mapping -> orgIdStr.equals(mapping.getOrganizationId()))
           .findFirst()
           .flatMap(mapping -> registry.findByExternalId(mapping.getOrganizationExtId()))
           .orElse(null);
     }
     // PUBLIC post: any opted-in org involved in this negotiation can fetch the post text.
-    return ticketMappingRepository.findByIdNegotiationId(negotiationId).stream()
+    return mappings.stream()
         .findFirst()
         .flatMap(mapping -> registry.findByExternalId(mapping.getOrganizationExtId()))
         .orElse(null);
-  }
-
-  /** Resolves the distinct target tickets for the post based on its visibility. */
-  private LinkedHashMap<String, String> resolveTargetTickets(
-      NegotiationPostAddedWebhookEvent event) {
-    List<TicketMapping> allMappings =
-        ticketMappingRepository.findByIdNegotiationId(event.getNegotiationId());
-    if (allMappings.isEmpty()) {
-      if (pendingTicketCreationCache.isTracked(event.getNegotiationId())) {
-        throw new PendingTicketCreationException(event.getNegotiationId());
-      }
-      log.debug(
-          "No ticket mappings for negotiation '{}' — nothing to fan out", event.getNegotiationId());
-      return new LinkedHashMap<>();
-    }
-    return resolveTargets(allMappings, event.getOrganizationId());
   }
 
   /**
