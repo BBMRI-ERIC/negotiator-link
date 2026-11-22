@@ -121,14 +121,12 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
   }
 
   private List<TicketMapping> getNegotiationMappings(String negotiationId) {
-    List<TicketMapping> mappings =
-            ticketMappingRepository.findByIdNegotiationId(negotiationId);
+    List<TicketMapping> mappings = ticketMappingRepository.findByIdNegotiationId(negotiationId);
     if (mappings.isEmpty()) {
       if (pendingTicketCreationCache.isTracked(negotiationId)) {
         throw new PendingTicketCreationException(negotiationId);
       }
-      log.debug(
-              "No ticket mappings for negotiation '{}' — nothing to fan out", negotiationId);
+      log.debug("No ticket mappings for negotiation '{}' — nothing to fan out", negotiationId);
       return List.of();
     }
     return mappings;
@@ -174,8 +172,7 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
     return PostUtil.signPostWithRoles(post.getText(), sender, roleNames);
   }
 
-  private OrganizationConfig resolveFetchConfig(
-      List<TicketMapping> mappings, Long organizationId) {
+  private OrganizationConfig resolveFetchConfig(List<TicketMapping> mappings, Long organizationId) {
     if (organizationId != null) {
       String orgIdStr = String.valueOf(organizationId);
       return mappings.stream()
