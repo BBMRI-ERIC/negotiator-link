@@ -7,5 +7,5 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
  * Negotiator on an error response.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record NegotiatorProblem(
+public record NegotiatorErrorResponse(
     String type, String title, Integer status, String detail, String instance) {}

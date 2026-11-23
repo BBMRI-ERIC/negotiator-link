@@ -1,7 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.reliability;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorProblem;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorErrorResponse;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorLinkProperties;
 import java.util.Optional;
 import java.util.Set;
@@ -39,20 +39,20 @@ public class NegotiatorResourceTransitionErrorTranslator {
    * reporting (or its body cannot be parsed).
    */
   public Optional<String> translate(RestClientResponseException error) {
-    NegotiatorProblem problem = parse(error);
+    NegotiatorErrorResponse problem = parse(error);
     if (problem == null || !isKnown(problem.type())) {
       return Optional.empty();
     }
     return Optional.of(buildComment(problem));
   }
 
-  private NegotiatorProblem parse(RestClientResponseException error) {
+  private NegotiatorErrorResponse parse(RestClientResponseException error) {
     String body = error.getResponseBodyAsString();
     if (StringUtils.isBlank(body)) {
       return null;
     }
     try {
-      return objectMapper.readValue(body, NegotiatorProblem.class);
+      return objectMapper.readValue(body, NegotiatorErrorResponse.class);
     } catch (Exception e) {
       log.debug("Negotiator error body is not a parseable problem: {}", e.getMessage());
       return null;
@@ -67,7 +67,7 @@ public class NegotiatorResourceTransitionErrorTranslator {
     return knownTypeSuffixes.stream().anyMatch(type::endsWith);
   }
 
-  private String buildComment(NegotiatorProblem problem) {
+  private String buildComment(NegotiatorErrorResponse problem) {
     StringBuilder comment = new StringBuilder(COMMENT_LEAD);
     if (StringUtils.isNotBlank(problem.detail())) {
       comment.append('\n').append(problem.detail());
