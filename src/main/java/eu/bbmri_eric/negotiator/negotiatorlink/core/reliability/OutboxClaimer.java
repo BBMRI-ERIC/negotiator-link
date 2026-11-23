@@ -51,21 +51,8 @@ public class OutboxClaimer {
 
   /** Change intents status with an expired claim to PENDING. Returns the reclaimed ids. */
   @Transactional
-  public List<Long> releaseExpiredClaims() {
+  public List<Long> reclaimExpiredClaims() {
     List<Long> rowIds = outboxIntentRepository.selectExpiredClaimIds(Instant.now());
-    if (!rowIds.isEmpty()) {
-      outboxIntentRepository.releaseClaims(rowIds);
-    }
-    return rowIds;
-  }
-
-  /**
-   * Resets all IN_PROGRESS intents to PENDING regardless of claim expiry. Called once at startup to
-   * recover intents that were mid-flight when the application was stopped.
-   */
-  @Transactional
-  public List<Long> releaseAllClaims() {
-    List<Long> rowIds = outboxIntentRepository.selectAllInProgressIds();
     if (!rowIds.isEmpty()) {
       outboxIntentRepository.releaseClaims(rowIds);
     }

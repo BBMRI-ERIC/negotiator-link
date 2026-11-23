@@ -118,11 +118,11 @@ class OutboxClaimerIT {
   }
 
   @Test
-  void releaseExpiredClaims_returnsOnlyExpiredInProgressRowsToPendingAndClearsToken() {
+  void reclaimExpiredClaims_returnsOnlyExpiredInProgressRowsToPendingAndClearsToken() {
     OutboxIntent expired = save(inProgress(Instant.now().minusSeconds(10)));
     OutboxIntent live = save(inProgress(Instant.now().plusSeconds(60)));
 
-    List<Long> reclaimed = claimer.releaseExpiredClaims();
+    List<Long> reclaimed = claimer.reclaimExpiredClaims();
 
     assertThat(reclaimed).containsExactly(expired.getRowId());
     OutboxIntent reloadedExpired =
@@ -132,25 +132,6 @@ class OutboxClaimerIT {
     assertThat(reloadedExpired.getClaimToken()).isNull();
     OutboxIntent reloadedLive = outboxIntentRepository.findById(live.getRowId()).orElseThrow();
     assertThat(reloadedLive.getStatus()).isEqualTo(OutboxStatus.IN_PROGRESS);
-  }
-
-  @Test
-  void releaseAllClaims_resetsAllInProgressToPendingRegardlessOfExpiry() {
-    OutboxIntent expired = save(inProgress(Instant.now().minusSeconds(10)));
-    OutboxIntent live = save(inProgress(Instant.now().plusSeconds(60)));
-    OutboxIntent pending = save(pending(Instant.now().plusSeconds(300)));
-
-    List<Long> released = claimer.releaseAllClaims();
-
-    assertThat(released).containsExactlyInAnyOrder(expired.getRowId(), live.getRowId());
-    for (Long rowId : released) {
-      OutboxIntent reloaded = outboxIntentRepository.findById(rowId).orElseThrow();
-      assertThat(reloaded.getStatus()).isEqualTo(OutboxStatus.PENDING);
-      assertThat(reloaded.getClaimExpiresAt()).isNull();
-      assertThat(reloaded.getClaimToken()).isNull();
-    }
-    assertThat(outboxIntentRepository.findById(pending.getRowId()).orElseThrow().getStatus())
-        .isEqualTo(OutboxStatus.PENDING);
   }
 
   private OutboxIntent save(OutboxIntent intent) {
