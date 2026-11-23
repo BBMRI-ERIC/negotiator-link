@@ -23,9 +23,10 @@ class HelpdeskTypeConverterTest {
 
   @Test
   void convert_whenUnsupportedType_throwsWithActionableMessage() {
-    assertThatThrownBy(() -> converter.convert("ALVAO"))
+    assertThatThrownBy(() -> converter.convert("SOME_NOT_SUPPORTED_TYPE"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Unsupported helpdesk type 'ALVAO'. Supported types:")
+        .hasMessageContaining(
+            "Unsupported helpdesk type 'SOME_NOT_SUPPORTED_TYPE'. Supported types:")
         .hasMessageContaining("ZAMMAD");
   }
 }
