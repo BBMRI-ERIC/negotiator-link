@@ -121,11 +121,11 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
   }
 
   private List<TicketMapping> getNegotiationMappings(String negotiationId) {
+    if (pendingTicketCreationCache.isTracked(negotiationId)) {
+      throw new PendingTicketCreationException(negotiationId);
+    }
     List<TicketMapping> mappings = ticketMappingRepository.findByIdNegotiationId(negotiationId);
     if (mappings.isEmpty()) {
-      if (pendingTicketCreationCache.isTracked(negotiationId)) {
-        throw new PendingTicketCreationException(negotiationId);
-      }
       log.debug("No ticket mappings for negotiation '{}' — nothing to fan out", negotiationId);
       return List.of();
     }

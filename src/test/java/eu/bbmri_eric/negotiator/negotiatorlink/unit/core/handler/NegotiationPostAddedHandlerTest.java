@@ -153,8 +153,7 @@ class NegotiationPostAddedHandlerTest {
   }
 
   @Test
-  void handle_noMappings_cachePresent_throwsPendingTicketCreationException() {
-    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(List.of());
+  void handle_cachePresent_throwsPendingTicketCreationException() {
     when(pendingTicketCreationCache.isTracked(NEGOTIATION_ID)).thenReturn(true);
 
     assertThatThrownBy(() -> handler.handle(postEventData(ORG_ID)))
