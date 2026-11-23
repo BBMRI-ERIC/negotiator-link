@@ -19,8 +19,8 @@ import org.springframework.stereotype.Component;
  * Returns outbox intents whose delivery claim has expired back to status {@link
  * OutboxStatus#PENDING}.
  *
- * <p>Also runs once at startup to release intents left {@code IN_PROGRESS} after
- * application was restarted.
+ * <p>Also runs once at startup to release intents left {@code IN_PROGRESS} after application was
+ * restarted.
  */
 @Slf4j
 @Component
