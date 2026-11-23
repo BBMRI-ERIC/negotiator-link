@@ -1,6 +1,8 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.reliability;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxStatus;
@@ -35,7 +37,31 @@ class PendingTicketCreationCacheTest {
   }
 
   @Test
-  void isTracked_untracked_isFalse() {
+  void isTracked_cacheMissAndOutboxHasPending_isTrue() {
+    when(outboxIntentRepository.countPendingCreateTicket(NEGOTIATION_ID, OutboxStatus.NON_TERMINAL))
+        .thenReturn(1L);
+
+    assertThat(cache.isTracked(NEGOTIATION_ID)).isTrue();
+  }
+
+  @Test
+  void isTracked_cacheMissAndOutboxHasPending_rewarmsCache() {
+    when(outboxIntentRepository.countPendingCreateTicket(NEGOTIATION_ID, OutboxStatus.NON_TERMINAL))
+        .thenReturn(1L);
+
+    assertThat(cache.isTracked(NEGOTIATION_ID)).isTrue();
+
+    // After re-warming, a subsequent lookup is served from the cache without hitting the outbox.
+    assertThat(cache.isTracked(NEGOTIATION_ID)).isTrue();
+    verify(outboxIntentRepository, times(1))
+        .countPendingCreateTicket(NEGOTIATION_ID, OutboxStatus.NON_TERMINAL);
+  }
+
+  @Test
+  void isTracked_cacheMissAndOutboxHasNone_isFalse() {
+    when(outboxIntentRepository.countPendingCreateTicket(NEGOTIATION_ID, OutboxStatus.NON_TERMINAL))
+        .thenReturn(0L);
+
     assertThat(cache.isTracked(NEGOTIATION_ID)).isFalse();
   }
 
@@ -78,9 +104,13 @@ class PendingTicketCreationCacheTest {
     when(outboxIntentRepository.findNegotiationIdsWithPendingCreateTicket(
             OutboxStatus.NON_TERMINAL))
         .thenReturn(List.of());
+    when(outboxIntentRepository.countPendingCreateTicket(NEGOTIATION_ID, OutboxStatus.NON_TERMINAL))
+        .thenReturn(0L);
 
     cache.warmFromOutbox();
 
     assertThat(cache.isTracked(NEGOTIATION_ID)).isFalse();
+    verify(outboxIntentRepository)
+        .countPendingCreateTicket(NEGOTIATION_ID, OutboxStatus.NON_TERMINAL);
   }
 }
