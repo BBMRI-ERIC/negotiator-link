@@ -3,6 +3,10 @@ spring:
     name: negotiator-link
   config:
     import: "optional:file:${ORGANIZATIONS_CONFIG_PATH:}"
+  task:
+    scheduling:
+      pool:
+        size: 4
   datasource:
     url: ${DB_URL:jdbc:postgresql://negotiator-link-postgresql:5432/negotiator_link}
     username: ${DB_USERNAME:negotiator_link}
@@ -55,14 +59,14 @@ negotiator-link:
   inbox:
     batch-size: 50
     poll-delay-ms: 500
-    max-attempts: 6
+    max-attempts: 10
     base-backoff: PT1S
-    max-backoff: PT30S
+    max-backoff: PT10M
   outbox:
     poll-delay-ms: 500
-    max-attempts: 6
+    max-attempts: 10
     base-backoff: PT1S
-    max-backoff: PT30S
+    max-backoff: PT10M
     claim-timeout: PT1800S
     claim-reap-interval: PT120S
     worker-count: 4

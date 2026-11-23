@@ -9,6 +9,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.SequencedMap;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -107,7 +108,7 @@ public class OutboxPoller {
     if (free == 0) {
       return true;
     }
-    Map<Long, UUID> claimed = claimer.claim(free, claimTimeout);
+    SequencedMap<Long, UUID> claimed = claimer.claim(free, claimTimeout);
     if (claimed.isEmpty()) {
       return true;
     }

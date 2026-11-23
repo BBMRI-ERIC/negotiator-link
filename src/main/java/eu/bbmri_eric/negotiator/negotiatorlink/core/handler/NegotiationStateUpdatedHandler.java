@@ -75,8 +75,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
   private record CreateNegotiationContext(
       EntityModelNegotiationDTO negotiation,
       List<EntityModelResourceWithStatusDTO> negotiationResources,
-      List<String> attachmentIds,
-      List<EntityModelPostDTO> posts) {}
+      List<String> attachmentIds) {}
 
   @Override
   public String getSupportedEventType() {
@@ -127,8 +126,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
     List<String> attachmentIds =
         attachmentForwardingService.getNegotiationPayloadAttachmentsIds(
             negotiationId, result.config());
-    List<EntityModelPostDTO> posts = negotiatorClient.getPosts(negotiationId, result.config());
-    return Optional.of(new CreateNegotiationContext(negotiation, resources, attachmentIds, posts));
+    return Optional.of(new CreateNegotiationContext(negotiation, resources, attachmentIds));
   }
 
   /** Builds the CREATE_TICKET (+ LINK_TICKETS) intents for a single organization's resources. */
@@ -141,16 +139,22 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
       log.debug("Organization '{}' not in config — skipping", orgExtId);
       return List.of();
     }
+    List<String> postTexts = getOrgPostTexts(context.negotiation().getId(), config);
     if (config.ticketStrategy() == TicketStrategy.PER_NEGOTIATION) {
-      return handlePerNegotiation(orgExtId, orgResources, context);
+      return handlePerNegotiation(orgExtId, orgResources, context, postTexts);
     }
-    return handlePerResource(orgExtId, orgResources, context);
+    return handlePerResource(orgExtId, orgResources, context, postTexts);
+  }
+
+  private List<String> getOrgPostTexts(String negotiationId, OrganizationConfig config) {
+    return orderAndSignNegotiationPosts(negotiatorClient.getPosts(negotiationId, config));
   }
 
   private List<PendingIntent> handlePerNegotiation(
       String orgExtId,
       List<EntityModelResourceWithStatusDTO> resources,
-      CreateNegotiationContext context) {
+      CreateNegotiationContext context,
+      List<String> postTexts) {
     EntityModelNegotiationDTO negotiation = context.negotiation();
     String body =
         NegotiationTicketBodyFormatter.getTicketBodyWithMultipleResources(
@@ -166,14 +170,15 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
             body,
             context.attachmentIds(),
             resourceRefs(resources),
-            orderAndSignNegotiationPosts(context.posts()));
+            postTexts);
     return List.of(createTicketIntent(negotiation.getId(), orgExtId, payload));
   }
 
   private List<PendingIntent> handlePerResource(
       String orgExtId,
       List<EntityModelResourceWithStatusDTO> resources,
-      CreateNegotiationContext context) {
+      CreateNegotiationContext context,
+      List<String> postTexts) {
     EntityModelNegotiationDTO negotiation = context.negotiation();
     List<PendingIntent> intents = new ArrayList<>();
 
@@ -191,7 +196,7 @@ public class NegotiationStateUpdatedHandler implements NegotiationEventHandler {
               body,
               context.attachmentIds(),
               resourceRefs(List.of(resource)),
-              orderAndSignNegotiationPosts(context.posts()));
+              postTexts);
       intents.add(createTicketIntent(negotiation.getId(), orgExtId, payload));
     }
 

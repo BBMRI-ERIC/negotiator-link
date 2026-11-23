@@ -19,6 +19,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.SequencedMap;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -67,6 +68,21 @@ class OutboxClaimerIT {
   }
 
   @Test
+  void claim_returnsRowsInAscendingRowIdOrder() {
+    List<Long> enqueued =
+        List.of(
+            save(pending(Instant.now().minusSeconds(5))).getRowId(),
+            save(pending(Instant.now().minusSeconds(5))).getRowId(),
+            save(pending(Instant.now().minusSeconds(5))).getRowId(),
+            save(pending(Instant.now().minusSeconds(5))).getRowId(),
+            save(pending(Instant.now().minusSeconds(5))).getRowId());
+
+    SequencedMap<Long, UUID> claimed = claimer.claim(10, Duration.ofSeconds(60));
+
+    assertThat(claimed.sequencedKeySet()).containsExactlyElementsOf(enqueued);
+  }
+
+  @Test
   void claim_emptyWhenNothingToBeProcessed() {
     save(pending(Instant.now().plusSeconds(300)));
 
@@ -102,11 +118,11 @@ class OutboxClaimerIT {
   }
 
   @Test
-  void reclaimExpiredClaims_returnsOnlyExpiredInProgressRowsToPendingAndClearsToken() {
+  void releaseExpiredClaims_returnsOnlyExpiredInProgressRowsToPendingAndClearsToken() {
     OutboxIntent expired = save(inProgress(Instant.now().minusSeconds(10)));
     OutboxIntent live = save(inProgress(Instant.now().plusSeconds(60)));
 
-    List<Long> reclaimed = claimer.reclaimExpiredClaims();
+    List<Long> reclaimed = claimer.releaseExpiredClaims();
 
     assertThat(reclaimed).containsExactly(expired.getRowId());
     OutboxIntent reloadedExpired =
@@ -116,6 +132,34 @@ class OutboxClaimerIT {
     assertThat(reloadedExpired.getClaimToken()).isNull();
     OutboxIntent reloadedLive = outboxIntentRepository.findById(live.getRowId()).orElseThrow();
     assertThat(reloadedLive.getStatus()).isEqualTo(OutboxStatus.IN_PROGRESS);
+  }
+
+  @Test
+  void reclaimClaimsStartedBefore_releasesClaimsTakenBeforeCutoffRegardlessOfExpiry() {
+    Duration claimTimeout = Duration.ofSeconds(30);
+    Instant startupCutoff = Instant.now();
+    OutboxIntent orphanedNotYetExpired =
+        save(inProgress(startupCutoff.minusSeconds(120).plus(claimTimeout)));
+    OutboxIntent claimedAfterStartup =
+        save(inProgress(startupCutoff.plusSeconds(5).plus(claimTimeout)));
+    OutboxIntent pending = save(pending(Instant.now().plusSeconds(300)));
+
+    List<Long> released = claimer.reclaimClaimsStartedBefore(startupCutoff, claimTimeout);
+
+    assertThat(released).containsExactly(orphanedNotYetExpired.getRowId());
+    OutboxIntent reloadedOrphan =
+        outboxIntentRepository.findById(orphanedNotYetExpired.getRowId()).orElseThrow();
+    assertThat(reloadedOrphan.getStatus()).isEqualTo(OutboxStatus.PENDING);
+    assertThat(reloadedOrphan.getClaimExpiresAt()).isNull();
+    assertThat(reloadedOrphan.getClaimToken()).isNull();
+
+    OutboxIntent reloadedLive =
+        outboxIntentRepository.findById(claimedAfterStartup.getRowId()).orElseThrow();
+    assertThat(reloadedLive.getStatus()).isEqualTo(OutboxStatus.IN_PROGRESS);
+    assertThat(reloadedLive.getClaimToken()).isNotNull();
+
+    assertThat(outboxIntentRepository.findById(pending.getRowId()).orElseThrow().getStatus())
+        .isEqualTo(OutboxStatus.PENDING);
   }
 
   private OutboxIntent save(OutboxIntent intent) {

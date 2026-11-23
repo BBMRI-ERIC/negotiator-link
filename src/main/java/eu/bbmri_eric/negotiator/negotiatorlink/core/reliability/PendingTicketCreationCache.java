@@ -13,9 +13,6 @@ import org.springframework.stereotype.Component;
 /**
  * Tracks negotiation IDs for which a CREATE_TICKET outbox intent is in process. Handlers use this
  * to distinguish "ticket creation pending —> retry" from "negotiation not managed here —> skip".
- *
- * <p>Entries expire after 10 minutes (safety net for stuck intents) or are removed explicitly when
- * CREATE_TICKET is successfully delivered.
  */
 @Slf4j
 @Component
@@ -38,7 +35,16 @@ public class PendingTicketCreationCache {
 
   /** Returns {@code true} if ticket creation is known to be in process for this negotiation. */
   public boolean isTracked(String negotiationId) {
-    return cache.getIfPresent(negotiationId) != null;
+    if (cache.getIfPresent(negotiationId) != null) {
+      return true;
+    }
+    boolean pending =
+        outboxIntentRepository.countPendingCreateTicket(negotiationId, OutboxStatus.NON_TERMINAL)
+            > 0;
+    if (pending) {
+      cache.put(negotiationId, Boolean.TRUE);
+    }
+    return pending;
   }
 
   /**

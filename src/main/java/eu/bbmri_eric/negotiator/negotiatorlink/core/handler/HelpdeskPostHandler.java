@@ -75,16 +75,7 @@ public class HelpdeskPostHandler implements HelpdeskEventHandler<PostMessageEven
   }
 
   private boolean arePrivatePostsEnabled(String negotiationId, OrganizationConfig config) {
-    try {
-      var negotiation = negotiatorClient.getNegotiation(negotiationId, config);
-      return negotiation != null && negotiation.getPrivatePostsEnabled();
-    } catch (Exception e) {
-      log.error(
-          "Could not determine whether negotiation '{}' accepts private posts — rejecting post: {}",
-          negotiationId,
-          e.getMessage());
-      return false;
-    }
+    return negotiatorClient.getNegotiation(negotiationId, config).getPrivatePostsEnabled();
   }
 
   private PendingIntent rejectPostIntent(

@@ -180,10 +180,9 @@ class OrganizationConfigRegistryTest {
   @Test
   void stateMaps_whenAbsentFromOrgAndNoDefaultsForType_resolveToEmptyMaps() {
     var entry = zammadEntry();
-    entry.setType(HelpdeskType.ALVAO);
     var props = new NegotiatorLinkProperties();
     props.setOrganizations(List.of(entry));
-    // no ALVAO entry in defaults map
+    // no defaults entry for the org's type
     var registry = new OrganizationConfigRegistry(props);
     var config = registry.findByExternalId(ORG_EXTERNAL_ID).orElseThrow();
     assertThat(config.negotiationStateToTicketState()).isEmpty();

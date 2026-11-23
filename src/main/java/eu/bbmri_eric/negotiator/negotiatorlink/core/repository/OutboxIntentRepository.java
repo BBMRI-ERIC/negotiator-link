@@ -57,6 +57,14 @@ public interface OutboxIntentRepository extends JpaRepository<OutboxIntent, Long
       nativeQuery = true)
   List<Long> selectExpiredClaimIds(@Param("now") Instant now);
 
+  @Query(
+      value =
+          "SELECT row_id FROM outbox_intent "
+              + "WHERE status = 'IN_PROGRESS' AND claim_expires_at < :expiresBefore "
+              + "FOR UPDATE SKIP LOCKED",
+      nativeQuery = true)
+  List<Long> selectInProgressIdsClaimedBefore(@Param("expiresBefore") Instant expiresBefore);
+
   /** Returns the given rows to {@code PENDING}, clearing their claim, so they are re-claimed. */
   @Modifying(clearAutomatically = true)
   @Query(

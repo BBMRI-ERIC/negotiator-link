@@ -3,9 +3,9 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.reliability;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepository;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.SequencedMap;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,18 +21,18 @@ public class OutboxClaimer {
 
   /**
    * Claims up to {@code limit} due intents, flipping them to IN_PROGRESS with a shared claim token
-   * and expiry. Returns a map of rowId → claim token.
+   * and expiry. Returns a map of rowId → claim token in ascending {@code row_id} order.
    */
   @Transactional
-  public Map<Long, UUID> claim(int limit, Duration claimTimeout) {
+  public SequencedMap<Long, UUID> claim(int limit, Duration claimTimeout) {
     Instant now = Instant.now();
     List<Long> rowIds = outboxIntentRepository.selectDispatchableIds(now, limit);
     if (rowIds.isEmpty()) {
-      return Map.of();
+      return new LinkedHashMap<>();
     }
     UUID token = UUID.randomUUID();
     outboxIntentRepository.markClaimed(rowIds, now.plus(claimTimeout), token);
-    Map<Long, UUID> result = new HashMap<>(rowIds.size());
+    SequencedMap<Long, UUID> result = new LinkedHashMap<>(rowIds.size());
     for (Long rowId : rowIds) {
       result.put(rowId, token);
     }
@@ -51,8 +51,23 @@ public class OutboxClaimer {
 
   /** Change intents status with an expired claim to PENDING. Returns the reclaimed ids. */
   @Transactional
-  public List<Long> reclaimExpiredClaims() {
+  public List<Long> releaseExpiredClaims() {
     List<Long> rowIds = outboxIntentRepository.selectExpiredClaimIds(Instant.now());
+    if (!rowIds.isEmpty()) {
+      outboxIntentRepository.releaseClaims(rowIds);
+    }
+    return rowIds;
+  }
+
+  /**
+   * Resets to {@code PENDING} every IN_PROGRESS intent whose claim was taken before {@code
+   * startedBefore}, regardless of whether its lease has expired yet. Called once at startup with
+   * the application start time to recover intents left mid-flight by the previous process.
+   */
+  @Transactional
+  public List<Long> reclaimClaimsStartedBefore(Instant startedBefore, Duration claimTimeout) {
+    Instant expiresBefore = startedBefore.plus(claimTimeout);
+    List<Long> rowIds = outboxIntentRepository.selectInProgressIdsClaimedBefore(expiresBefore);
     if (!rowIds.isEmpty()) {
       outboxIntentRepository.releaseClaims(rowIds);
     }

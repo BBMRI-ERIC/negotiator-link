@@ -107,12 +107,10 @@ class NegotiationPostAddedHandlerTest {
     var config = createConfig(ORG_EXT_ID);
     var mappings =
         List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID), mapping(TICKET_B, "99", "bbmri:NL:AMC"));
-    when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
-        .thenReturn(List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID)));
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
     when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config)))
         .thenReturn(createPost(EntityModelPostDTO.TypeEnum.PRIVATE));
-    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
     when(originatedPostRepository.findFirstByTextHashAndValidTicketOrgPairs(
             eq(POST_TEXT_HASH), aryEq(new String[] {TICKET_A}), aryEq(new String[] {ORG_EXT_ID})))
         .thenReturn(Optional.empty());
@@ -129,12 +127,10 @@ class NegotiationPostAddedHandlerTest {
     var config = createConfig(ORG_EXT_ID);
     var mappings = List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID));
     var originated = new OriginatedPost(POST_TEXT_HASH, ORG_EXT_ID, TICKET_A);
-    when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
-        .thenReturn(mappings);
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
     when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config)))
         .thenReturn(createPost(EntityModelPostDTO.TypeEnum.PRIVATE));
-    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
     when(originatedPostRepository.findFirstByTextHashAndValidTicketOrgPairs(
             eq(POST_TEXT_HASH), aryEq(new String[] {TICKET_A}), aryEq(new String[] {ORG_EXT_ID})))
         .thenReturn(Optional.of(originated));
@@ -149,39 +145,27 @@ class NegotiationPostAddedHandlerTest {
 
   @Test
   void handle_noMappings_cacheAbsent_returnsNoIntents() {
-    var config = createConfig(ORG_EXT_ID);
-    var mappings = List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID));
-    when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
-        .thenReturn(mappings);
-    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
-    when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config)))
-        .thenReturn(createPost(EntityModelPostDTO.TypeEnum.PRIVATE));
     when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(List.of());
     when(pendingTicketCreationCache.isTracked(NEGOTIATION_ID)).thenReturn(false);
 
     assertThat(handler.handle(postEventData(ORG_ID)).intents()).isEmpty();
+    verify(negotiatorClient, never()).getPost(any(), any(), any());
   }
 
   @Test
-  void handle_noMappings_cachePresent_throwsPendingTicketCreationException() {
-    var config = createConfig(ORG_EXT_ID);
-    var mappings = List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID));
-    when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
-        .thenReturn(mappings);
-    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
-    when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config)))
-        .thenReturn(createPost(EntityModelPostDTO.TypeEnum.PRIVATE));
-    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(List.of());
+  void handle_cachePresent_throwsPendingTicketCreationException() {
     when(pendingTicketCreationCache.isTracked(NEGOTIATION_ID)).thenReturn(true);
 
     assertThatThrownBy(() -> handler.handle(postEventData(ORG_ID)))
         .isInstanceOf(PendingTicketCreationException.class);
+    verify(negotiatorClient, never()).getPost(any(), any(), any());
   }
 
   @Test
   void handle_noConfigForPrivatePost_returnsNoIntents() {
-    when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
-        .thenReturn(List.of());
+    var mappings = List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID));
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.empty());
 
     assertThat(handler.handle(postEventData(ORG_ID)).intents()).isEmpty();
     verify(negotiatorClient, never()).getPost(any(), any(), any());
@@ -189,7 +173,9 @@ class NegotiationPostAddedHandlerTest {
 
   @Test
   void handle_noConfigForPublicPost_returnsNoIntents() {
-    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(List.of());
+    var mappings = List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID));
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.empty());
 
     assertThat(handler.handle(postEventData(null)).intents()).isEmpty();
     verify(negotiatorClient, never()).getPost(any(), any(), any());
@@ -215,13 +201,11 @@ class NegotiationPostAddedHandlerTest {
   void handle_postNotFound_returnsNoIntents() {
     var config = createConfig(ORG_EXT_ID);
     var mappings = List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID));
-    when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
-        .thenReturn(mappings);
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
     when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config))).thenReturn(null);
 
     assertThat(handler.handle(postEventData(ORG_ID)).intents()).isEmpty();
-    verify(ticketMappingRepository, never()).findByIdNegotiationId(any());
   }
 
   @Test
@@ -255,14 +239,12 @@ class NegotiationPostAddedHandlerTest {
   private void stubPrivatePost(String name, String email) {
     var config = createConfig(ORG_EXT_ID);
     var mappings = List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID));
-    when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
-        .thenReturn(mappings);
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
     when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config)))
         .thenReturn(
             TestUtil.post(
                 POST_ID, POST_TEXT, EntityModelPostDTO.TypeEnum.PRIVATE, ORG_ID_STR, name, email));
-    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
     when(originatedPostRepository.findFirstByTextHashAndValidTicketOrgPairs(
             eq(POST_TEXT_HASH), aryEq(new String[] {TICKET_A}), aryEq(new String[] {ORG_EXT_ID})))
         .thenReturn(Optional.empty());
@@ -303,11 +285,9 @@ class NegotiationPostAddedHandlerTest {
     var post =
         TestUtil.post(
             POST_ID, signedText, EntityModelPostDTO.TypeEnum.PRIVATE, ORG_ID_STR, "svc", "svc@eu");
-    when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
-        .thenReturn(mappings);
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
     when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config))).thenReturn(post);
-    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
     when(originatedPostRepository.findFirstByTextHashAndValidTicketOrgPairs(
             eq(signedHash),
             aryEq(new String[] {TICKET_A, TICKET_B}),
@@ -341,11 +321,9 @@ class NegotiationPostAddedHandlerTest {
   private void stubPrivatePostWithDto(EntityModelPostDTO post, String textHash) {
     var config = createConfig(ORG_EXT_ID);
     var mappings = List.of(mapping(TICKET_A, ORG_ID_STR, ORG_EXT_ID));
-    when(ticketMappingRepository.findByIdNegotiationIdAndOrganizationId(NEGOTIATION_ID, ORG_ID_STR))
-        .thenReturn(mappings);
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
     when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), eq(config))).thenReturn(post);
-    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
     when(originatedPostRepository.findFirstByTextHashAndValidTicketOrgPairs(
             eq(textHash), aryEq(new String[] {TICKET_A}), aryEq(new String[] {ORG_EXT_ID})))
         .thenReturn(Optional.empty());
