@@ -1,8 +1,8 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.adapter;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.OrganizationConfig;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.Attachment;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.CreateTicketRequest;
 import java.util.List;
 
 /** Outbound side of a help desk integration. */

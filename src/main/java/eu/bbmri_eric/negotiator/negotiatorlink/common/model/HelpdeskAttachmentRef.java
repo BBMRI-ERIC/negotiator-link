@@ -1,4 +1,4 @@
-package eu.bbmri_eric.negotiator.negotiatorlink.core.model;
+package eu.bbmri_eric.negotiator.negotiatorlink.common.model;
 
 /**
  * A reference to an attachment on an inbound helpdesk post

@@ -1,8 +1,8 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.inbound;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskCallbackAdapter;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.HelpdeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.InboxService;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.webhook.UnknownOrganizationException;

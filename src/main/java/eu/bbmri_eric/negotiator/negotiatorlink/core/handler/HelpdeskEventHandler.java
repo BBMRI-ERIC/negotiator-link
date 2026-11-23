@@ -1,8 +1,8 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.handler;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.OrganizationConfig;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.HelpdeskCallbackEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.HelpdeskCallbackType;
 
 /** Strategy interface for processing a verified helpdesk callback event */
 public interface HelpdeskEventHandler<T extends HelpdeskCallbackEvent> {
