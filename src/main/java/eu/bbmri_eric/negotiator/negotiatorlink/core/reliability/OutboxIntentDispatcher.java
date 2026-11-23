@@ -56,7 +56,7 @@ public class OutboxIntentDispatcher {
   private final OriginatedPostRepository originatedPostRepository;
   private final AttachmentForwardingService attachmentForwardingService;
   private final PendingTicketCreationCache pendingTicketCreationCache;
-  private final NegotiatorTransitionErrorTranslator transitionErrorTranslator;
+  private final NegotiatorResourceTransitionErrorTranslator transitionErrorTranslator;
   private final ObjectMapper objectMapper;
   private final MeterRegistry meterRegistry;
 
@@ -68,7 +68,7 @@ public class OutboxIntentDispatcher {
       OriginatedPostRepository originatedPostRepository,
       AttachmentForwardingService attachmentForwardingService,
       PendingTicketCreationCache pendingTicketCreationCache,
-      NegotiatorTransitionErrorTranslator transitionErrorTranslator,
+      NegotiatorResourceTransitionErrorTranslator transitionErrorTranslator,
       ObjectMapper objectMapper,
       MeterRegistry meterRegistry) {
     this.registry = registry;

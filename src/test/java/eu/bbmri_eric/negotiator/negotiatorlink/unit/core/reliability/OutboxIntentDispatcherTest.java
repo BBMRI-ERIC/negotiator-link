@@ -29,7 +29,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskAttachmentRef;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.DispatchResult;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.NegotiatorTransitionErrorTranslator;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.NegotiatorResourceTransitionErrorTranslator;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentDispatcher;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
@@ -53,7 +53,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostCreateDTO;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -82,7 +81,7 @@ class OutboxIntentDispatcherTest {
   @Mock private OriginatedPostRepository originatedPostRepository;
   @Mock private AttachmentForwardingService attachmentForwardingService;
   @Mock private PendingTicketCreationCache pendingTicketCreationCache;
-  @Mock private NegotiatorTransitionErrorTranslator transitionErrorTranslator;
+  @Mock private NegotiatorResourceTransitionErrorTranslator transitionErrorTranslator;
 
   private final ObjectMapper objectMapper = new ObjectMapper();
   private OrganizationConfig config;

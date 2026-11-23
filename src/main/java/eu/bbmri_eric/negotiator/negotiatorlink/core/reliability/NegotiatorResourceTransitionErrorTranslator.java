@@ -16,7 +16,7 @@ import org.springframework.web.client.RestClientResponseException;
  */
 @Slf4j
 @Component
-public class NegotiatorTransitionErrorTranslator {
+public class NegotiatorResourceTransitionErrorTranslator {
 
   private static final String COMMENT_LEAD =
       "The requested resource transition did not succeed because of the following reason:";
@@ -27,7 +27,7 @@ public class NegotiatorTransitionErrorTranslator {
   private final Set<String> knownTypeSuffixes;
   private final ObjectMapper objectMapper;
 
-  public NegotiatorTransitionErrorTranslator(
+  public NegotiatorResourceTransitionErrorTranslator(
       NegotiatorLinkProperties properties, ObjectMapper objectMapper) {
     this.knownTypeSuffixes = Set.copyOf(properties.getNegotiator().getTransitionErrorTypes());
     this.objectMapper = objectMapper;

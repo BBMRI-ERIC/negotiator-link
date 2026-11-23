@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorLinkProperties;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.NegotiatorTransitionErrorTranslator;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.NegotiatorResourceTransitionErrorTranslator;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
@@ -12,12 +12,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.client.RestClientResponseException;
 
-class NegotiatorTransitionErrorTranslatorTest {
+class NegotiatorResourceTransitionErrorTranslatorTest {
 
   private static final String STATUS_TEXT = "Conflict";
 
-  private final NegotiatorTransitionErrorTranslator translator =
-      new NegotiatorTransitionErrorTranslator(
+  private final NegotiatorResourceTransitionErrorTranslator translator =
+      new NegotiatorResourceTransitionErrorTranslator(
           properties(
               List.of(
                   "lifecycle/domain-state-conflict",
