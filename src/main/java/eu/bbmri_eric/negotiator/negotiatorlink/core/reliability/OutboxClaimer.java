@@ -60,12 +60,14 @@ public class OutboxClaimer {
   }
 
   /**
-   * Resets all IN_PROGRESS intents to PENDING regardless of claim expiry. Called once at startup to
-   * recover intents that were mid-flight when the application was stopped.
+   * Resets to {@code PENDING} every IN_PROGRESS intent whose claim was taken before {@code
+   * startedBefore}, regardless of whether its lease has expired yet. Called once at startup with
+   * the application start time to recover intents left mid-flight by the previous process.
    */
   @Transactional
-  public List<Long> releaseAllClaims() {
-    List<Long> rowIds = outboxIntentRepository.selectAllInProgressIds();
+  public List<Long> reclaimClaimsStartedBefore(Instant startedBefore, Duration claimTimeout) {
+    Instant expiresBefore = startedBefore.plus(claimTimeout);
+    List<Long> rowIds = outboxIntentRepository.selectInProgressIdsClaimedBefore(expiresBefore);
     if (!rowIds.isEmpty()) {
       outboxIntentRepository.releaseClaims(rowIds);
     }

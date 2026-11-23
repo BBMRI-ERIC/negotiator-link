@@ -135,20 +135,29 @@ class OutboxClaimerIT {
   }
 
   @Test
-  void releaseAllClaims_resetsAllInProgressToPendingRegardlessOfExpiry() {
-    OutboxIntent expired = save(inProgress(Instant.now().minusSeconds(10)));
-    OutboxIntent live = save(inProgress(Instant.now().plusSeconds(60)));
+  void reclaimClaimsStartedBefore_releasesClaimsTakenBeforeCutoffRegardlessOfExpiry() {
+    Duration claimTimeout = Duration.ofSeconds(30);
+    Instant startupCutoff = Instant.now();
+    OutboxIntent orphanedNotYetExpired =
+        save(inProgress(startupCutoff.minusSeconds(120).plus(claimTimeout)));
+    OutboxIntent claimedAfterStartup =
+        save(inProgress(startupCutoff.plusSeconds(5).plus(claimTimeout)));
     OutboxIntent pending = save(pending(Instant.now().plusSeconds(300)));
 
-    List<Long> released = claimer.releaseAllClaims();
+    List<Long> released = claimer.reclaimClaimsStartedBefore(startupCutoff, claimTimeout);
 
-    assertThat(released).containsExactlyInAnyOrder(expired.getRowId(), live.getRowId());
-    for (Long rowId : released) {
-      OutboxIntent reloaded = outboxIntentRepository.findById(rowId).orElseThrow();
-      assertThat(reloaded.getStatus()).isEqualTo(OutboxStatus.PENDING);
-      assertThat(reloaded.getClaimExpiresAt()).isNull();
-      assertThat(reloaded.getClaimToken()).isNull();
-    }
+    assertThat(released).containsExactly(orphanedNotYetExpired.getRowId());
+    OutboxIntent reloadedOrphan =
+        outboxIntentRepository.findById(orphanedNotYetExpired.getRowId()).orElseThrow();
+    assertThat(reloadedOrphan.getStatus()).isEqualTo(OutboxStatus.PENDING);
+    assertThat(reloadedOrphan.getClaimExpiresAt()).isNull();
+    assertThat(reloadedOrphan.getClaimToken()).isNull();
+
+    OutboxIntent reloadedLive =
+        outboxIntentRepository.findById(claimedAfterStartup.getRowId()).orElseThrow();
+    assertThat(reloadedLive.getStatus()).isEqualTo(OutboxStatus.IN_PROGRESS);
+    assertThat(reloadedLive.getClaimToken()).isNotNull();
+
     assertThat(outboxIntentRepository.findById(pending.getRowId()).orElseThrow().getStatus())
         .isEqualTo(OutboxStatus.PENDING);
   }
