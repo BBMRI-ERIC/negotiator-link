@@ -38,8 +38,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClientResponseException;
 
 /** The single place that maps an {@link OutboxIntentType} to a concrete client write call. */
 @Slf4j
@@ -53,6 +56,7 @@ public class OutboxIntentDispatcher {
   private final OriginatedPostRepository originatedPostRepository;
   private final AttachmentForwardingService attachmentForwardingService;
   private final PendingTicketCreationCache pendingTicketCreationCache;
+  private final NegotiatorTransitionErrorTranslator transitionErrorTranslator;
   private final ObjectMapper objectMapper;
   private final MeterRegistry meterRegistry;
 
@@ -64,6 +68,7 @@ public class OutboxIntentDispatcher {
       OriginatedPostRepository originatedPostRepository,
       AttachmentForwardingService attachmentForwardingService,
       PendingTicketCreationCache pendingTicketCreationCache,
+      NegotiatorTransitionErrorTranslator transitionErrorTranslator,
       ObjectMapper objectMapper,
       MeterRegistry meterRegistry) {
     this.registry = registry;
@@ -73,6 +78,7 @@ public class OutboxIntentDispatcher {
     this.originatedPostRepository = originatedPostRepository;
     this.attachmentForwardingService = attachmentForwardingService;
     this.pendingTicketCreationCache = pendingTicketCreationCache;
+    this.transitionErrorTranslator = transitionErrorTranslator;
     this.objectMapper = objectMapper;
     this.meterRegistry = meterRegistry;
   }
@@ -276,16 +282,89 @@ public class OutboxIntentDispatcher {
 
   private DispatchResult sendResourceEvent(OutboxIntent intent, OrganizationConfig config) {
     SendResourceEventPayload payload = read(intent, SendResourceEventPayload.class);
-    negotiatorClient.sendResourceEvent(
-        payload.negotiationId(), payload.resourceSourceId(), payload.event(), config);
-    return DispatchResult.empty();
+    try {
+      negotiatorClient.sendResourceEvent(
+          payload.negotiationId(), payload.resourceSourceId(), payload.event(), config);
+      return DispatchResult.empty();
+    } catch (RestClientResponseException e) {
+      return handleTransitionRejection(
+          e,
+          intent,
+          () ->
+              findTicketIdForSingleResourceTransition(
+                  payload.negotiationId(), payload.resourceSourceId()));
+    }
   }
 
   private DispatchResult sendBulkResourceEvent(OutboxIntent intent, OrganizationConfig config) {
     SendBulkResourceEventPayload payload = read(intent, SendBulkResourceEventPayload.class);
-    negotiatorClient.sendBulkResourceEvent(
-        payload.negotiationId(), payload.resourceIds(), payload.targetState(), config);
-    return DispatchResult.empty();
+    try {
+      negotiatorClient.sendBulkResourceEvent(
+          payload.negotiationId(), payload.resourceIds(), payload.targetState(), config);
+      return DispatchResult.empty();
+    } catch (RestClientResponseException e) {
+      return handleTransitionRejection(
+          e,
+          intent,
+          () ->
+              findTicketIdForBulkResourceTransition(
+                  payload.negotiationId(), payload.resourceIds()));
+    }
+  }
+
+  /**
+   * Turns a recognized Negotiator transition rejection into an {@code ADD_SYSTEM_COMMENT} follow-up
+   * for the originating ticket, so the help desk user knows why the transition did not succeed. The
+   * send intent itself is then treated as delivered: Negotiator received it and definitively
+   * rejected it, so retrying is pointless. An unrecognized error is re-thrown so the normal failure
+   * path applies.
+   */
+  private DispatchResult handleTransitionRejection(
+      RestClientResponseException error, OutboxIntent intent, Supplier<String> ticketIdResolver) {
+    Optional<String> comment = transitionErrorTranslator.translate(error);
+    if (comment.isEmpty()) {
+      throw error;
+    }
+    String ticketId = ticketIdResolver.get();
+    log.info(
+        "Negotiator rejected transition for intent {} ({}) — reporting to ticket {}",
+        intent.getRowId(),
+        intent.getIntentType(),
+        ticketId);
+    PendingIntent commentIntent =
+        new PendingIntent(
+            OutboxIntentType.ADD_SYSTEM_COMMENT,
+            TargetKind.TICKET,
+            ticketId,
+            intent.getNegotiationId(),
+            intent.getOrganizationExtId(),
+            serialize(new AddSystemCommentPayload(comment.get())));
+    return new DispatchResult(List.of(), Optional.empty(), List.of(commentIntent));
+  }
+
+  private String findTicketIdForSingleResourceTransition(
+      String negotiationId, String resourceSourceId) {
+    return ticketMappingRepository
+        .findByIdNegotiationIdAndResourceSourceId(negotiationId, resourceSourceId)
+        .orElseThrow()
+        .getId()
+        .getHelpdeskTicketId();
+  }
+
+  /**
+   * Resolves the single ticket ID behind a bulk transition. All of {@code resourceIds} map to the
+   * same ticket, so the first mapping for the negotiation whose {@code resourceId} is one of them
+   * identifies it.
+   */
+  private String findTicketIdForBulkResourceTransition(
+      String negotiationId, List<Long> resourceIds) {
+    Set<String> wanted = resourceIds.stream().map(String::valueOf).collect(Collectors.toSet());
+    return ticketMappingRepository.findByIdNegotiationId(negotiationId).stream()
+        .filter(m -> wanted.contains(m.getId().getResourceId()))
+        .findFirst()
+        .orElseThrow()
+        .getId()
+        .getHelpdeskTicketId();
   }
 
   private DispatchResult addCommentWithNewAttachments(
