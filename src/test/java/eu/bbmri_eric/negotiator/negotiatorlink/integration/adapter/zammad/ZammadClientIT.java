@@ -16,13 +16,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.zammad.ZammadClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.config.NegotiatorCredentials;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.Attachment;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.CreateTicketRequest;
 import java.nio.charset.StandardCharsets;
 import java.util.List;

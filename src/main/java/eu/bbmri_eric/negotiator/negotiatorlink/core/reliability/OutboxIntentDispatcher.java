@@ -5,11 +5,11 @@ import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PayloadUtil.seri
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.Attachment;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.CreateTicketRequest;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.HelpdeskAttachmentRef;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;

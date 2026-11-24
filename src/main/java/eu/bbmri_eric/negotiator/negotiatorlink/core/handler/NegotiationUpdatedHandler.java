@@ -4,9 +4,9 @@ import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PayloadUtil.seri
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.config.TicketStrategy;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;

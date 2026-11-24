@@ -2,6 +2,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.adapter;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.common.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.Attachment;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.CreateTicketRequest;
 import java.util.List;
 
