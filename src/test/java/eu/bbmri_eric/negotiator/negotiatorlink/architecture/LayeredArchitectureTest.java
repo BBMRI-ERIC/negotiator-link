@@ -8,9 +8,7 @@ import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 
-/**
- * Enforces the project's open (relaxed) layered architecture.
- */
+/** Enforces the project's open (relaxed) layered architecture. */
 @AnalyzeClasses(
     packages = "eu.bbmri_eric.negotiator.negotiatorlink",
     importOptions = ImportOption.DoNotIncludeTests.class)
