@@ -54,7 +54,7 @@ public class NegotiatorResourceTransitionErrorTranslator {
     try {
       return objectMapper.readValue(body, NegotiatorErrorResponse.class);
     } catch (Exception e) {
-      log.debug("Negotiator error body is not a parseable problem: {}", e.getMessage());
+      log.debug("The body of the Negotiator error response is not parseable: {}", e.getMessage());
       return null;
     }
   }
