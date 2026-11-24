@@ -61,7 +61,7 @@ public class NegotiatorResourceTransitionErrorTranslator {
 
   /** Matches a configured suffix against the tail of the {@code type} URI. */
   private boolean isKnown(String type) {
-    if (type == null) {
+    if (StringUtils.isBlank(type)) {
       return false;
     }
     return knownTypeSuffixes.stream().anyMatch(type::endsWith);
