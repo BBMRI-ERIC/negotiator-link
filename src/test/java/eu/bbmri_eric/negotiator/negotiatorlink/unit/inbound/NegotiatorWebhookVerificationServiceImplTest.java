@@ -1,4 +1,4 @@
-package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.webhook;
+package eu.bbmri_eric.negotiator.negotiatorlink.unit.inbound;
 
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.buildWebhookRequest;
 import static eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil.signedWebhookPayload;
@@ -6,8 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.standardwebhooks.exceptions.EmptyWebhookSecretException;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.webhook.NegotiatorWebhookVerificationServiceImpl;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.webhook.WebhookAuthenticationException;
+import eu.bbmri_eric.negotiator.negotiatorlink.inbound.NegotiatorWebhookVerificationServiceImpl;
+import eu.bbmri_eric.negotiator.negotiatorlink.inbound.WebhookAuthenticationException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;

@@ -5,8 +5,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.common.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.InboxService;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.webhook.UnknownOrganizationException;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.webhook.WebhookAuthenticationException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Collections;
 import java.util.Map;
