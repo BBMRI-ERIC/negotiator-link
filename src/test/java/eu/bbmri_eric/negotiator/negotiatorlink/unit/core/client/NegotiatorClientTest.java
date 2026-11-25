@@ -16,6 +16,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.PostType;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.ApiClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.api.AttachmentsApi;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.api.CommentsApi;
@@ -25,7 +26,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.AttachmentMetadat
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;
-import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostCreateDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.TestUtil;
 import java.util.List;
 import java.util.Map;
@@ -178,6 +178,12 @@ class NegotiatorClientTest {
         .expect(requestTo(BASE_URL + "/v3/negotiations/neg-1/posts"))
         .andExpect(method(HttpMethod.POST))
         .andExpect(header("Authorization", "Bearer " + BEARER_TOKEN))
+        .andExpect(
+            content()
+                .string(
+                    allOf(
+                        containsString("\"text\":\"hello\""),
+                        containsString("\"type\":\"PRIVATE\""))))
         .andRespond(
             withSuccess(
                 """
@@ -185,13 +191,31 @@ class NegotiatorClientTest {
                 """,
                 MediaType.APPLICATION_JSON));
 
-    var dto = new PostCreateDTO();
-    dto.setText("hello");
-    dto.setType(PostCreateDTO.TypeEnum.PRIVATE);
-
-    EntityModelPostDTO result = client.createPost("neg-1", dto, config);
+    EntityModelPostDTO result =
+        client.createPost("neg-1", "hello", ORG_EXT_ID, PostType.PRIVATE, config);
 
     assertThat(result.getId()).isEqualTo("post-1");
+    server.verify();
+  }
+
+  @Test
+  void createPost_publicType_sendsPublicTypeInBody() {
+    server
+        .expect(requestTo(BASE_URL + "/v3/negotiations/neg-1/posts"))
+        .andExpect(method(HttpMethod.POST))
+        .andExpect(content().string(containsString("\"type\":\"PUBLIC\"")))
+        .andRespond(
+            withSuccess(
+                """
+                {"id":"post-2","text":"hello all","type":"PUBLIC"}
+                """,
+                MediaType.APPLICATION_JSON));
+
+    EntityModelPostDTO result =
+        client.createPost("neg-1", "hello all", ORG_EXT_ID, PostType.PUBLIC, config);
+
+    assertThat(result.getId()).isEqualTo("post-2");
+    server.verify();
   }
 
   @Test
@@ -388,6 +412,26 @@ class NegotiatorClientTest {
     AttachmentMetadataDTO result = client.uploadAttachment("neg-1", attachment, ORG_EXT_ID, config);
 
     assertThat(result.getId()).isEqualTo("att-10");
+    server.verify();
+  }
+
+  @Test
+  void uploadAttachment_blankOrgId_postsWithoutOrganizationIdQueryParam() {
+    server
+        .expect(requestTo(BASE_URL + "/v3/negotiations/neg-1/attachments"))
+        .andExpect(method(HttpMethod.POST))
+        .andExpect(header("Authorization", "Bearer " + BEARER_TOKEN))
+        .andExpect(header("Content-Type", startsWith(MediaType.MULTIPART_FORM_DATA_VALUE)))
+        .andRespond(
+            withSuccess(
+                "{\"id\":\"att-pub\",\"name\":\"public.csv\",\"contentType\":\"text/csv\"}",
+                MediaType.APPLICATION_JSON));
+
+    var attachment = new Attachment("public.csv", "text/csv", "a,b\n1,2\n".getBytes());
+
+    AttachmentMetadataDTO result = client.uploadAttachment("neg-1", attachment, null, config);
+
+    assertThat(result.getId()).isEqualTo("att-pub");
     server.verify();
   }
 }

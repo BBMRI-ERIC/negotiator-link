@@ -8,6 +8,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.adapter.zammad.ZammadCallbackAdap
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskAttachmentRef;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.PostMessageEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.PostType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionWithPostMessageEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
@@ -91,7 +92,11 @@ class ZammadCallbackAdapterTest {
 
     var expected =
         new PostMessageEvent(
-            "2", "Hello from help desk", new Sender("John Rep", "john.rep@example.com"), List.of());
+            "2",
+            "Hello from help desk",
+            new Sender("John Rep", "john.rep@example.com"),
+            List.of(),
+            PostType.PRIVATE);
     assertThat(adapter.parseCallback(payload)).contains(expected);
   }
 
@@ -114,7 +119,8 @@ class ZammadCallbackAdapterTest {
             "MARK_AS_AVAILABLE",
             "Granting access",
             new Sender("Jane Rep", "jane.rep@example.com"),
-            List.of());
+            List.of(),
+            PostType.PRIVATE);
     assertThat(adapter.parseCallback(payload)).contains(expected);
   }
 
