@@ -10,9 +10,14 @@ import java.util.List;
  *
  * <p>Delivery is at-least-once: when a call succeeds on the platform but its response is lost, the
  * retry logic re-invokes the same action, so any method here may be called more than once for the
- * same logical action. This matters for calls whose repetition produces a duplicate side effect
- * (e.g. creating a second ticket or posting the same comment twice). This risk is in current design
- * accepted.
+ * same logical action. The state-setting methods ({@code update*State}, {@code linkRelatedTickets})
+ * are idempotent (re-applying them yields the same result) and the outbox additionally supersedes
+ * an obsolete state change with the newer one, so a retry can never set an older state over a
+ * newer one; the ticket's state therefore always converges to the latest. Only the content-creating
+ * methods ({@code createTicket}, {@code addComment}, {@code addSystemComment}) are
+ * non-idempotent: a retry after a lost response may create a second ticket or post a duplicate comment.
+ * The current design accepts this residual risk of rare duplicate content, which does not
+ * compromise state consistency.
  */
 public interface HelpdeskClient extends HelpdeskTyped {
 
