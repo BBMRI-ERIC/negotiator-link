@@ -5,41 +5,80 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
 import java.util.List;
 
-/** Outbound side of a help desk integration. */
+/**
+ * Outbound side of a help desk integration: write actions against the platform's API.
+ *
+ * <p>Delivery is at-least-once: when a call succeeds on the platform but its response is lost, the
+ * retry logic re-invokes the same action, so any method here may be called more than once for the
+ * same logical action. This matters for calls whose repetition produces a duplicate side effect
+ * (e.g. creating a second ticket or posting the same comment twice). This risk is in current design
+ * accepted.
+ */
 public interface HelpdeskClient extends HelpdeskTyped {
 
   /**
    * Create a new ticket for a resource or organization in a negotiation. Called once per resource
-   * (PER_RESOURCE) or once per org (PER_NEGOTIATION) when the negotiation reaches IN_PROGRESS.
-   * Returns a ticket ID
+   * (PER_RESOURCE) or once per org (PER_NEGOTIATION) when the negotiation reaches IN_PROGRESS. The
+   * returned id is reused on every later call for the ticket.
+   *
+   * @param request the ticket's initial content and attachments
+   * @param config the target organization's configuration
+   * @return the platform's id for the created ticket
    */
   String createTicket(CreateTicketRequest request, OrganizationConfig config);
 
-  /** Update the negotiation_state display field on an existing ticket. */
+  /**
+   * Set the negotiation-state display field on an existing ticket. A read-only informational value, which
+   * does not change the ticket's native state.
+   *
+   * @param ticketId the platform id of the ticket
+   * @param negotiationState the negotiation-state value to display
+   * @param config the target organization's configuration
+   */
   void updateNegotiationState(String ticketId, String negotiationState, OrganizationConfig config);
 
   /**
-   * Update the negotiator_resource_state display field on an existing ticket. Also clears
-   * negotiator_resource_transition_event back to null.
+   * Set the resource-state display field on an existing ticket. A read-only informational value, which
+   * does not change the ticket's native state. If the platform carries a pending resource-transition
+   * marker used for requesting resource state transitions, clear it here.
+   *
+   * @param ticketId the platform id of the ticket
+   * @param resourceState the resource-state value to display
+   * @param config the target organization's configuration
    */
   void updateResourceState(String ticketId, String resourceState, OrganizationConfig config);
 
   /**
-   * Update the platform-native ticket state (e.g. close the ticket). Called when a negotiation
-   * state maps to a configured ticket state.
+   * Set the ticket's own native state (e.g. close it). Called when a negotiation state
+   * or resource state maps to a configured ticket state.
+   *
+   * @param ticketId the platform id of the ticket
+   * @param ticketState the platform-native state to set
+   * @param config the target organization's configuration
    */
   void updateTicketState(String ticketId, String ticketState, OrganizationConfig config);
 
   /**
-   * Add an external comment to a ticket relaying a Negotiator post (from a researcher, admin, or
-   * another organization's representative). Visible to all ticket participants.
+   * Add an externally visible comment to a ticket, relaying a public Negotiator post.
+   * Visible to all ticket participants.
+   *
+   * @param ticketId the platform id of the ticket
+   * @param commentText the message content
+   * @param commentType how to interpret {@code commentText} (plain text or HTML)
+   * @param config the target organization's configuration
    */
   void addComment(
       String ticketId, String commentText, CommentType commentType, OrganizationConfig config);
 
   /**
-   * Add an external comment to a ticket together with a set of files, posted as one atomic unit
-   * where the platform supports.
+   * Add an externally visible comment together with a set of files, posted as one atomic unit where
+   * the platform supports it.
+   *
+   * @param ticketId the platform id of the ticket
+   * @param commentText the message content
+   * @param commentType how to interpret {@code commentText} (plain text or HTML)
+   * @param attachments the files to attach; may be empty
+   * @param config the target organization's configuration
    */
   void addComment(
       String ticketId,
@@ -49,25 +88,31 @@ public interface HelpdeskClient extends HelpdeskTyped {
       OrganizationConfig config);
 
   /**
-   * Add an internal comment to a ticket for middleware operational notifications (e.g. invalid
-   * transition rejection). Visible only to internal help desk staff — not in the Negotiator.
+   * Add an internal, staff-only comment for middleware operational notices (e.g. invalid transition
+   * rejection). Visible only to internal help desk staff.
+   *
+   * @param ticketId the platform id of the ticket
+   * @param message the operational message for internal staff
+   * @param config the target organization's configuration
    */
   void addSystemComment(String ticketId, String message, OrganizationConfig config);
 
   /**
    * Link a set of tickets as related so representatives can navigate between them. Called after all
-   * PER_RESOURCE tickets for a negotiation+org are created, with the full list of CreatedTicket
-   * objects.
+   * PER_RESOURCE tickets for a negotiation+org are created. A no-op with fewer than two ids.
+   *
+   * @param ticketIds the platform ids of the tickets to link together
+   * @param config the target organization's configuration
    */
   void linkRelatedTickets(List<String> ticketIds, OrganizationConfig config);
 
   /**
    * Download the raw bytes of an attachment from the help desk.
    *
-   * @param relativePath the help-desk-specific, fully-formed relative path from which the
-   *     attachment is downloaded.
-   * @param config organization configuration to use for this request
-   * @return the attachment content
+   * @param relativePath the platform-specific, fully-formed relative path to download from, as
+   *     emitted earlier by this platform's {@link HelpdeskCallbackAdapter#parseCallback}
+   * @param config the target organization's configuration
+   * @return the raw attachment content
    */
   byte[] downloadAttachment(String relativePath, OrganizationConfig config);
 }
