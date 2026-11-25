@@ -17,6 +17,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskAttachmentRef;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.PostType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddNegotiationAttachmentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
@@ -30,7 +31,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRep
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService.ResolvedAttachment;
-import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostCreateDTO;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.io.IOException;
@@ -235,22 +235,25 @@ public class OutboxIntentDispatcher {
           payload.negotiationId());
       return DispatchResult.empty();
     }
-    PostCreateDTO post =
-        new PostCreateDTO()
-            .text(payload.signedText())
-            .organizationId(organizationExtId)
-            .type(PostCreateDTO.TypeEnum.PRIVATE);
-    negotiatorClient.createPost(payload.negotiationId(), post, config);
+    negotiatorClient.createPost(
+        payload.negotiationId(),
+        payload.signedText(),
+        organizationExtId,
+        payload.postType(),
+        config);
     log.info(
-        "Forwarded help desk post to negotiation '{}' as PRIVATE post", payload.negotiationId());
+        "Forwarded help desk post to negotiation '{}' as {} post",
+        payload.negotiationId(),
+        payload.postType());
 
     forwardPostAttachments(payload, config, client);
     return DispatchResult.empty();
   }
 
   /**
-   * Downloads each helpdesk post attachment and re-uploads it to the negotiation as a PRIVATE
-   * (org-scoped) attachment, matching the post's visibility.
+   * Downloads each helpdesk post attachment and re-uploads it to the negotiation, matching the
+   * post's visibility: PRIVATE posts forward org-scoped (PRIVATE) attachments, PUBLIC posts forward
+   * unscoped (PUBLIC) attachments.
    *
    * <p>TODO:Currently, there is no endpoint in Negotiator to do it in one call along with the post
    * creation. Rewrite it once such an endpoint is available.
@@ -260,12 +263,14 @@ public class OutboxIntentDispatcher {
     if (payload.attachments() == null || payload.attachments().isEmpty()) {
       return;
     }
+    String attachmentOrgScope =
+        payload.postType() == PostType.PRIVATE ? config.organizationExternalId() : null;
     for (HelpdeskAttachmentRef ref : payload.attachments()) {
       byte[] content = client.downloadAttachment(ref.downloadPath(), config);
       negotiatorClient.uploadAttachment(
           payload.negotiationId(),
           new Attachment(ref.filename(), ref.contentType(), content),
-          config.organizationExternalId(),
+          attachmentOrgScope,
           config);
       log.info(
           "Forwarded help desk attachment '{}' to negotiation '{}'",

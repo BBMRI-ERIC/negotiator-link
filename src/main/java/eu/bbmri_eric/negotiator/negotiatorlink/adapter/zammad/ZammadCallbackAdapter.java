@@ -9,6 +9,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskAttachmentRef;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.PostMessageEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.PostType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionWithPostMessageEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
@@ -119,7 +120,8 @@ public class ZammadCallbackAdapter implements HelpdeskCallbackAdapter {
           case RESOURCE_TRANSITION ->
               new ResourceTransitionEvent(ticketId, resourceState, transitionEvent);
           case POST_MESSAGE ->
-              new PostMessageEvent(ticketId, parsed.article().body(), sender, attachments);
+              new PostMessageEvent(
+                  ticketId, parsed.article().body(), sender, attachments, PostType.PRIVATE);
           case RESOURCE_TRANSITION_WITH_POST_MESSAGE ->
               new ResourceTransitionWithPostMessageEvent(
                   ticketId,
@@ -127,7 +129,8 @@ public class ZammadCallbackAdapter implements HelpdeskCallbackAdapter {
                   transitionEvent,
                   parsed.article().body(),
                   sender,
-                  attachments);
+                  attachments,
+                  PostType.PRIVATE);
           default ->
               throw new IllegalStateException(
                   "Unsupported callback type " + callbackType + " for ticket " + ticketId);

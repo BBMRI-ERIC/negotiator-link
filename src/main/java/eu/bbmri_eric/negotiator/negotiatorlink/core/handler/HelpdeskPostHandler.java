@@ -10,6 +10,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedPost;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.model.PostMessageEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.model.PostType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
@@ -27,7 +28,7 @@ import org.springframework.stereotype.Service;
 public class HelpdeskPostHandler implements HelpdeskEventHandler<PostMessageEvent> {
 
   private static final String POST_REJECTED_MESSAGE =
-      "This message could not be forwarded to the Negotiator at this time. Negotiation is in the state that does not allow posting messages.";
+      "This message could not be forwarded to the Negotiator at this time. Negotiation is in the state that does not allow posting %s messages.";
 
   private final TicketMappingRepository ticketMappingRepository;
   private final NegotiatorClient negotiatorClient;
@@ -40,6 +41,7 @@ public class HelpdeskPostHandler implements HelpdeskEventHandler<PostMessageEven
   @Override
   public HandlerResult handle(PostMessageEvent postMessageEvent, OrganizationConfig config) {
     String ticketId = postMessageEvent.ticketId();
+    PostType postType = postMessageEvent.postType();
 
     List<TicketMapping> mappings =
         ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
@@ -47,8 +49,8 @@ public class HelpdeskPostHandler implements HelpdeskEventHandler<PostMessageEven
     TicketMapping anyMapping = mappings.getFirst();
     String negotiationId = anyMapping.getId().getNegotiationId();
 
-    if (!arePrivatePostsEnabled(negotiationId, config)) {
-      return HandlerResult.of(List.of(rejectPostIntent(ticketId, negotiationId, config)));
+    if (!arePostsEnabled(negotiationId, postType, config)) {
+      return HandlerResult.of(List.of(rejectPostIntent(ticketId, negotiationId, postType, config)));
     }
 
     String signedText = signPost(postMessageEvent.postText(), postMessageEvent.sender());
@@ -58,8 +60,9 @@ public class HelpdeskPostHandler implements HelpdeskEventHandler<PostMessageEven
         new OriginatedPost(textHash, config.organizationExternalId(), ticketId);
 
     log.info(
-        "Deciding help desk post from ticket '{}' as PRIVATE post to negotiation '{}'",
+        "Deciding help desk post from ticket '{}' as {} post to negotiation '{}'",
         ticketId,
+        postType.name().toLowerCase(),
         negotiationId);
     PendingIntent intent =
         new PendingIntent(
@@ -70,27 +73,39 @@ public class HelpdeskPostHandler implements HelpdeskEventHandler<PostMessageEven
             config.organizationExternalId(),
             serialize(
                 new CreatePostPayload(
-                    negotiationId, ticketId, signedText, postMessageEvent.attachments())));
+                    negotiationId,
+                    ticketId,
+                    signedText,
+                    postMessageEvent.attachments(),
+                    postType)));
     return HandlerResult.of(List.of(intent), originatedPost);
   }
 
-  private boolean arePrivatePostsEnabled(String negotiationId, OrganizationConfig config) {
-    return negotiatorClient.getNegotiation(negotiationId, config).getPrivatePostsEnabled();
+  private boolean arePostsEnabled(
+      String negotiationId, PostType postType, OrganizationConfig config) {
+    var negotiation = negotiatorClient.getNegotiation(negotiationId, config);
+    return switch (postType) {
+      case PRIVATE -> negotiation.getPrivatePostsEnabled();
+      case PUBLIC -> negotiation.getPublicPostsEnabled();
+    };
   }
 
   private PendingIntent rejectPostIntent(
-      String ticketId, String negotiationId, OrganizationConfig config) {
+      String ticketId, String negotiationId, PostType postType, OrganizationConfig config) {
     log.info(
-        "Negotiation '{}' for ticket '{}' does not accept private posts — rejecting post and "
+        "Negotiation '{}' for ticket '{}' does not accept {} posts — rejecting post and "
             + "notifying ticket",
         negotiationId,
-        ticketId);
+        ticketId,
+        postType.name().toLowerCase());
     return new PendingIntent(
         OutboxIntentType.ADD_SYSTEM_COMMENT,
         TargetKind.TICKET,
         ticketId,
         negotiationId,
         config.organizationExternalId(),
-        serialize(new AddSystemCommentPayload(POST_REJECTED_MESSAGE)));
+        serialize(
+            new AddSystemCommentPayload(
+                POST_REJECTED_MESSAGE.formatted(postType.name().toLowerCase()))));
   }
 }

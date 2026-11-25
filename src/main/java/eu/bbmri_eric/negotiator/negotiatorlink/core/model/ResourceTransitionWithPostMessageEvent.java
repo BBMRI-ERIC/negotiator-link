@@ -8,7 +8,8 @@ public record ResourceTransitionWithPostMessageEvent(
     String resourceTransitionEvent,
     String postText,
     Sender sender,
-    List<HelpdeskAttachmentRef> attachments)
+    List<HelpdeskAttachmentRef> attachments,
+    PostType postType)
     implements HelpdeskCallbackEvent {
 
   @Override
