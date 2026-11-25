@@ -18,6 +18,13 @@ import java.util.List;
  * non-idempotent: a retry after a lost response may create a second ticket or post a duplicate comment.
  * The current design accepts this residual risk of rare duplicate content, which does not
  * compromise state consistency.
+ *
+ * <p>Future extension: if a platform natively supports idempotency keys on its API calls, the
+ * non-idempotent methods ({@code createTicket}, {@code addComment}) could accept an additional
+ * {@code idempotencyKey} parameter generated in the core layer (e.g. derived from the
+ * {@code outbox_intent} id) and forwarded to the platform to let it deduplicate the request.
+ * This is not implemented yet because the only currently supported platform, Zammad, does not
+ * offer such a mechanism and the key would always be ignored.
  */
 public interface HelpdeskClient extends HelpdeskTyped {
 
