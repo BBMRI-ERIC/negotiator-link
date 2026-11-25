@@ -28,8 +28,8 @@ public interface HelpdeskClient extends HelpdeskTyped {
   String createTicket(CreateTicketRequest request, OrganizationConfig config);
 
   /**
-   * Set the negotiation-state display field on an existing ticket. A read-only informational value, which
-   * does not change the ticket's native state.
+   * Set the negotiation-state display field on an existing ticket. A read-only informational value,
+   * which does not change the ticket's native state.
    *
    * @param ticketId the platform id of the ticket
    * @param negotiationState the negotiation-state value to display
@@ -38,9 +38,9 @@ public interface HelpdeskClient extends HelpdeskTyped {
   void updateNegotiationState(String ticketId, String negotiationState, OrganizationConfig config);
 
   /**
-   * Set the resource-state display field on an existing ticket. A read-only informational value, which
-   * does not change the ticket's native state. If the platform carries a pending resource-transition
-   * marker used for requesting resource state transitions, clear it here.
+   * Set the resource-state display field on an existing ticket. A read-only informational value,
+   * which does not change the ticket's native state. If the platform carries a pending
+   * resource-transition marker used for requesting resource state transitions, clear it here.
    *
    * @param ticketId the platform id of the ticket
    * @param resourceState the resource-state value to display
@@ -49,8 +49,8 @@ public interface HelpdeskClient extends HelpdeskTyped {
   void updateResourceState(String ticketId, String resourceState, OrganizationConfig config);
 
   /**
-   * Set the ticket's own native state (e.g. close it). Called when a negotiation state
-   * or resource state maps to a configured ticket state.
+   * Set the ticket's own native state (e.g. close it). Called when a negotiation state or resource
+   * state maps to a configured ticket state.
    *
    * @param ticketId the platform id of the ticket
    * @param ticketState the platform-native state to set
@@ -59,8 +59,8 @@ public interface HelpdeskClient extends HelpdeskTyped {
   void updateTicketState(String ticketId, String ticketState, OrganizationConfig config);
 
   /**
-   * Add an externally visible comment to a ticket, relaying a public Negotiator post.
-   * Visible to all ticket participants.
+   * Add an externally visible comment to a ticket, relaying a public Negotiator post. Visible to
+   * all ticket participants.
    *
    * @param ticketId the platform id of the ticket
    * @param commentText the message content
