@@ -12,19 +12,19 @@ import java.util.List;
  * retry logic re-invokes the same action, so any method here may be called more than once for the
  * same logical action. The state-setting methods ({@code update*State}, {@code linkRelatedTickets})
  * are idempotent (re-applying them yields the same result) and the outbox additionally supersedes
- * an obsolete state change with the newer one, so a retry can never set an older state over a
- * newer one; the ticket's state therefore always converges to the latest. Only the content-creating
- * methods ({@code createTicket}, {@code addComment}, {@code addSystemComment}) are
- * non-idempotent: a retry after a lost response may create a second ticket or post a duplicate comment.
- * The current design accepts this residual risk of rare duplicate content, which does not
- * compromise state consistency.
+ * an obsolete state change with the newer one, so a retry can never set an older state over a newer
+ * one; the ticket's state therefore always converges to the latest. Only the content-creating
+ * methods ({@code createTicket}, {@code addComment}, {@code addSystemComment}) are non-idempotent:
+ * a retry after a lost response may create a second ticket or post a duplicate comment. The current
+ * design accepts this residual risk of rare duplicate content, which does not compromise state
+ * consistency.
  *
  * <p>Future extension: if a platform natively supports idempotency keys on its API calls, the
  * non-idempotent methods ({@code createTicket}, {@code addComment}) could accept an additional
- * {@code idempotencyKey} parameter generated in the core layer (e.g. derived from the
- * {@code outbox_intent} id) and forwarded to the platform to let it deduplicate the request.
- * This is not implemented yet because the only currently supported platform, Zammad, does not
- * offer such a mechanism and the key would always be ignored.
+ * {@code idempotencyKey} parameter generated in the core layer (e.g. derived from the {@code
+ * outbox_intent} id) and forwarded to the platform to let it deduplicate the request. This is not
+ * implemented yet because the only currently supported platform, Zammad, does not offer such a
+ * mechanism and the key would always be ignored.
  */
 public interface HelpdeskClient extends HelpdeskTyped {
 
