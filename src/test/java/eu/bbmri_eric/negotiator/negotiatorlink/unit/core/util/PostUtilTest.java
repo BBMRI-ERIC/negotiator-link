@@ -47,8 +47,7 @@ class PostUtilTest {
       Set<String> roleNames,
       boolean isPublicPost,
       String expected) {
-    assertThat(PostUtil.signRelayedPost(text, sender, roleNames, isPublicPost))
-        .isEqualTo(expected);
+    assertThat(PostUtil.signRelayedPost(text, sender, roleNames, isPublicPost)).isEqualTo(expected);
   }
 
   @ParameterizedTest(name = "{0}")
