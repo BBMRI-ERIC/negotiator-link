@@ -1,4 +1,4 @@
-package eu.bbmri_eric.negotiator.negotiatorlink.core.webhook;
+package eu.bbmri_eric.negotiator.negotiatorlink.inbound;
 
 import jakarta.servlet.http.HttpServletRequest;
 

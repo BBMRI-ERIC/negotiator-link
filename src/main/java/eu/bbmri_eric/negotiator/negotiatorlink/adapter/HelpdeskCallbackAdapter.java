@@ -1,6 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.adapter;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.HelpdeskCallbackEvent;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.http.HttpHeaders;

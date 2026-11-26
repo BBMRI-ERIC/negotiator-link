@@ -1,5 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.config;
 
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.HelpdeskType;
 import java.util.Arrays;
 import org.jspecify.annotations.NonNull;
 import org.springframework.boot.context.properties.ConfigurationPropertiesBinding;
