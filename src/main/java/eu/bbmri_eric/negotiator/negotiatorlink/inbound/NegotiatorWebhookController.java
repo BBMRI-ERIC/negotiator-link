@@ -2,7 +2,6 @@ package eu.bbmri_eric.negotiator.negotiatorlink.inbound;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.EventSource;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.InboxService;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.webhook.NegotiatorWebhookVerificationService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

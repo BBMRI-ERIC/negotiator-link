@@ -2,10 +2,10 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.service;
 
 import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PayloadUtil.serialize;
 
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.OrganizationConfig;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorLinkProperties;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
