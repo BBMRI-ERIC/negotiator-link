@@ -72,8 +72,8 @@ public interface HelpdeskClient extends HelpdeskTyped {
   void updateTicketState(String ticketId, String ticketState, OrganizationConfig config);
 
   /**
-   * Add an externally visible comment to a ticket, relaying a public Negotiator post. Visible to
-   * all ticket participants.
+   * Add an externally visible comment to a ticket. Visible to all participants of the target
+   * ticket.
    *
    * @param ticketId the platform id of the ticket
    * @param commentText the message content
@@ -84,8 +84,9 @@ public interface HelpdeskClient extends HelpdeskTyped {
       String ticketId, String commentText, CommentType commentType, OrganizationConfig config);
 
   /**
-   * Add an externally visible comment together with a set of files, posted as one atomic unit where
-   * the platform supports it.
+   * Add an externally visible comment together with a set of files. Visible to all participants of
+   * the target ticket. Where the platform supports it, comment and files are posted as one atomic
+   * unit.
    *
    * @param ticketId the platform id of the ticket
    * @param commentText the message content
