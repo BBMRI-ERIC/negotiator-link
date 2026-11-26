@@ -11,14 +11,14 @@ import java.util.List;
  *
  * <p>Delivery is at-least-once: when a call succeeds on the platform but its response is lost, the
  * retry logic re-invokes the same action, so any method here may be called more than once for the
- * same logical action. The state-setting methods ({@code update*State}, {@code linkRelatedTickets})
- * are idempotent (re-applying them yields the same result) and the outbox additionally supersedes
- * an obsolete state change with the newer one, so a retry can never set an older state over a newer
- * one; the ticket's state therefore always converges to the latest. Only the content-creating
- * methods ({@code createTicket}, {@code addComment}, {@code addSystemComment}) are non-idempotent:
- * a retry after a lost response may create a second ticket or post a duplicate comment. The current
- * design accepts this residual risk of rare duplicate content, which does not compromise state
- * consistency.
+ * same logical action. The state-setting methods ({@code update*State}) are idempotent (re-applying
+ * them yields the same result) and the outbox additionally supersedes an older pending state change
+ * when a newer one arrives, so a retry backlog cannot replay an already-superseded state.
+ * {@code linkRelatedTickets} is also idempotent in effect but is not subject to supersession.
+ * Only the content-creating methods ({@code createTicket}, {@code addComment}, {@code
+ * addSystemComment}) are non-idempotent: a retry after a lost response may create a second ticket
+ * or post a duplicate comment. The current design accepts this residual risk of rare duplicate
+ * content, which does not compromise state consistency.
  *
  * <p>Future extension: if a platform natively supports idempotency keys on its API calls, the
  * non-idempotent methods ({@code createTicket}, {@code addComment}) could accept an additional
