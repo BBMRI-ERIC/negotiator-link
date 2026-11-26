@@ -40,7 +40,13 @@ public class NegotiatorResourceTransitionErrorTranslator {
    */
   public Optional<String> translate(RestClientResponseException error) {
     NegotiatorErrorResponse problem = parse(error);
-    if (problem == null || !isKnown(problem.type())) {
+    if (problem == null) {
+      return Optional.empty();
+    }
+    if (!isKnown(problem.type())) {
+      log.debug(
+          "Negotiator transition error type '{}' is not a configured transition error — no comment produced",
+          problem.type());
       return Optional.empty();
     }
     return Optional.of(buildComment(problem));
@@ -54,7 +60,7 @@ public class NegotiatorResourceTransitionErrorTranslator {
     try {
       return objectMapper.readValue(body, NegotiatorErrorResponse.class);
     } catch (Exception e) {
-      log.debug("The body of the Negotiator error response is not parseable: {}", e.getMessage());
+      log.warn("The body of the Negotiator error response is not parseable: {}", e.getMessage());
       return null;
     }
   }
