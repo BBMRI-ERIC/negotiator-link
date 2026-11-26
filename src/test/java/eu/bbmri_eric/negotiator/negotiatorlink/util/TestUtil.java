@@ -1,10 +1,10 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.util;
 
 import com.standardwebhooks.Webhook;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorCredentials;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.HelpdeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.NegotiatorCredentials;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.OrganizationConfig;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelPostDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelResourceWithStatusDTO;

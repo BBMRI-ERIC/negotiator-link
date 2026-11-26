@@ -1,6 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.adapter;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.HelpdeskType;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;

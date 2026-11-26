@@ -3,10 +3,10 @@ package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.config;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.HelpdeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorLinkProperties;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

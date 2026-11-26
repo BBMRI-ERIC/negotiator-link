@@ -1,7 +1,5 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.inbound;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.core.webhook.UnknownOrganizationException;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.webhook.WebhookAuthenticationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
