@@ -41,8 +41,14 @@ class PostUtilTest {
   @ParameterizedTest(name = "{0}")
   @MethodSource("insertRoleUnderRelayedHeaderCases")
   void insertRoleUnderRelayedHeader_onlyTouchesExistingHeader(
-      String description, String text, Set<String> roleNames, String expected) {
-    assertThat(PostUtil.insertRoleUnderRelayedHeader(text, roleNames)).isEqualTo(expected);
+      String description,
+      String text,
+      Sender sender,
+      Set<String> roleNames,
+      boolean isPublicPost,
+      String expected) {
+    assertThat(PostUtil.insertRoleUnderRelayedHeader(text, sender, roleNames, isPublicPost))
+        .isEqualTo(expected);
   }
 
   @ParameterizedTest(name = "{0}")
@@ -217,16 +223,50 @@ class PostUtilTest {
   static Stream<Arguments> insertRoleUnderRelayedHeaderCases() {
     return Stream.of(
         Arguments.of(
-            "echo round-trip: Role inserted under the integration-produced From header",
+            "private: Role inserted under the integration-produced From header",
             "From: John Smith <john@mhh.de>\n\nHi",
+            SENDER,
             Set.of("Representative"),
+            false,
             "From: John Smith <john@mhh.de>\nRole: Representative\n\nHi"),
         Arguments.of(
-            "already role-signed relayed text is left unchanged (idempotent)",
+            "public: Role then Visibility inserted under the From header",
+            "From: John Smith <john@mhh.de>\n\nHi",
+            SENDER,
+            Set.of("Representative"),
+            true,
+            "From: John Smith <john@mhh.de>\nRole: Representative\nVisibility: All request participants\n\nHi"),
+        Arguments.of(
+            "public with no roles: only Visibility inserted under the From header",
+            "From: John Smith <john@mhh.de>\n\nHi",
+            SENDER,
+            Set.of(),
+            true,
+            "From: John Smith <john@mhh.de>\nVisibility: All request participants\n\nHi"),
+        Arguments.of(
+            "single From header with no roles, private: left unchanged",
+            SIGNED,
+            SENDER,
+            Set.of(),
+            false,
+            SIGNED),
+        Arguments.of(
+            "multi-line header is not a single From header: fully signed from sender",
             FROM + "\nRole: Author\n\n" + TEXT,
+            SENDER,
             Set.of("Admin"),
-            FROM + "\nRole: Author\n\n" + TEXT),
-        Arguments.of("no roles to add: relayed text left unchanged", SIGNED, Set.of(), SIGNED),
-        Arguments.of("no recognizable header: text left unchanged", TEXT, Set.of("Admin"), TEXT));
+            true,
+            FROM
+                + "\nRole: Admin\nVisibility: All request participants\n\n"
+                + FROM
+                + "\nRole: Author\n\n"
+                + TEXT),
+        Arguments.of(
+            "unsigned body is fully signed from sender",
+            TEXT,
+            SENDER,
+            Set.of("Admin"),
+            true,
+            FROM + "\nRole: Admin\nVisibility: All request participants\n\n" + TEXT));
   }
 }

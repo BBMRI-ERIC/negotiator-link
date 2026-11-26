@@ -83,7 +83,7 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
     }
 
     Optional<OriginatedPost> originatedPost =
-        findConsumedOriginatedPost(sha256Hex(post.getText()), ticketToOrgExtId, event);
+        findConsumedOriginatedPost(sha256Hex(post.getText()), ticketToOrgExtId);
     String text = decoratePost(post, originatedPost.isPresent());
 
     originatedPost.ifPresent(
@@ -162,15 +162,15 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
             ? post.getTags().stream().map(PostTagDTO::getName).collect(Collectors.toSet())
             : Collections.emptySet();
 
-    if (isRelayed) {
-      return PostUtil.insertRoleUnderRelayedHeader(post.getText(), roleNames);
-    }
-
+    boolean isPublic = post.getType() == EntityModelPostDTO.TypeEnum.PUBLIC;
     UserResponseModel createdBy = post.getCreatedBy();
     Sender sender =
         createdBy != null ? new Sender(createdBy.getName(), createdBy.getEmail()) : null;
-    return PostUtil.signPostWithRoles(
-        post.getText(), sender, roleNames, post.getType() == EntityModelPostDTO.TypeEnum.PUBLIC);
+
+    if (isRelayed) {
+      return PostUtil.insertRoleUnderRelayedHeader(post.getText(), sender, roleNames, isPublic);
+    }
+    return PostUtil.signPostWithRoles(post.getText(), sender, roleNames, isPublic);
   }
 
   private OrganizationConfig resolveFetchConfig(List<TicketMapping> mappings, Long organizationId) {
@@ -194,12 +194,7 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
    * can be excluded from fan-out. Returns the record to be consumed, or {@code Optional.empty()}.
    */
   private Optional<OriginatedPost> findConsumedOriginatedPost(
-      String textHash,
-      LinkedHashMap<String, String> ticketToOrgExtId,
-      NegotiationPostAddedWebhookEvent event) {
-    if (event.getOrganizationId() == null) {
-      return Optional.empty();
-    }
+      String textHash, LinkedHashMap<String, String> ticketToOrgExtId) {
     String[] ticketIds = ticketToOrgExtId.keySet().toArray(String[]::new);
     String[] orgExtIds = ticketToOrgExtId.values().toArray(String[]::new);
     return originatedPostRepository.findFirstByTextHashAndValidTicketOrgPairs(
