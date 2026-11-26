@@ -12,6 +12,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.common.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.CreateTicketRequest;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.HelpdeskAttachmentRef;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.IdempotencyKey;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OutboxIntent;
@@ -143,7 +144,8 @@ public class OutboxIntentDispatcher {
             payload.resourceState(),
             payload.ticketBody(),
             attachments);
-    String ticketId = client.createTicket(request, config);
+    String ticketId =
+        client.createTicket(request, config, IdempotencyKey.fromOutboxRowId(intent.getRowId()));
     log.info(
         "Created ticket '{}' for negotiation '{}' org '{}'",
         ticketId,
@@ -207,14 +209,23 @@ public class OutboxIntentDispatcher {
     }
 
     AddCommentPayload payload = convert(node, AddCommentPayload.class);
-    client.addComment(intent.getTargetId(), payload.text(), payload.commentType(), config);
+    client.addComment(
+        intent.getTargetId(),
+        payload.text(),
+        payload.commentType(),
+        config,
+        IdempotencyKey.fromOutboxRowId(intent.getRowId()));
     return DispatchResult.empty();
   }
 
   private DispatchResult addSystemComment(
       OutboxIntent intent, OrganizationConfig config, HelpdeskClient client) {
     AddSystemCommentPayload payload = read(intent, AddSystemCommentPayload.class);
-    client.addSystemComment(intent.getTargetId(), payload.message(), config);
+    client.addSystemComment(
+        intent.getTargetId(),
+        payload.message(),
+        config,
+        IdempotencyKey.fromOutboxRowId(intent.getRowId()));
     return DispatchResult.empty();
   }
 
@@ -302,7 +313,8 @@ public class OutboxIntentDispatcher {
         payload.text(),
         CommentType.PLAIN_TEXT,
         resolved.stream().map(ResolvedAttachment::attachment).toList(),
-        config);
+        config,
+        IdempotencyKey.fromOutboxRowId(intent.getRowId()));
     DispatchResult.ForwardedAttachmentsRecord forwarded =
         new DispatchResult.ForwardedAttachmentsRecord(
             payload.negotiationId(),

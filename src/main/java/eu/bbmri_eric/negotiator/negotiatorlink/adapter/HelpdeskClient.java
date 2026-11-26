@@ -4,6 +4,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.common.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.CreateTicketRequest;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.IdempotencyKey;
 import java.util.List;
 
 /**
@@ -16,16 +17,14 @@ import java.util.List;
  * an obsolete state change with the newer one, so a retry can never set an older state over a newer
  * one; the ticket's state therefore always converges to the latest. Only the content-creating
  * methods ({@code createTicket}, {@code addComment}, {@code addSystemComment}) are non-idempotent:
- * a retry after a lost response may create a second ticket or post a duplicate comment. The current
- * design accepts this residual risk of rare duplicate content, which does not compromise state
- * consistency.
+ * a retry after a lost response may create a second ticket or post a duplicate comment.
  *
- * <p>Future extension: if a platform natively supports idempotency keys on its API calls, the
- * non-idempotent methods ({@code createTicket}, {@code addComment}) could accept an additional
- * {@code idempotencyKey} parameter generated in the core layer (e.g. derived from the {@code
- * outbox_intent} id) and forwarded to the platform to let it deduplicate the request. This is not
- * implemented yet because the only currently supported platform, Zammad, does not offer such a
- * mechanism and the key would always be ignored.
+ * <p>To contain that risk, each content-creating method takes an {@link IdempotencyKey} generated
+ * in the core layer from the {@code outbox_intent} id. The key is stable across retries of the same
+ * logical action, so a platform whose API supports idempotency keys can forward it (e.g. as a
+ * request header) and let the platform collapse a retried request into a no-op. A platform with no
+ * such mechanism ignores the key and accepts the residual risk of rare duplicate content, which
+ * does not compromise state consistency.
  */
 public interface HelpdeskClient extends HelpdeskTyped {
 
@@ -36,9 +35,12 @@ public interface HelpdeskClient extends HelpdeskTyped {
    *
    * @param request the ticket's initial content and attachments
    * @param config the target organization's configuration
+   * @param idempotencyKey key a platform supporting idempotency may use to dedupe a retried create;
+   *     ignored by platforms without such a mechanism
    * @return the platform's id for the created ticket
    */
-  String createTicket(CreateTicketRequest request, OrganizationConfig config);
+  String createTicket(
+      CreateTicketRequest request, OrganizationConfig config, IdempotencyKey idempotencyKey);
 
   /**
    * Set the negotiation-state display field on an existing ticket. A read-only informational value,
@@ -79,9 +81,15 @@ public interface HelpdeskClient extends HelpdeskTyped {
    * @param commentText the message content
    * @param commentType how to interpret {@code commentText} (plain text or HTML)
    * @param config the target organization's configuration
+   * @param idempotencyKey key a platform supporting idempotency may use to dedupe a retried
+   *     comment; ignored by platforms without such a mechanism
    */
   void addComment(
-      String ticketId, String commentText, CommentType commentType, OrganizationConfig config);
+      String ticketId,
+      String commentText,
+      CommentType commentType,
+      OrganizationConfig config,
+      IdempotencyKey idempotencyKey);
 
   /**
    * Add an externally visible comment together with a set of files, posted as one atomic unit where
@@ -92,13 +100,16 @@ public interface HelpdeskClient extends HelpdeskTyped {
    * @param commentType how to interpret {@code commentText} (plain text or HTML)
    * @param attachments the files to attach; may be empty
    * @param config the target organization's configuration
+   * @param idempotencyKey key a platform supporting idempotency may use to dedupe a retried
+   *     comment; ignored by platforms without such a mechanism
    */
   void addComment(
       String ticketId,
       String commentText,
       CommentType commentType,
       List<Attachment> attachments,
-      OrganizationConfig config);
+      OrganizationConfig config,
+      IdempotencyKey idempotencyKey);
 
   /**
    * Add an internal, staff-only comment for middleware operational notices (e.g. invalid transition
@@ -107,8 +118,11 @@ public interface HelpdeskClient extends HelpdeskTyped {
    * @param ticketId the platform id of the ticket
    * @param message the operational message for internal staff
    * @param config the target organization's configuration
+   * @param idempotencyKey key a platform supporting idempotency may use to dedupe a retried
+   *     comment; ignored by platforms without such a mechanism
    */
-  void addSystemComment(String ticketId, String message, OrganizationConfig config);
+  void addSystemComment(
+      String ticketId, String message, OrganizationConfig config, IdempotencyKey idempotencyKey);
 
   /**
    * Link a set of tickets as related so representatives can navigate between them. Called after all
