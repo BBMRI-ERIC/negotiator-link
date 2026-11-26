@@ -1,4 +1,4 @@
-package eu.bbmri_eric.negotiator.negotiatorlink.core.webhook;
+package eu.bbmri_eric.negotiator.negotiatorlink.inbound;
 
 /**
  * Thrown when an inbound help desk callback addresses an organization that is not configured here,

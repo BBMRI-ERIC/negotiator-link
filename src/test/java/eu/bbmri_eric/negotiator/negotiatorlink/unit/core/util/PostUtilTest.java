@@ -2,7 +2,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.unit.core.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Sender;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.Sender;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil;
 import java.util.Set;
 import java.util.stream.Stream;

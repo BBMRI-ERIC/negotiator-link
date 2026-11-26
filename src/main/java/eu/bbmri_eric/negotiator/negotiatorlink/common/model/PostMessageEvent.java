@@ -1,11 +1,9 @@
-package eu.bbmri_eric.negotiator.negotiatorlink.core.model;
+package eu.bbmri_eric.negotiator.negotiatorlink.common.model;
 
 import java.util.List;
 
-public record ResourceTransitionWithPostMessageEvent(
+public record PostMessageEvent(
     String ticketId,
-    String resourceState,
-    String resourceTransitionEvent,
     String postText,
     Sender sender,
     List<HelpdeskAttachmentRef> attachments,
@@ -14,6 +12,6 @@ public record ResourceTransitionWithPostMessageEvent(
 
   @Override
   public HelpdeskCallbackType type() {
-    return HelpdeskCallbackType.RESOURCE_TRANSITION_WITH_POST_MESSAGE;
+    return HelpdeskCallbackType.POST_MESSAGE;
   }
 }

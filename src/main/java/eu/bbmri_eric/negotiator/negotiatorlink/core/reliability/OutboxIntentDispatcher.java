@@ -5,19 +5,19 @@ import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PayloadUtil.seri
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import eu.bbmri_eric.negotiator.negotiatorlink.adapter.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.adapter.HelpdeskClient;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.HelpdeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.OrganizationConfig;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.Attachment;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.CommentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.CreateTicketRequest;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.HelpdeskAttachmentRef;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.PostType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.HelpdeskType;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OutboxIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.CreateTicketRequest;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskAttachmentRef;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.PostType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddCommentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddNegotiationAttachmentPayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;

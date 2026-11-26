@@ -12,11 +12,11 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.OrganizationConfig;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.TicketStrategy;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.Attachment;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.PostType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.TicketStrategy;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.PostType;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.ApiClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.api.AttachmentsApi;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.api.CommentsApi;
@@ -381,9 +381,7 @@ class NegotiatorClientTest {
                 "{\"id\":\"att-9\",\"name\":\"report.csv\",\"contentType\":\"text/csv\"}",
                 MediaType.APPLICATION_JSON));
 
-    var attachment =
-        new eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment(
-            "report.csv", "text/csv", "col1,col2\n1,2\n".getBytes());
+    var attachment = new Attachment("report.csv", "text/csv", "col1,col2\n1,2\n".getBytes());
 
     AttachmentMetadataDTO result = client.uploadAttachment("neg-1", attachment, ORG_EXT_ID, config);
 

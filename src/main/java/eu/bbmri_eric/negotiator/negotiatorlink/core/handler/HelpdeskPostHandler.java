@@ -4,13 +4,15 @@ import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.HashUtil.sha256H
 import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PayloadUtil.serialize;
 import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil.signPost;
 
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.OrganizationConfig;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.HelpdeskCallbackType;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.PostMessageEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedPost;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.PostMessageEvent;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.PostType;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.HelpdeskCallbackType;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.PostMessageEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.PostType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;

@@ -1,9 +1,9 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.client;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.NegotiatorCredentials;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.Attachment;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.PostType;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.NegotiatorCredentials;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.OrganizationConfig;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.Attachment;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.PostType;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.ApiClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.api.AttachmentsApi;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.api.CommentsApi;
