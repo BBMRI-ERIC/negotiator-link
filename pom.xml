@@ -5,7 +5,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.1.2</version>
+        <version>4.2.0</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>eu.bbmri_eric.negotiator</groupId>
@@ -16,9 +16,6 @@
     <properties>
         <java.version>21</java.version>
         <springdoc.version>3.2.0</springdoc.version>
-        <flyway.version>13.11.1</flyway.version>
-        <postgresql.version>42.7.14</postgresql.version>
-        <lombok.version>1.18.48</lombok.version>
         <openapi-generator.version>7.26.0</openapi-generator.version>
         <wiremock.version>3.13.2</wiremock.version>
         <okhttp.version>5.5.1</okhttp.version>
@@ -26,6 +23,7 @@
         <jackson-databind-nullable.version>0.2.13</jackson-databind-nullable.version>
         <standardwebhooks.version>1.2.0</standardwebhooks.version>
         <j2html.version>1.6.0</j2html.version>
+        <archunit.version>1.5.1</archunit.version>
         <fmt-maven-plugin.version>2.29</fmt-maven-plugin.version>
         <jacoco.version>0.8.16</jacoco.version>
     </properties>
@@ -106,17 +104,14 @@
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
-            <version>${flyway.version}</version>
         </dependency>
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-database-postgresql</artifactId>
-            <version>${flyway.version}</version>
         </dependency>
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
-            <version>${postgresql.version}</version>
             <scope>runtime</scope>
         </dependency>
 
@@ -159,6 +154,12 @@
             <artifactId>spring-boot-testcontainers</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit6</artifactId>
+            <version>${archunit.version}</version>
+            <scope>test</scope>
+        </dependency>
 
         <!-- openapi-generator runtime deps (restclient library) -->
         <dependency>
@@ -178,7 +179,6 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>${lombok.version}</version>
             <optional>true</optional>
         </dependency>
         <dependency>

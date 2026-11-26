@@ -1,5 +1,9 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.config;
 
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.HelpdeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.NegotiatorCredentials;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.OrganizationConfig;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.TicketStrategy;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
