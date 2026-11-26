@@ -109,8 +109,8 @@ class NegotiatorWebhookControllerIT {
   @BeforeEach
   void resetMocks() {
     Mockito.reset(helpdeskClient, negotiatorClient);
-    Mockito.doNothing().when(helpdeskClient).addComment(any(), any(), any(), any());
-    Mockito.doNothing().when(helpdeskClient).addSystemComment(any(), any(), any());
+    Mockito.doNothing().when(helpdeskClient).addComment(any(), any(), any(), any(), any());
+    Mockito.doNothing().when(helpdeskClient).addSystemComment(any(), any(), any(), any());
     Mockito.doNothing().when(helpdeskClient).updateNegotiationState(any(), any(), any());
     Mockito.doNothing().when(helpdeskClient).updateResourceState(any(), any(), any());
     Mockito.doNothing().when(helpdeskClient).updateTicketState(any(), any(), any());
@@ -203,8 +203,8 @@ class NegotiatorWebhookControllerIT {
 
     // ticketB must receive the comment; ticketA must be excluded
     verify(helpdeskClient)
-        .addComment(eq(TICKET_B), contains(postText), eq(CommentType.PLAIN_TEXT), any());
-    verify(helpdeskClient, never()).addComment(eq(TICKET_A), any(), any(), any());
+        .addComment(eq(TICKET_B), contains(postText), eq(CommentType.PLAIN_TEXT), any(), any());
+    verify(helpdeskClient, never()).addComment(eq(TICKET_A), any(), any(), any(), any());
   }
 
   @Test
@@ -270,7 +270,7 @@ class NegotiatorWebhookControllerIT {
     performWebhook("upd-w1", Instant.now(), negotiationUpdatedPayload("upd-neg-0"))
         .andExpect(status().isOk());
 
-    verify(helpdeskClient, never()).addComment(anyString(), anyString(), any(), any());
+    verify(helpdeskClient, never()).addComment(anyString(), anyString(), any(), any(), any());
   }
 
   @Test
@@ -306,9 +306,9 @@ class NegotiatorWebhookControllerIT {
         .andExpect(status().isOk());
 
     verify(helpdeskClient, times(1))
-        .addComment(eq(ticketA), contains("updated"), eq(CommentType.HTML), any());
+        .addComment(eq(ticketA), contains("updated"), eq(CommentType.HTML), any(), any());
     verify(helpdeskClient, times(1))
-        .addComment(eq(ticketB), contains("updated"), eq(CommentType.HTML), any());
+        .addComment(eq(ticketB), contains("updated"), eq(CommentType.HTML), any(), any());
   }
 
   @Test
@@ -344,7 +344,7 @@ class NegotiatorWebhookControllerIT {
         .andExpect(status().isOk());
 
     verify(helpdeskClient, times(1))
-        .addComment(eq(ticketId), contains("updated"), eq(CommentType.HTML), any());
+        .addComment(eq(ticketId), contains("updated"), eq(CommentType.HTML), any(), any());
   }
 
   @Test
@@ -378,13 +378,13 @@ class NegotiatorWebhookControllerIT {
                 TestUtil.resource(2L, "src-2", "Collection B", orgExtId, orgId)));
     doThrow(new RuntimeException("helpdesk down"))
         .when(helpdeskClient)
-        .addComment(eq(ticketA), anyString(), any(), any());
+        .addComment(eq(ticketA), anyString(), any(), any(), any());
 
     performWebhook("upd-w4", Instant.now(), negotiationUpdatedPayload(negotiationId))
         .andExpect(status().isOk());
 
     verify(helpdeskClient, times(1))
-        .addComment(eq(ticketB), contains("updated"), eq(CommentType.HTML), any());
+        .addComment(eq(ticketB), contains("updated"), eq(CommentType.HTML), any(), any());
   }
 
   private ResultActions performWebhook(String webhookId, Instant timestamp, String body)
