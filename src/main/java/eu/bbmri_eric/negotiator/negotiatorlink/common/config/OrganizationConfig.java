@@ -1,4 +1,4 @@
-package eu.bbmri_eric.negotiator.negotiatorlink.core.config;
+package eu.bbmri_eric.negotiator.negotiatorlink.common.config;
 
 import java.util.Map;
 

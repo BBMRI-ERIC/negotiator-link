@@ -1,5 +1,7 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.config;
 
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.HelpdeskType;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.TicketStrategy;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;

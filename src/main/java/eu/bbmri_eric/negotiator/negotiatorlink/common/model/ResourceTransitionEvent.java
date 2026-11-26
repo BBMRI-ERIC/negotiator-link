@@ -1,4 +1,4 @@
-package eu.bbmri_eric.negotiator.negotiatorlink.core.model;
+package eu.bbmri_eric.negotiator.negotiatorlink.common.model;
 
 public record ResourceTransitionEvent(String ticketId, String resourceTransitionEvent)
     implements HelpdeskCallbackEvent {

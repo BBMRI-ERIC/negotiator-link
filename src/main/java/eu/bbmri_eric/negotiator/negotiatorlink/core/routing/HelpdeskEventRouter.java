@@ -1,13 +1,13 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.core.routing;
 
-import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfig;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.config.OrganizationConfig;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.HelpdeskCallbackEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.HelpdeskCallbackType;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.PostMessageEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.ResourceTransitionEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.ResourceTransitionWithPostMessageEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HandlerResult;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.handler.HelpdeskEventHandler;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackEvent;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.HelpdeskCallbackType;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.PostMessageEvent;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionEvent;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.model.ResourceTransitionWithPostMessageEvent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import java.util.ArrayList;
 import java.util.List;
