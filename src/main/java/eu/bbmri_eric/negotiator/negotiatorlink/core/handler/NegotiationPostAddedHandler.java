@@ -168,7 +168,7 @@ public class NegotiationPostAddedHandler implements NegotiationEventHandler {
         createdBy != null ? new Sender(createdBy.getName(), createdBy.getEmail()) : null;
 
     if (isRelayed) {
-      return PostUtil.insertRoleUnderRelayedHeader(post.getText(), sender, roleNames, isPublic);
+      return PostUtil.signRelayedPost(post.getText(), sender, roleNames, isPublic);
     }
     return PostUtil.signPostWithRoles(post.getText(), sender, roleNames, isPublic);
   }

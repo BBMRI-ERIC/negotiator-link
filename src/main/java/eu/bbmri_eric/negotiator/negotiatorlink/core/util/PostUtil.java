@@ -52,7 +52,7 @@ public final class PostUtil {
    * @return the text with the {@code Role:} and/or {@code Visibility:} lines inserted under the
    *     existing header, or the original text when there is nothing to add or no header is present
    */
-  public static String insertRoleUnderRelayedHeader(
+  public static String signRelayedPost(
       String text, Sender sender, Set<String> roleNames, boolean isPublicPost) {
     boolean hasFromLine = isSingleFromHeader(text);
     int blankLine = text.indexOf("\n\n");

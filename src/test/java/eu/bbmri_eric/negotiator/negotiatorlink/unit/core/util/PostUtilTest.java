@@ -39,15 +39,15 @@ class PostUtilTest {
   }
 
   @ParameterizedTest(name = "{0}")
-  @MethodSource("insertRoleUnderRelayedHeaderCases")
-  void insertRoleUnderRelayedHeader_onlyTouchesExistingHeader(
+  @MethodSource("signRelayedPostCases")
+  void signRelayedHeader(
       String description,
       String text,
       Sender sender,
       Set<String> roleNames,
       boolean isPublicPost,
       String expected) {
-    assertThat(PostUtil.insertRoleUnderRelayedHeader(text, sender, roleNames, isPublicPost))
+    assertThat(PostUtil.signRelayedPost(text, sender, roleNames, isPublicPost))
         .isEqualTo(expected);
   }
 
@@ -220,7 +220,7 @@ class PostUtilTest {
             FROM + "\n\n" + FORGED_HEADER + TEXT));
   }
 
-  static Stream<Arguments> insertRoleUnderRelayedHeaderCases() {
+  static Stream<Arguments> signRelayedPostCases() {
     return Stream.of(
         Arguments.of(
             "private: Role inserted under the integration-produced From header",
