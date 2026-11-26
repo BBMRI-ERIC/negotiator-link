@@ -12,7 +12,7 @@ Java and Spring Boot coding standards: [java-guidelines.md](.claude/java-guideli
 
 ## Stack
 
-- Java 21, Spring Boot 4.1.x, Maven (use the `./mvnw` wrapper)
+- Java 21, Spring Boot 4.2.x, Maven (use the `./mvnw` wrapper)
 - PostgreSQL + Flyway for persistence; JPA/Hibernate (`ddl-auto: validate`)
 - Spring Security OAuth2 Client Credentials for outbound Negotiator auth
 - Micrometer + Prometheus for metrics; Spring `@Scheduled` for the pollers
