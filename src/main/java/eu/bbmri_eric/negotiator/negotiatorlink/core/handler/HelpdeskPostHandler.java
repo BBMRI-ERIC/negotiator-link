@@ -7,12 +7,10 @@ import static eu.bbmri_eric.negotiator.negotiatorlink.core.util.PostUtil.signPos
 import eu.bbmri_eric.negotiator.negotiatorlink.common.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.HelpdeskCallbackType;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.PostMessageEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.PostType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedPost;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
-import eu.bbmri_eric.negotiator.negotiatorlink.common.model.HelpdeskCallbackType;
-import eu.bbmri_eric.negotiator.negotiatorlink.common.model.PostMessageEvent;
-import eu.bbmri_eric.negotiator.negotiatorlink.common.model.PostType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
