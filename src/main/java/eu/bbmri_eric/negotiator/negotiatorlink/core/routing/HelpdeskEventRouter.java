@@ -45,9 +45,7 @@ public class HelpdeskEventRouter {
             dispatch(
                 HelpdeskCallbackType.RESOURCE_TRANSITION,
                 new ResourceTransitionEvent(
-                    combined.ticketId(),
-                    combined.resourceState(),
-                    combined.resourceTransitionEvent()),
+                    combined.ticketId(), combined.resourceTransitionEvent()),
                 config);
         HandlerResult post =
             dispatch(

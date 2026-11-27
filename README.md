@@ -118,6 +118,16 @@ docker compose up --build -d negotiator-link
 docker compose logs -f negotiator-link
 ```
 
+## Versioning
+
+The version in `pom.xml` (`0.0.1-SNAPSHOT`) is only a development placeholder. The actual version is
+set at Docker build time via the `ARTIFACT_VERSION` build-arg: `dev` for local compose, `prod` for
+`compose.prod.yml`, and the git tag for releases.
+
+Releases are driven by **git tags** — push a [SemVer](https://semver.org/) tag like `v0.1.0` and CI
+publishes the image to `ghcr.io/bbmri-eric/negotiator-link`. The `pom.xml` version stays `-SNAPSHOT`
+and is never edited per release.
+
 ## Documentation
 
 Further documentation lives in [`docs/`](docs/):
