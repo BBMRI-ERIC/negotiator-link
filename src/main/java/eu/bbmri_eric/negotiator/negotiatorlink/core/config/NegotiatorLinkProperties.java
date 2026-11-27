@@ -20,6 +20,13 @@ public class NegotiatorLinkProperties {
   private OrganizationDefaults organizationDefaults = new OrganizationDefaults();
   private InboxProperties inbox = new InboxProperties();
   private OutboxProperties outbox = new OutboxProperties();
+  private Negotiator negotiator = new Negotiator();
+
+  @Data
+  public static class Negotiator {
+    // Stable path suffixes of the RFC 9457 {@code type} URIs identifying transition errors
+    private List<String> transitionErrorTypes = new ArrayList<>();
+  }
 
   @Data
   public static class InboxProperties {

@@ -30,8 +30,10 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OutboxIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.DispatchResult;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.NegotiatorResourceTransitionErrorTranslator;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentDispatcher;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType;
+import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationCache;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingTicketCreationException;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
@@ -81,6 +83,7 @@ class OutboxIntentDispatcherTest {
   @Mock private OriginatedPostRepository originatedPostRepository;
   @Mock private AttachmentForwardingService attachmentForwardingService;
   @Mock private PendingTicketCreationCache pendingTicketCreationCache;
+  @Mock private NegotiatorResourceTransitionErrorTranslator transitionErrorTranslator;
 
   private final ObjectMapper objectMapper = new ObjectMapper();
   private OrganizationConfig config;
@@ -100,6 +103,7 @@ class OutboxIntentDispatcherTest {
             originatedPostRepository,
             attachmentForwardingService,
             pendingTicketCreationCache,
+            transitionErrorTranslator,
             objectMapper,
             meterRegistry);
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(config));
@@ -155,6 +159,78 @@ class OutboxIntentDispatcherTest {
     verify(negotiatorClient)
         .sendBulkResourceEvent(
             eq(NEGOTIATION_ID), eq(List.of(101L, 102L)), eq("CHECKING"), eq(config));
+  }
+
+  @Test
+  void dispatch_sendResourceEvent_recognizedRejection_returnsSystemCommentForTicket() {
+    HttpClientErrorException rejection =
+        HttpClientErrorException.create(HttpStatus.CONFLICT, "conflict", null, null, null);
+    doThrow(rejection)
+        .when(negotiatorClient)
+        .sendResourceEvent(eq(NEGOTIATION_ID), eq(RESOURCE_SOURCE_ID), eq(EVENT), eq(config));
+    when(transitionErrorTranslator.translate(rejection))
+        .thenReturn(Optional.of("Mark as Available cannot fire while Paused."));
+    when(ticketMappingRepository.findByIdNegotiationIdAndResourceSourceId(
+            NEGOTIATION_ID, RESOURCE_SOURCE_ID))
+        .thenReturn(Optional.of(ticketMapping()));
+
+    DispatchResult result =
+        dispatcher.dispatch(
+            intent(
+                OutboxIntentType.SEND_RESOURCE_EVENT,
+                new SendResourceEventPayload(NEGOTIATION_ID, RESOURCE_SOURCE_ID, EVENT)));
+
+    assertEquals(1, result.followUpIntents().size());
+    PendingIntent comment = result.followUpIntents().getFirst();
+    assertEquals(OutboxIntentType.ADD_SYSTEM_COMMENT, comment.outboxIntentType());
+    assertEquals(TargetKind.TICKET, comment.targetKind());
+    assertEquals(TICKET_ID, comment.targetId());
+    assertTrue(comment.payloadJson().contains("Mark as Available cannot fire while Paused."));
+  }
+
+  @Test
+  void dispatch_sendBulkResourceEvent_recognizedRejection_returnsSystemCommentForTicket() {
+    HttpClientErrorException rejection =
+        HttpClientErrorException.create(HttpStatus.CONFLICT, "conflict", null, null, null);
+    doThrow(rejection).when(negotiatorClient).sendBulkResourceEvent(any(), any(), any(), any());
+    when(transitionErrorTranslator.translate(rejection))
+        .thenReturn(Optional.of("Information Requirement not met."));
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID))
+        .thenReturn(
+            List.of(
+                mapping("other-ticket", "900"),
+                mapping(TICKET_ID, "101"),
+                mapping(TICKET_ID, "102")));
+
+    DispatchResult result =
+        dispatcher.dispatch(
+            intent(
+                OutboxIntentType.SEND_BULK_RESOURCE_EVENT,
+                new SendBulkResourceEventPayload(NEGOTIATION_ID, List.of(101L, 102L), "CHECKING")));
+
+    assertEquals(1, result.followUpIntents().size());
+    PendingIntent comment = result.followUpIntents().getFirst();
+    assertEquals(OutboxIntentType.ADD_SYSTEM_COMMENT, comment.outboxIntentType());
+    assertEquals(TargetKind.TICKET, comment.targetKind());
+    assertEquals(TICKET_ID, comment.targetId());
+    assertTrue(comment.payloadJson().contains("Information Requirement not met."));
+  }
+
+  @Test
+  void dispatch_sendResourceEvent_unrecognizedRejection_propagates() {
+    HttpClientErrorException rejection =
+        HttpClientErrorException.create(HttpStatus.CONFLICT, "conflict", null, null, null);
+    doThrow(rejection).when(negotiatorClient).sendResourceEvent(any(), any(), any(), any());
+    when(transitionErrorTranslator.translate(rejection)).thenReturn(Optional.empty());
+
+    assertThrows(
+        HttpClientErrorException.class,
+        () ->
+            dispatcher.dispatch(
+                intent(
+                    OutboxIntentType.SEND_RESOURCE_EVENT,
+                    new SendResourceEventPayload(NEGOTIATION_ID, RESOURCE_SOURCE_ID, EVENT))));
+    verify(ticketMappingRepository, never()).findByIdNegotiationIdAndResourceSourceId(any(), any());
   }
 
   @Test
@@ -454,6 +530,14 @@ class OutboxIntentDispatcherTest {
   private TicketMapping ticketMapping() {
     return new TicketMapping(
         new TicketMappingId(NEGOTIATION_ID, TICKET_ID, "101"),
+        RESOURCE_SOURCE_ID,
+        ORG_ID,
+        ORG_EXT_ID);
+  }
+
+  private TicketMapping mapping(String ticketId, String resourceId) {
+    return new TicketMapping(
+        new TicketMappingId(NEGOTIATION_ID, ticketId, resourceId),
         RESOURCE_SOURCE_ID,
         ORG_ID,
         ORG_EXT_ID);
