@@ -4,7 +4,6 @@ import java.util.List;
 
 public record ResourceTransitionWithPostMessageEvent(
     String ticketId,
-    String resourceState,
     String resourceTransitionEvent,
     String postText,
     Sender sender,

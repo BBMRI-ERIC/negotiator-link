@@ -80,7 +80,7 @@ class ZammadCallbackAdapterTest {
   void parseCallback_resourceTransitionOnly_returnsResourceTransitionEvent() {
     var payload = zammadCallbackPayload("1", "MARK_AS_CHECKING_AVAILABILITY", "IN_PROGRESS");
 
-    var expected = new ResourceTransitionEvent("1", "IN_PROGRESS", "MARK_AS_CHECKING_AVAILABILITY");
+    var expected = new ResourceTransitionEvent("1", "MARK_AS_CHECKING_AVAILABILITY");
     assertThat(adapter.parseCallback(payload)).contains(expected);
   }
 
@@ -115,7 +115,6 @@ class ZammadCallbackAdapterTest {
     var expected =
         new ResourceTransitionWithPostMessageEvent(
             "3",
-            "IN_PROGRESS",
             "MARK_AS_AVAILABLE",
             "Granting access",
             new Sender("Jane Rep", "jane.rep@example.com"),

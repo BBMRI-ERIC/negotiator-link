@@ -98,7 +98,6 @@ public class ZammadCallbackAdapter implements HelpdeskCallbackAdapter {
     }
 
     String transitionEvent = normalize(parsed.ticket().transitionEvent());
-    String resourceState = normalize(parsed.ticket().resourceState());
     boolean hasArticle = hasArticle(parsed.article());
 
     if (transitionEvent == null && !hasArticle) {
@@ -117,20 +116,12 @@ public class ZammadCallbackAdapter implements HelpdeskCallbackAdapter {
 
     return Optional.of(
         switch (callbackType) {
-          case RESOURCE_TRANSITION ->
-              new ResourceTransitionEvent(ticketId, resourceState, transitionEvent);
+          case RESOURCE_TRANSITION -> new ResourceTransitionEvent(ticketId, transitionEvent);
           case POST_MESSAGE ->
-              new PostMessageEvent(
-                  ticketId, parsed.article().body(), sender, attachments, PostType.PRIVATE);
+              new PostMessageEvent(ticketId, parsed.article().body(), sender, attachments, PostType.PRIVATE);
           case RESOURCE_TRANSITION_WITH_POST_MESSAGE ->
               new ResourceTransitionWithPostMessageEvent(
-                  ticketId,
-                  resourceState,
-                  transitionEvent,
-                  parsed.article().body(),
-                  sender,
-                  attachments,
-                  PostType.PRIVATE);
+                  ticketId, transitionEvent, parsed.article().body(), sender, attachments, PostType.PRIVATE);
           default ->
               throw new IllegalStateException(
                   "Unsupported callback type " + callbackType + " for ticket " + ticketId);
@@ -206,7 +197,6 @@ public class ZammadCallbackAdapter implements HelpdeskCallbackAdapter {
     @JsonIgnoreProperties(ignoreUnknown = true)
     record Ticket(
         String id,
-        @JsonProperty(ZammadFields.RESOURCE_STATE) String resourceState,
         @JsonProperty(ZammadFields.TRANSITION_EVENT) String transitionEvent,
         @JsonProperty(ZammadFields.STATE) String state,
         @JsonProperty(ZammadFields.STATE_UPDATED) Boolean stateUpdated) {}

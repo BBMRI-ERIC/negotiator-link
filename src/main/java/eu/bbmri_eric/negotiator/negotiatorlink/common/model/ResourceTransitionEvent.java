@@ -1,7 +1,6 @@
 package eu.bbmri_eric.negotiator.negotiatorlink.common.model;
 
-public record ResourceTransitionEvent(
-    String ticketId, String resourceState, String resourceTransitionEvent)
+public record ResourceTransitionEvent(String ticketId, String resourceTransitionEvent)
     implements HelpdeskCallbackEvent {
 
   @Override

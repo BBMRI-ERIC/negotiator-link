@@ -26,6 +26,10 @@ negotiator-link:
   negotiator:
     base-url: http://localhost:8081/api
     issuer-uri: http://localhost:9999
+    transition-error-types:
+      - "lifecycle/domain-state-conflict"
+      - "lifecycle/unmet-requirement"
+      - "lifecycle/no-transition"
   organizations:
     - organizationExternalId: "bbmri:DE:MHH"
       type: "ZAMMAD"
