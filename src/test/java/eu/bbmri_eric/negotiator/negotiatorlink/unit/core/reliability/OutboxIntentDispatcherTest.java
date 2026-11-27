@@ -22,6 +22,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.common.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.HelpdeskAttachmentRef;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.IdempotencyKey;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedPost;
@@ -68,6 +69,7 @@ class OutboxIntentDispatcherTest {
 
   private static final String NEGOTIATION_ID = "neg-1";
   private static final String TICKET_ID = "ticket-7";
+  private static final long ROW_ID = 1234L;
   private static final String ORG_EXT_ID = "bbmri:DE:MHH";
   private static final String ORG_ID = "42";
   private static final String RESOURCE_SOURCE_ID = "biobank:DE:MHH:collection1";
@@ -338,16 +340,17 @@ class OutboxIntentDispatcherTest {
             List.of(),
             List.of(ref),
             List.of());
-    when(helpdeskClient.createTicket(any(), eq(config))).thenReturn(TICKET_ID);
+    when(helpdeskClient.createTicket(any(), eq(config), any())).thenReturn(TICKET_ID);
     when(attachmentForwardingService.getNegotiationPayloadAttachmentsToForward(
             eq(NEGOTIATION_ID), eq(List.of()), eq(config), eq(Set.of())))
         .thenReturn(List.of());
 
     DispatchResult result = dispatcher.dispatch(intent(OutboxIntentType.CREATE_TICKET, payload));
 
-    verify(helpdeskClient).createTicket(any(), eq(config));
+    verify(helpdeskClient)
+        .createTicket(any(), eq(config), eq(IdempotencyKey.fromOutboxRowId(ROW_ID)));
     verify(ticketMappingRepository, never()).save(any());
-    verify(helpdeskClient, never()).addComment(any(), any(), any(), any());
+    verify(helpdeskClient, never()).addComment(any(), any(), any(), any(), any());
     assertEquals(1, result.ticketMappings().size());
     assertEquals(TICKET_ID, result.ticketMappings().getFirst().getId().getHelpdeskTicketId());
     assertTrue(result.forwardedAttachments().isPresent());
@@ -369,14 +372,14 @@ class OutboxIntentDispatcherTest {
             List.of(),
             List.of(ref),
             List.of("first post", "second post"));
-    when(helpdeskClient.createTicket(any(), eq(config))).thenReturn(TICKET_ID);
+    when(helpdeskClient.createTicket(any(), eq(config), any())).thenReturn(TICKET_ID);
     when(attachmentForwardingService.getNegotiationPayloadAttachmentsToForward(
             eq(NEGOTIATION_ID), eq(List.of()), eq(config), eq(Set.of())))
         .thenReturn(List.of());
 
     DispatchResult result = dispatcher.dispatch(intent(OutboxIntentType.CREATE_TICKET, payload));
 
-    verify(helpdeskClient, never()).addComment(any(), any(), any(), any());
+    verify(helpdeskClient, never()).addComment(any(), any(), any(), any(), any());
     assertEquals(2, result.followUpIntents().size());
     var first = result.followUpIntents().getFirst();
     assertEquals(OutboxIntentType.ADD_COMMENT, first.outboxIntentType());
@@ -460,7 +463,12 @@ class OutboxIntentDispatcherTest {
     dispatcher.dispatch(ticketIntent(OutboxIntentType.ADD_COMMENT, payload));
 
     verify(helpdeskClient)
-        .addComment(eq(TICKET_ID), eq("Hello ticket"), eq(CommentType.PLAIN_TEXT), eq(config));
+        .addComment(
+            eq(TICKET_ID),
+            eq("Hello ticket"),
+            eq(CommentType.PLAIN_TEXT),
+            eq(config),
+            eq(IdempotencyKey.fromOutboxRowId(ROW_ID)));
   }
 
   @Test
@@ -470,7 +478,11 @@ class OutboxIntentDispatcherTest {
     dispatcher.dispatch(ticketIntent(OutboxIntentType.ADD_SYSTEM_COMMENT, payload));
 
     verify(helpdeskClient)
-        .addSystemComment(eq(TICKET_ID), eq("Status changed to Paused"), eq(config));
+        .addSystemComment(
+            eq(TICKET_ID),
+            eq("Status changed to Paused"),
+            eq(config),
+            eq(IdempotencyKey.fromOutboxRowId(ROW_ID)));
   }
 
   @Test
@@ -502,14 +514,17 @@ class OutboxIntentDispatcherTest {
   }
 
   private OutboxIntent ticketIntent(OutboxIntentType type, Object payload) {
-    return new OutboxIntent(
-        1L,
-        type,
-        TargetKind.TICKET.name(),
-        TICKET_ID,
-        NEGOTIATION_ID,
-        ORG_EXT_ID,
-        serialize(payload));
+    OutboxIntent intent =
+        new OutboxIntent(
+            1L,
+            type,
+            TargetKind.TICKET.name(),
+            TICKET_ID,
+            NEGOTIATION_ID,
+            ORG_EXT_ID,
+            serialize(payload));
+    intent.setRowId(ROW_ID);
+    return intent;
   }
 
   private TicketMapping ticketMapping() {
@@ -529,14 +544,17 @@ class OutboxIntentDispatcherTest {
   }
 
   private OutboxIntent intent(OutboxIntentType type, Object payload) {
-    return new OutboxIntent(
-        1L,
-        type,
-        TargetKind.NEGOTIATION.name(),
-        NEGOTIATION_ID,
-        NEGOTIATION_ID,
-        ORG_EXT_ID,
-        serialize(payload));
+    OutboxIntent intent =
+        new OutboxIntent(
+            1L,
+            type,
+            TargetKind.NEGOTIATION.name(),
+            NEGOTIATION_ID,
+            NEGOTIATION_ID,
+            ORG_EXT_ID,
+            serialize(payload));
+    intent.setRowId(ROW_ID);
+    return intent;
   }
 
   private String serialize(Object payload) {

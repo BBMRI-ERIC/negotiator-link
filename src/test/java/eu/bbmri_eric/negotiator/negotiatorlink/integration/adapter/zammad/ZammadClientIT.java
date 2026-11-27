@@ -24,6 +24,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.common.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.CreateTicketRequest;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.IdempotencyKey;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +47,7 @@ class ZammadClientIT {
 
   private static final String API_TOKEN = "test-api-token";
   private static final String CALLBACK_SECRET = "test-callback-secret";
+  private static final IdempotencyKey IDEMPOTENCY_KEY = IdempotencyKey.fromOutboxRowId(42L);
 
   private WireMockServer wireMock;
   private ZammadClient client;
@@ -121,7 +123,7 @@ class ZammadClientIT {
             "Ticket body",
             List.of());
 
-    String result = client.createTicket(request, config);
+    String result = client.createTicket(request, config, IDEMPOTENCY_KEY);
 
     assertThat(result).isEqualTo("42");
 
@@ -169,7 +171,7 @@ class ZammadClientIT {
             "Body text",
             List.of());
 
-    String result = client.createTicket(request, config);
+    String result = client.createTicket(request, config, IDEMPOTENCY_KEY);
 
     assertThat(result).isEqualTo("99");
 
@@ -212,7 +214,7 @@ class ZammadClientIT {
         new CreateTicketRequest(
             "[NEGO-1] Access Request", "IN_PROGRESS", "SUBMITTED", "Body", List.of());
 
-    assertThatThrownBy(() -> client.createTicket(request, config))
+    assertThatThrownBy(() -> client.createTicket(request, config, IDEMPOTENCY_KEY))
         .isInstanceOf(IllegalStateException.class);
   }
 
@@ -297,7 +299,7 @@ class ZammadClientIT {
                     .withHeader("Content-Type", "application/json")
                     .withBody("{}")));
 
-    client.addComment("7", "Hello representative", CommentType.PLAIN_TEXT, config);
+    client.addComment("7", "Hello representative", CommentType.PLAIN_TEXT, config, IDEMPOTENCY_KEY);
 
     wireMock.verify(
         postRequestedFor(urlEqualTo(TICKET_ARTICLES_URL))
@@ -333,7 +335,8 @@ class ZammadClientIT {
         "New negotiation-level attachments added by requestor. See the files below.",
         CommentType.PLAIN_TEXT,
         List.of(attachment),
-        config);
+        config,
+        IDEMPOTENCY_KEY);
 
     wireMock.verify(
         postRequestedFor(urlEqualTo(TICKET_ARTICLES_URL))
@@ -365,7 +368,8 @@ class ZammadClientIT {
                     .withHeader("Content-Type", "application/json")
                     .withBody("{}")));
 
-    client.addComment("7", "No files here", CommentType.PLAIN_TEXT, List.of(), config);
+    client.addComment(
+        "7", "No files here", CommentType.PLAIN_TEXT, List.of(), config, IDEMPOTENCY_KEY);
 
     wireMock.verify(
         postRequestedFor(urlEqualTo(TICKET_ARTICLES_URL))
@@ -404,7 +408,7 @@ class ZammadClientIT {
         new CreateTicketRequest(
             "[NEGO-1] Access Request", "IN_PROGRESS", "SUBMITTED", "Body", List.of(attachment));
 
-    client.createTicket(request, config);
+    client.createTicket(request, config, IDEMPOTENCY_KEY);
 
     wireMock.verify(
         postRequestedFor(urlEqualTo(TICKETS_URL))
@@ -433,7 +437,7 @@ class ZammadClientIT {
                     .withHeader("Content-Type", "application/json")
                     .withBody("{}")));
 
-    client.addSystemComment("7", "Transition rejected", config);
+    client.addSystemComment("7", "Transition rejected", config, IDEMPOTENCY_KEY);
 
     wireMock.verify(
         postRequestedFor(urlEqualTo(TICKET_ARTICLES_URL))

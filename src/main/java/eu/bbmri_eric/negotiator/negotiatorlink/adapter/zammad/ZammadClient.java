@@ -7,6 +7,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.common.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.CreateTicketRequest;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.IdempotencyKey;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
@@ -18,7 +19,10 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
-/** Outbound Zammad integration: creates and updates tickets via the Zammad REST API. */
+/**
+ * Outbound Zammad integration via the Zammad REST API. The Zammad API offers no idempotency-key
+ * mechanism. Therefore, the parameter idempotencyKey on methods is intentionally ignored.
+ */
 @Slf4j
 @Component
 public class ZammadClient implements HelpdeskClient {
@@ -45,7 +49,8 @@ public class ZammadClient implements HelpdeskClient {
   }
 
   @Override
-  public String createTicket(CreateTicketRequest request, OrganizationConfig config) {
+  public String createTicket(
+      CreateTicketRequest request, OrganizationConfig config, IdempotencyKey idempotencyKey) {
     Map<String, Object> body = buildCreateTicketBody(request, config);
 
     TicketResponse response =
@@ -84,7 +89,11 @@ public class ZammadClient implements HelpdeskClient {
 
   @Override
   public void addComment(
-      String ticketId, String commentText, CommentType commentType, OrganizationConfig config) {
+      String ticketId,
+      String commentText,
+      CommentType commentType,
+      OrganizationConfig config,
+      IdempotencyKey idempotencyKey) {
     postArticle(ticketId, commentText, commentType, false, config);
   }
 
@@ -94,7 +103,8 @@ public class ZammadClient implements HelpdeskClient {
       String commentText,
       CommentType commentType,
       List<Attachment> attachments,
-      OrganizationConfig config) {
+      OrganizationConfig config,
+      IdempotencyKey idempotencyKey) {
     post(
         buildClient(config),
         TICKET_ARTICLES_PATH,
@@ -103,7 +113,10 @@ public class ZammadClient implements HelpdeskClient {
 
   @Override
   public void addSystemComment(
-      String ticketId, String systemCommentText, OrganizationConfig config) {
+      String ticketId,
+      String systemCommentText,
+      OrganizationConfig config,
+      IdempotencyKey idempotencyKey) {
     postArticle(ticketId, systemCommentText, CommentType.PLAIN_TEXT, true, config);
   }
 
