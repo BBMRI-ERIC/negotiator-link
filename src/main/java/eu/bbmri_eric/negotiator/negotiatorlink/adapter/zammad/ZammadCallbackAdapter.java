@@ -118,10 +118,16 @@ public class ZammadCallbackAdapter implements HelpdeskCallbackAdapter {
         switch (callbackType) {
           case RESOURCE_TRANSITION -> new ResourceTransitionEvent(ticketId, transitionEvent);
           case POST_MESSAGE ->
-              new PostMessageEvent(ticketId, parsed.article().body(), sender, attachments, PostType.PRIVATE);
+              new PostMessageEvent(
+                  ticketId, parsed.article().body(), sender, attachments, PostType.PRIVATE);
           case RESOURCE_TRANSITION_WITH_POST_MESSAGE ->
               new ResourceTransitionWithPostMessageEvent(
-                  ticketId, transitionEvent, parsed.article().body(), sender, attachments, PostType.PRIVATE);
+                  ticketId,
+                  transitionEvent,
+                  parsed.article().body(),
+                  sender,
+                  attachments,
+                  PostType.PRIVATE);
           default ->
               throw new IllegalStateException(
                   "Unsupported callback type " + callbackType + " for ticket " + ticketId);
