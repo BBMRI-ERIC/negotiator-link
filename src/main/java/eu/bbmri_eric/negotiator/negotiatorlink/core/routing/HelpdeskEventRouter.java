@@ -54,7 +54,8 @@ public class HelpdeskEventRouter {
                     combined.ticketId(),
                     combined.postText(),
                     combined.sender(),
-                    combined.attachments()),
+                    combined.attachments(),
+                    combined.postType()),
                 config);
         List<PendingIntent> intents = new ArrayList<>();
         intents.addAll(transition.intents());

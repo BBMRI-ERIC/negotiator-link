@@ -42,23 +42,27 @@ public final class PostUtil {
   }
 
   /**
-   * Inserts a {@code Role:} line under the header the integration itself produced when relaying a
-   * help-desk comment into the Negotiator.
+   * Inserts a {@code Role:} line and, for public posts, a {@code Visibility:} line under the header
+   * the integration itself produced when relaying a help-desk comment into the Negotiator.
    *
    * @param text the already integration-signed text being relayed back
+   * @param sender the sender information as a fallback
    * @param roleNames the roles to add, if any
-   * @return the text with a {@code Role:} line inserted under the existing header, or the original
-   *     text when there is no role to add, the header already carries one, or no header is present
+   * @param isPublicPost whether the post is visible to all request participants
+   * @return the text with the {@code Role:} and/or {@code Visibility:} lines inserted under the
+   *     existing header, or the original text when there is nothing to add or no header is present
    */
-  public static String insertRoleUnderRelayedHeader(String text, Set<String> roleNames) {
-    if (roleNames.isEmpty() || !startsWithSignerHeader(text) || hasRoleLine(text)) {
-      return text;
-    }
-    return StringUtils.substringBefore(text, "\n")
-        + "\n"
-        + buildRoleLine(roleNames)
-        + "\n"
-        + StringUtils.substringAfter(text, "\n");
+  public static String signRelayedPost(
+      String text, Sender sender, Set<String> roleNames, boolean isPublicPost) {
+    boolean hasFromLine = isSingleFromHeader(text);
+    int blankLine = text.indexOf("\n\n");
+    String fromLine = hasFromLine ? text.substring(0, blankLine) : buildFromLine(sender);
+    String body = hasFromLine ? text.substring(blankLine + 2) : text;
+    return new PostBuilder(body)
+        .from(fromLine)
+        .role(buildRoleLine(roleNames))
+        .visibility(buildVisibilityLine(isPublicPost))
+        .build();
   }
 
   /**
@@ -79,7 +83,12 @@ public final class PostUtil {
     return "From: " + from;
   }
 
-  private static boolean startsWithSignerHeader(String text) {
+  /**
+   * Whether the text is exactly a single {@code From: <sender>} header line, followed by a blank
+   * line and the message body — the shape the integration itself produces when relaying a help-desk
+   * comment into the Negotiator.
+   */
+  private static boolean isSingleFromHeader(String text) {
     if (!text.startsWith("From: ")) {
       return false;
     }
@@ -87,23 +96,7 @@ public final class PostUtil {
     if (blankLine <= 0) {
       return false;
     }
-    String[] headerLines = text.substring(0, blankLine).split("\n", -1);
-    if (headerLines.length == 1) {
-      return true;
-    }
-    return headerLines.length == 2 && headerLines[1].startsWith("Role: ");
-  }
-
-  /** Whether an already-signed header block carries a {@code Role: } line. */
-  private static boolean hasRoleLine(String text) {
-    int blankLine = text.indexOf("\n\n");
-    int limit = blankLine < 0 ? text.length() : blankLine;
-    for (String line : text.substring(0, limit).split("\n", -1)) {
-      if (line.startsWith("Role: ")) {
-        return true;
-      }
-    }
-    return false;
+    return text.substring(0, blankLine).indexOf('\n') < 0;
   }
 
   public static String enumToText(String value) {

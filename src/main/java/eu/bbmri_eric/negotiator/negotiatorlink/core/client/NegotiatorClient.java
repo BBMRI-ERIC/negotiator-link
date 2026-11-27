@@ -3,6 +3,7 @@ package eu.bbmri_eric.negotiator.negotiatorlink.core.client;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.config.NegotiatorCredentials;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.Attachment;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.PostType;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.ApiClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.api.AttachmentsApi;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.api.CommentsApi;
@@ -21,6 +22,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -41,6 +43,8 @@ public class NegotiatorClient {
 
   public static final String UPLOAD_ATTACHMENT_URL =
       "/v3/negotiations/{negotiationId}/attachments?organizationId={organizationId}";
+  public static final String UPLOAD_ATTACHMENT_URL_UNSCOPED =
+      "/v3/negotiations/{negotiationId}/attachments";
   public static final String DOWNLOAD_ATTACHMENT_URL = "/v3/attachments/{id}";
   private final String baseUrl;
   private final String issuerUri;
@@ -140,9 +144,10 @@ public class NegotiatorClient {
    */
   public void sendBulkResourceEvent(
       String negotiationId, List<Long> resourceIds, String targetState, OrganizationConfig config) {
-    var dto = new UpdateResourcesDTO();
-    dto.setResourceIds(resourceIds);
-    dto.setState(UpdateResourcesDTO.StateEnum.fromValue(targetState));
+    var dto =
+        new UpdateResourcesDTO()
+            .resourceIds(resourceIds)
+            .state(UpdateResourcesDTO.StateEnum.fromValue(targetState));
     getOrCreateClient(config).negotiations().updateResources(negotiationId, dto);
   }
 
@@ -150,15 +155,28 @@ public class NegotiatorClient {
    * Create a new post for the specified negotiation.
    *
    * @param negotiationId the ID of the negotiation to which the post refers
-   * @param post the Post DTO containing request information - text: the content of the post,
-   *     organizationId: the external ID of the organization that is creating this post, used for
-   *     PRIVATE posts, type: the type of the post (e.g., PRIVATE, PUBLIC)
+   * @param text the content of the post
+   * @param organizationId the external ID of the organization creating this post
+   * @param postType the visibility of the post
    * @param config organization configuration to use for this request
    * @return the response PostDTO object
    */
   public EntityModelPostDTO createPost(
-      String negotiationId, PostCreateDTO post, OrganizationConfig config) {
+      String negotiationId,
+      String text,
+      String organizationId,
+      PostType postType,
+      OrganizationConfig config) {
+    PostCreateDTO post =
+        new PostCreateDTO().text(text).organizationId(organizationId).type(toDtoType(postType));
     return getOrCreateClient(config).comments().add2(negotiationId, post);
+  }
+
+  private static PostCreateDTO.TypeEnum toDtoType(PostType postType) {
+    return switch (postType) {
+      case PRIVATE -> PostCreateDTO.TypeEnum.PRIVATE;
+      case PUBLIC -> PostCreateDTO.TypeEnum.PUBLIC;
+    };
   }
 
   /**
@@ -244,8 +262,9 @@ public class NegotiatorClient {
    *
    * @param negotiationId the ID of the negotiation to attach the file to
    * @param attachment the file content, name and MIME type
-   * @param organizationExtId external ID of the organization the attachment is for (scopes the
-   *     attachment to that organization's audience, matching a PRIVATE post)
+   * @param organizationExtId external ID of the organization the attachment is for. When non-blank,
+   *     scopes the attachment to that organization's audience (matching a PRIVATE post); when
+   *     {@code null} or blank, the attachment is uploaded unscoped (matching a PUBLIC post)
    * @param config organization configuration to use for this request
    * @return the created attachment metadata
    */
@@ -254,10 +273,14 @@ public class NegotiatorClient {
       Attachment attachment,
       String organizationExtId,
       OrganizationConfig config) {
+    boolean scoped = StringUtils.isNotBlank(organizationExtId);
+    String uri = baseUrl + (scoped ? UPLOAD_ATTACHMENT_URL : UPLOAD_ATTACHMENT_URL_UNSCOPED);
+    Object[] uriVariables =
+        scoped ? new Object[] {negotiationId, organizationExtId} : new Object[] {negotiationId};
     return getOrCreateClient(config)
         .restClient()
         .post()
-        .uri(baseUrl + UPLOAD_ATTACHMENT_URL, negotiationId, organizationExtId)
+        .uri(uri, uriVariables)
         .contentType(MediaType.MULTIPART_FORM_DATA)
         .body(buildMultipartBody(attachment))
         .retrieve()

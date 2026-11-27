@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.config.OrganizationConfig;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.PostMessageEvent;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.PostType;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.Sender;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
@@ -65,7 +66,7 @@ class HelpdeskPostHandlerTest {
     when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config))
         .thenReturn(negotiationWithPrivatePosts(true));
 
-    HandlerResult result = handler.handle(callbackEvent(), config);
+    HandlerResult result = handler.handle(callbackEvent(PostType.PRIVATE), config);
 
     assertThat(result.originatedPost()).isPresent();
     var post = result.originatedPost().get();
@@ -84,7 +85,27 @@ class HelpdeskPostHandlerTest {
     assertThat(payload.negotiationId()).isEqualTo(NEGOTIATION_ID);
     assertThat(payload.ticketId()).isEqualTo(TICKET_ID);
     assertThat(payload.signedText()).isEqualTo(SIGNED_TEXT);
-    verify(negotiatorClient, never()).createPost(any(), any(), any());
+    assertThat(payload.postType()).isEqualTo(PostType.PRIVATE);
+    verify(negotiatorClient, never()).createPost(any(), any(), any(), any(), any());
+  }
+
+  @Test
+  void handle_publicPostsEnabled_emitsCreatePostIntentWithPublicType() {
+    when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
+            TICKET_ID, ORG_EXT_ID))
+        .thenReturn(List.of(mapping()));
+    when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config))
+        .thenReturn(negotiationWithPublicPosts(true));
+
+    HandlerResult result = handler.handle(callbackEvent(PostType.PUBLIC), config);
+
+    assertThat(result.originatedPost()).isPresent();
+    List<PendingIntent> intents = result.intents();
+    assertThat(intents).hasSize(1);
+    PendingIntent intent = intents.getFirst();
+    assertThat(intent.outboxIntentType()).isEqualTo(OutboxIntentType.CREATE_POST);
+    CreatePostPayload payload = read(intent, CreatePostPayload.class);
+    assertThat(payload.postType()).isEqualTo(PostType.PUBLIC);
   }
 
   @Test
@@ -95,7 +116,21 @@ class HelpdeskPostHandlerTest {
     when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config))
         .thenReturn(negotiationWithPrivatePosts(false));
 
-    HandlerResult result = handler.handle(callbackEvent(), config);
+    HandlerResult result = handler.handle(callbackEvent(PostType.PRIVATE), config);
+
+    assertSystemCommentRejection(result.intents());
+    assertThat(result.originatedPost()).isEmpty();
+  }
+
+  @Test
+  void handle_publicPostsDisabled_emitsSystemCommentIntentAndNoOriginatedPost() {
+    when(ticketMappingRepository.findByIdHelpdeskTicketIdAndOrganizationExtId(
+            TICKET_ID, ORG_EXT_ID))
+        .thenReturn(List.of(mapping()));
+    when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config))
+        .thenReturn(negotiationWithPublicPosts(false));
+
+    HandlerResult result = handler.handle(callbackEvent(PostType.PUBLIC), config);
 
     assertSystemCommentRejection(result.intents());
     assertThat(result.originatedPost()).isEmpty();
@@ -108,7 +143,8 @@ class HelpdeskPostHandlerTest {
         .thenReturn(List.of(mapping()));
     when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config)).thenReturn(null);
 
-    assertThrows(NullPointerException.class, () -> handler.handle(callbackEvent(), config));
+    PostMessageEvent event = callbackEvent(PostType.PRIVATE);
+    assertThrows(NullPointerException.class, () -> handler.handle(event, config));
   }
 
   @Test
@@ -119,7 +155,8 @@ class HelpdeskPostHandlerTest {
     when(negotiatorClient.getNegotiation(NEGOTIATION_ID, config))
         .thenThrow(new RuntimeException("negotiator unavailable"));
 
-    assertThrows(RuntimeException.class, () -> handler.handle(callbackEvent(), config));
+    PostMessageEvent event = callbackEvent(PostType.PRIVATE);
+    assertThrows(RuntimeException.class, () -> handler.handle(event, config));
   }
 
   private void assertSystemCommentRejection(List<PendingIntent> intents) {
@@ -144,6 +181,10 @@ class HelpdeskPostHandlerTest {
     return new EntityModelNegotiationDTO().privatePostsEnabled(enabled);
   }
 
+  private EntityModelNegotiationDTO negotiationWithPublicPosts(Boolean enabled) {
+    return new EntityModelNegotiationDTO().publicPostsEnabled(enabled);
+  }
+
   private TicketMapping mapping() {
     return new TicketMapping(
         new TicketMappingId(NEGOTIATION_ID, TICKET_ID, "resource-1"),
@@ -152,7 +193,7 @@ class HelpdeskPostHandlerTest {
         ORG_EXT_ID);
   }
 
-  private PostMessageEvent callbackEvent() {
-    return new PostMessageEvent(TICKET_ID, POST_TEXT, SENDER, List.of());
+  private PostMessageEvent callbackEvent(PostType postType) {
+    return new PostMessageEvent(TICKET_ID, POST_TEXT, SENDER, List.of(), postType);
   }
 }

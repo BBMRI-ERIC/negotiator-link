@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import eu.bbmri_eric.negotiator.negotiatorlink.common.config.OrganizationConfig;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.PostType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMapping;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.TicketMappingId;
@@ -23,7 +24,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.InboxEventReposit
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OutboxIntentRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.EntityModelNegotiationDTO;
-import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostCreateDTO;
 import eu.bbmri_eric.negotiator.negotiatorlink.integration.util.IntegrationBase;
 import eu.bbmri_eric.negotiator.negotiatorlink.util.NegotiatorResourceEvent;
 import java.io.IOException;
@@ -132,10 +132,9 @@ class ZammadToNegotiatorFlowIT {
     verify(negotiatorClient)
         .createPost(
             eq(NEGOTIATION_ID),
-            argThat(
-                p ->
-                    SIGNED_POST_TEXT.equals(p.getText())
-                        && PostCreateDTO.TypeEnum.PRIVATE.equals(p.getType())),
+            eq(SIGNED_POST_TEXT),
+            any(),
+            eq(PostType.PRIVATE),
             any(OrganizationConfig.class));
     zammadServer.verify();
   }
@@ -164,10 +163,9 @@ class ZammadToNegotiatorFlowIT {
     verify(negotiatorClient)
         .createPost(
             eq(NEGOTIATION_ID),
-            argThat(
-                p ->
-                    SIGNED_POST_TEXT.equals(p.getText())
-                        && PostCreateDTO.TypeEnum.PRIVATE.equals(p.getType())),
+            eq(SIGNED_POST_TEXT),
+            any(),
+            eq(PostType.PRIVATE),
             any(OrganizationConfig.class));
     verify(negotiatorClient)
         .uploadAttachment(
@@ -230,10 +228,9 @@ class ZammadToNegotiatorFlowIT {
     verify(negotiatorClient)
         .createPost(
             eq(NEGOTIATION_ID),
-            argThat(
-                p ->
-                    SIGNED_POST_TEXT_WITH_TRANSITION.equals(p.getText())
-                        && PostCreateDTO.TypeEnum.PRIVATE.equals(p.getType())),
+            eq(SIGNED_POST_TEXT_WITH_TRANSITION),
+            any(),
+            eq(PostType.PRIVATE),
             any(OrganizationConfig.class));
     verify(negotiatorClient)
         .uploadAttachment(
@@ -273,7 +270,7 @@ class ZammadToNegotiatorFlowIT {
 
     postCallback(PER_RESOURCE_ORG, PER_RESOURCE_SECRET, loadFile(PAYLOAD_NEW_INTERNAL_ARTICLE));
 
-    verify(negotiatorClient, never()).createPost(any(), any(), any());
+    verify(negotiatorClient, never()).createPost(any(), any(), any(), any(), any());
   }
 
   @Test
@@ -296,10 +293,9 @@ class ZammadToNegotiatorFlowIT {
     verify(negotiatorClient)
         .createPost(
             eq(NEGOTIATION_ID),
-            argThat(
-                p ->
-                    SIGNED_POST_TEXT.equals(p.getText())
-                        && PostCreateDTO.TypeEnum.PRIVATE.equals(p.getType())),
+            eq(SIGNED_POST_TEXT),
+            any(),
+            eq(PostType.PRIVATE),
             any(OrganizationConfig.class));
     zammadServer.verify();
   }
@@ -387,10 +383,9 @@ class ZammadToNegotiatorFlowIT {
     verify(negotiatorClient)
         .createPost(
             eq(NEGOTIATION_ID),
-            argThat(
-                p ->
-                    SIGNED_POST_TEXT_WITH_TRANSITION.equals(p.getText())
-                        && PostCreateDTO.TypeEnum.PRIVATE.equals(p.getType())),
+            eq(SIGNED_POST_TEXT_WITH_TRANSITION),
+            any(),
+            eq(PostType.PRIVATE),
             any(OrganizationConfig.class));
     verify(negotiatorClient)
         .sendResourceEvent(
@@ -417,7 +412,7 @@ class ZammadToNegotiatorFlowIT {
     postCallback(
         PER_RESOURCE_ORG, PER_RESOURCE_SECRET, loadFile(PAYLOAD_INTERNAL_ARTICLE_AND_TRANSITION));
 
-    verify(negotiatorClient, never()).createPost(any(), any(), any());
+    verify(negotiatorClient, never()).createPost(any(), any(), any(), any(), any());
     verify(negotiatorClient)
         .sendResourceEvent(
             eq(NEGOTIATION_ID), eq(RESOURCE_SOURCE_ID), eq(event), any(OrganizationConfig.class));

@@ -87,6 +87,11 @@ class NegotiationPostAddedHandlerTest {
     when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(configMhh));
     when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), any(OrganizationConfig.class)))
         .thenReturn(createPost(EntityModelPostDTO.TypeEnum.PUBLIC));
+    when(originatedPostRepository.findFirstByTextHashAndValidTicketOrgPairs(
+            eq(POST_TEXT_HASH),
+            aryEq(new String[] {TICKET_A, TICKET_B}),
+            aryEq(new String[] {ORG_EXT_ID, orgExtIdAmc})))
+        .thenReturn(Optional.empty());
 
     List<PendingIntent> intents = handler.handle(postEventData(null)).intents();
 
@@ -100,6 +105,29 @@ class NegotiationPostAddedHandlerTest {
     String expectedPublicText = "Visibility: All request participants\n\n" + POST_TEXT;
     assertThat(readText(intents.getFirst())).isEqualTo(expectedPublicText);
     assertThat(readText(intents.getLast())).isEqualTo(expectedPublicText);
+  }
+
+  @Test
+  void handle_publicOriginatedPost_excludesOriginatingTicket() {
+    var orgExtIdAmc = "bbmri:NL:AMC";
+    var configMhh = createConfig(ORG_EXT_ID);
+    var mappings = List.of(mapping(TICKET_A, "1", ORG_EXT_ID), mapping(TICKET_B, "2", orgExtIdAmc));
+    var originated = new OriginatedPost(POST_TEXT_HASH, ORG_EXT_ID, TICKET_A);
+    when(ticketMappingRepository.findByIdNegotiationId(NEGOTIATION_ID)).thenReturn(mappings);
+    when(registry.findByExternalId(ORG_EXT_ID)).thenReturn(Optional.of(configMhh));
+    when(negotiatorClient.getPost(eq(NEGOTIATION_ID), eq(POST_ID), any(OrganizationConfig.class)))
+        .thenReturn(createPost(EntityModelPostDTO.TypeEnum.PUBLIC));
+    when(originatedPostRepository.findFirstByTextHashAndValidTicketOrgPairs(
+            eq(POST_TEXT_HASH),
+            aryEq(new String[] {TICKET_A, TICKET_B}),
+            aryEq(new String[] {ORG_EXT_ID, orgExtIdAmc})))
+        .thenReturn(Optional.of(originated));
+
+    HandlerResult result = handler.handle(postEventData(null));
+
+    assertThat(result.intents()).extracting(PendingIntent::targetId).containsExactly(TICKET_B);
+    assertThat(result.originatedPost()).isPresent();
+    assertThat(result.originatedPost().get().getTicketId()).isEqualTo(TICKET_A);
   }
 
   @Test

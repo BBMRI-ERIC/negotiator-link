@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
@@ -22,6 +23,7 @@ import eu.bbmri_eric.negotiator.negotiatorlink.common.config.TicketStrategy;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.Attachment;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.CommentType;
 import eu.bbmri_eric.negotiator.negotiatorlink.common.model.HelpdeskAttachmentRef;
+import eu.bbmri_eric.negotiator.negotiatorlink.common.model.PostType;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.client.NegotiatorClient;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.config.OrganizationConfigRegistry;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.entity.OriginatedPost;
@@ -49,7 +51,6 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.OriginatedPostRep
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.AttachmentForwardingService;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.util.HashUtil;
-import eu.bbmri_eric.negotiator.negotiatorlink.generated.model.PostCreateDTO;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.List;
 import java.util.Map;
@@ -243,17 +244,32 @@ class OutboxIntentDispatcherTest {
     dispatcher.dispatch(
         intent(
             OutboxIntentType.CREATE_POST,
-            new CreatePostPayload(NEGOTIATION_ID, TICKET_ID, SIGNED_TEXT, List.of())));
+            new CreatePostPayload(
+                NEGOTIATION_ID, TICKET_ID, SIGNED_TEXT, List.of(), PostType.PRIVATE)));
 
     verify(negotiatorClient)
         .createPost(
-            eq(NEGOTIATION_ID),
-            argThat(
-                (PostCreateDTO p) ->
-                    SIGNED_TEXT.equals(p.getText())
-                        && PostCreateDTO.TypeEnum.PRIVATE.equals(p.getType())
-                        && ORG_EXT_ID.equals(p.getOrganizationId())),
-            eq(config));
+            eq(NEGOTIATION_ID), eq(SIGNED_TEXT), eq(ORG_EXT_ID), eq(PostType.PRIVATE), eq(config));
+  }
+
+  @Test
+  void dispatch_createPost_publicType_createsPublicPost() {
+    when(originatedPostRepository
+            .findFirstByTextHashAndOrganizationExtIdAndTicketIdOrderByCreatedAtAsc(
+                HashUtil.sha256Hex(SIGNED_TEXT), ORG_EXT_ID, TICKET_ID))
+        .thenReturn(
+            Optional.of(
+                new OriginatedPost(HashUtil.sha256Hex(SIGNED_TEXT), ORG_EXT_ID, TICKET_ID)));
+
+    dispatcher.dispatch(
+        intent(
+            OutboxIntentType.CREATE_POST,
+            new CreatePostPayload(
+                NEGOTIATION_ID, TICKET_ID, SIGNED_TEXT, List.of(), PostType.PUBLIC)));
+
+    verify(negotiatorClient)
+        .createPost(
+            eq(NEGOTIATION_ID), eq(SIGNED_TEXT), eq(ORG_EXT_ID), eq(PostType.PUBLIC), eq(config));
   }
 
   @Test
@@ -266,9 +282,10 @@ class OutboxIntentDispatcherTest {
     dispatcher.dispatch(
         intent(
             OutboxIntentType.CREATE_POST,
-            new CreatePostPayload(NEGOTIATION_ID, TICKET_ID, SIGNED_TEXT, List.of())));
+            new CreatePostPayload(
+                NEGOTIATION_ID, TICKET_ID, SIGNED_TEXT, List.of(), PostType.PRIVATE)));
 
-    verify(negotiatorClient, never()).createPost(any(), any(), any());
+    verify(negotiatorClient, never()).createPost(any(), any(), any(), any(), any());
     verify(helpdeskClient, never()).downloadAttachment(any(), any());
     verify(negotiatorClient, never()).uploadAttachment(any(), any(), any(), any());
   }
@@ -293,12 +310,14 @@ class OutboxIntentDispatcherTest {
     dispatcher.dispatch(
         intent(
             OutboxIntentType.CREATE_POST,
-            new CreatePostPayload(NEGOTIATION_ID, TICKET_ID, SIGNED_TEXT, List.of(refA, refB))));
+            new CreatePostPayload(
+                NEGOTIATION_ID, TICKET_ID, SIGNED_TEXT, List.of(refA, refB), PostType.PRIVATE)));
 
     var inOrder = inOrder(negotiatorClient, helpdeskClient);
     inOrder
         .verify(negotiatorClient)
-        .createPost(eq(NEGOTIATION_ID), any(PostCreateDTO.class), eq(config));
+        .createPost(
+            eq(NEGOTIATION_ID), eq(SIGNED_TEXT), eq(ORG_EXT_ID), eq(PostType.PRIVATE), eq(config));
     inOrder
         .verify(helpdeskClient)
         .downloadAttachment("/api/v1/ticket_attachment/391/2875/668", config);
@@ -322,6 +341,33 @@ class OutboxIntentDispatcherTest {
             eq(NEGOTIATION_ID),
             argThat((Attachment a) -> "b.csv".equals(a.filename())),
             eq(ORG_EXT_ID),
+            eq(config));
+  }
+
+  @Test
+  void dispatch_createPost_publicWithAttachments_uploadsAttachmentsUnscoped() {
+    when(originatedPostRepository
+            .findFirstByTextHashAndOrganizationExtIdAndTicketIdOrderByCreatedAtAsc(
+                HashUtil.sha256Hex(SIGNED_TEXT), ORG_EXT_ID, TICKET_ID))
+        .thenReturn(
+            Optional.of(
+                new OriginatedPost(HashUtil.sha256Hex(SIGNED_TEXT), ORG_EXT_ID, TICKET_ID)));
+    var ref =
+        new HelpdeskAttachmentRef("/api/v1/ticket_attachment/391/2875/668", "a.csv", "text/csv");
+    when(helpdeskClient.downloadAttachment("/api/v1/ticket_attachment/391/2875/668", config))
+        .thenReturn("AAA".getBytes());
+
+    dispatcher.dispatch(
+        intent(
+            OutboxIntentType.CREATE_POST,
+            new CreatePostPayload(
+                NEGOTIATION_ID, TICKET_ID, SIGNED_TEXT, List.of(ref), PostType.PUBLIC)));
+
+    verify(negotiatorClient)
+        .uploadAttachment(
+            eq(NEGOTIATION_ID),
+            argThat((Attachment a) -> "a.csv".equals(a.filename())),
+            isNull(),
             eq(config));
   }
 
