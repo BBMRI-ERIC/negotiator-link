@@ -10,12 +10,10 @@ import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.OutboxIntentType
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.PendingIntent;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.TargetKind;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.AddSystemCommentPayload;
-import eu.bbmri_eric.negotiator.negotiatorlink.core.reliability.payload.SetStatePayload;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.repository.TicketMappingRepository;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.ResourceTransitionService;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.ResourceTransitionService.InvalidResource;
 import eu.bbmri_eric.negotiator.negotiatorlink.core.service.ResourceTransitionService.TransitionResult;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -51,38 +49,20 @@ public class HelpdeskResourceTransitionHandler
       return HandlerResult.of(result.intents());
     }
 
+    // rejection path
     String negotiationId = mappings.getFirst().getId().getNegotiationId();
     var rejection = result.rejection().get();
     String systemComment =
         buildRejectionMessage(requestedEvent, rejection.invalidResources(), rejection.allInvalid());
-    List<PendingIntent> intents = new ArrayList<>();
-    intents.add(
-        ticketIntent(
-            OutboxIntentType.SET_RESOURCE_STATE,
-            ticketId,
-            negotiationId,
-            config,
-            serialize(
-                new SetStatePayload(
-                    SetStatePayload.FIELD_RESOURCE_STATE, transitionEvent.resourceState()))));
-    intents.add(
-        ticketIntent(
+    PendingIntent commentIntent =
+        new PendingIntent(
             OutboxIntentType.ADD_SYSTEM_COMMENT,
+            TargetKind.TICKET,
             ticketId,
             negotiationId,
-            config,
-            serialize(new AddSystemCommentPayload(systemComment))));
-    return HandlerResult.of(intents);
-  }
-
-  private PendingIntent ticketIntent(
-      OutboxIntentType type,
-      String ticketId,
-      String negotiationId,
-      OrganizationConfig config,
-      String payload) {
-    return new PendingIntent(
-        type, TargetKind.TICKET, ticketId, negotiationId, config.organizationExternalId(), payload);
+            config.organizationExternalId(),
+            serialize(new AddSystemCommentPayload(systemComment)));
+    return HandlerResult.of(List.of(commentIntent));
   }
 
   private static String buildRejectionMessage(
