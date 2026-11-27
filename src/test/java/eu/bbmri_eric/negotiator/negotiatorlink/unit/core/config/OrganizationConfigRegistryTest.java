@@ -73,6 +73,26 @@ class OrganizationConfigRegistryTest {
   }
 
   @Test
+  void constructor_whenCredentialsEmpty_throws() {
+    var entry = zammadEntry();
+    entry.setCredentials(new HashMap<>());
+    assertThatThrownBy(() -> new OrganizationConfigRegistry(propsWithEntry(entry)))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining(ORG_EXTERNAL_ID)
+        .hasMessageContaining("credentials");
+  }
+
+  @Test
+  void constructor_whenRequiredCredentialKeyMissing_throws() {
+    var entry = zammadEntry();
+    entry.setCredentials(new HashMap<>(Map.of("wrongKey", "value")));
+    assertThatThrownBy(() -> new OrganizationConfigRegistry(propsWithEntry(entry)))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining(ORG_EXTERNAL_ID)
+        .hasMessageContaining("apiToken");
+  }
+
+  @Test
   void constructor_whenGroupAsRequiredPlatformConfigKeyMissing_throws() {
     var entry = zammadEntry();
     entry.setPlatformConfig(Map.of("botEmail", "someMail@test.com"));

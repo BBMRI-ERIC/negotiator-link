@@ -22,6 +22,9 @@ public class OrganizationConfigRegistry {
   private static final Map<HelpdeskType, Set<String>> REQUIRED_PLATFORM_KEYS =
       Map.of(HelpdeskType.ZAMMAD, Set.of("group", "botEmail"));
 
+  private static final Map<HelpdeskType, Set<String>> REQUIRED_CREDENTIAL_KEYS =
+      Map.of(HelpdeskType.ZAMMAD, Set.of("apiToken"));
+
   private final List<OrganizationConfig> configs;
 
   public OrganizationConfigRegistry(NegotiatorLinkProperties properties) {
@@ -102,6 +105,19 @@ public class OrganizationConfigRegistry {
       if (StringUtils.isBlank(config.callbackSecret())) {
         throw new IllegalStateException(
             "Organization '%s': callbackSecret must not be blank".formatted(orgId));
+      }
+      if (config.credentials().isEmpty()) {
+        throw new IllegalStateException(
+            "Organization '%s': credentials must not be empty".formatted(orgId));
+      }
+      Set<String> requiredCredentialKeys =
+          REQUIRED_CREDENTIAL_KEYS.getOrDefault(config.type(), Set.of());
+      for (String key : requiredCredentialKeys) {
+        if (StringUtils.isBlank(config.credentials().get(key))) {
+          throw new IllegalStateException(
+              "Organization '%s': credentials.%s is required for type %s"
+                  .formatted(orgId, key, config.type()));
+        }
       }
       for (Map.Entry<String, String> credential : config.credentials().entrySet()) {
         if (StringUtils.isBlank(credential.getValue())) {
